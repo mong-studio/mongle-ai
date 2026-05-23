@@ -10,7 +10,6 @@ from agents.character_creation.graph import build_graph
 from agents.character_creation.schemas import CharacterCreationInput, SourceImage
 from agents.character_creation.state import CharacterGraphState
 from tests.agents.character_creation.fakes import (
-    FakeCounter,
     FakeImageGenerator,
     FakeLLM,
     FakeRepository,
@@ -25,7 +24,6 @@ class _Ports:
         self.vlm = kw.get("vlm") or FakeVLM()
         self.s3 = kw.get("s3") or FakeS3()
         self.image_generator = kw.get("image_generator") or FakeImageGenerator()
-        self.counter = kw.get("counter") or FakeCounter()
         self.repository = kw.get("repository") or FakeRepository()
 
 

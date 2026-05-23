@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-import json
-from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from adapters.character_creation.openai_vlm import OpenAIVLM
 from agents.character_creation.exceptions import VLMFailedError
-from agents.character_creation.schemas import SourceImage
+from agents.character_creation.schemas import SourceImage, VLMResult
 
 
-def _completion(content: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+def _make_runnable(result: object | None = None, *, side_effect: object = None) -> MagicMock:
+    runnable = MagicMock()
+    if side_effect is not None:
+        runnable.ainvoke = AsyncMock(side_effect=side_effect)
+    else:
+        runnable.ainvoke = AsyncMock(return_value=result)
+    return runnable
 
 
 def _image(content_type: str = "image/png", size: int = 1024) -> SourceImage:
@@ -23,44 +25,43 @@ def _image(content_type: str = "image/png", size: int = 1024) -> SourceImage:
 
 @pytest.mark.asyncio
 async def test_extract_returns_appearance_description() -> None:
-    client = MagicMock()
-    client.chat.completions.create.return_value = _completion(
-        json.dumps({"appearance_description": "갈색 털의 작은 강아지. 빨간 목줄을 했다."})
-    )
-    vlm = OpenAIVLM(client=client, model="gpt-4o")
+    expected = VLMResult(appearance_description="갈색 털의 작은 강아지. 빨간 목줄을 했다.")
+    runnable = _make_runnable(expected)
+    vlm = OpenAIVLM(runnable=runnable)
+
     result = await vlm.extract_appearance(_image())
-    assert result.appearance_description.startswith("갈색")
+
+    assert result == expected
 
 
 @pytest.mark.asyncio
 async def test_extract_sends_base64_image_url() -> None:
-    client = MagicMock()
-    client.chat.completions.create.return_value = _completion(
-        json.dumps({"appearance_description": "x" * 10})
-    )
-    vlm = OpenAIVLM(client=client, model="gpt-4o")
+    expected = VLMResult(appearance_description="x" * 10)
+    runnable = _make_runnable(expected)
+    vlm = OpenAIVLM(runnable=runnable)
+
     await vlm.extract_appearance(_image(content_type="image/jpeg"))
 
-    msgs = client.chat.completions.create.call_args.kwargs["messages"]
-    user_content = msgs[1]["content"]
+    messages = runnable.ainvoke.call_args.args[0]
+    assert isinstance(messages[0], SystemMessage)
+    assert isinstance(messages[1], HumanMessage)
+    user_content = messages[1].content
     assert isinstance(user_content, list)
     image_block = next(b for b in user_content if b.get("type") == "image_url")
     assert image_block["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
 @pytest.mark.asyncio
-async def test_extract_raises_on_invalid_json() -> None:
-    client = MagicMock()
-    client.chat.completions.create.return_value = _completion("garbage")
-    vlm = OpenAIVLM(client=client, model="gpt-4o")
+async def test_extract_raises_on_wrong_type() -> None:
+    runnable = _make_runnable({"appearance_description": "x"})
+    vlm = OpenAIVLM(runnable=runnable)
     with pytest.raises(VLMFailedError):
         await vlm.extract_appearance(_image())
 
 
 @pytest.mark.asyncio
-async def test_extract_wraps_client_exception() -> None:
-    client = MagicMock()
-    client.chat.completions.create.side_effect = RuntimeError("boom")
-    vlm = OpenAIVLM(client=client, model="gpt-4o")
+async def test_extract_wraps_runnable_exception() -> None:
+    runnable = _make_runnable(side_effect=RuntimeError("boom"))
+    vlm = OpenAIVLM(runnable=runnable)
     with pytest.raises(VLMFailedError):
         await vlm.extract_appearance(_image())

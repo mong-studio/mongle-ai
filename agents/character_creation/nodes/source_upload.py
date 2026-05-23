@@ -10,9 +10,9 @@ async def source_upload_node(
     state: CharacterGraphState, config: dict[str, Any]
 ) -> dict[str, Any]:
     ports = config["configurable"]["ports"]
-    image = state.input.source_image
+    image = state["input"].source_image
     assert image is not None
-    key = key_for(state.input.user_id, image.content_type, prefix="sources")
+    key = key_for(state["input"].user_id, image.content_type, prefix="sources")
     url = await put_once(
         ports.s3, key=key, body=image.data, content_type=image.content_type
     )

@@ -25,23 +25,12 @@ from agents.character_creation.state import CharacterGraphState
 def _ok_or_cleanup(next_ok: str):
     """Return a conditional-edges router: go to next_ok on success, else cleanup."""
     def _route(state: CharacterGraphState) -> str:
-        return "cleanup_source_image" if state.error is not None else next_ok
+        return "cleanup_source_image" if state.get("error") is not None else next_ok
     return _route
 
 
 def _ok_or_cleanup_end(state: CharacterGraphState) -> str:
-    return "cleanup_source_image" if state.error is not None else END
-
-
-# ---------------------------------------------------------------------------
-# No-op node for the text-only path so image_generator always has two resolved
-# predecessors regardless of which branch was taken.
-# ---------------------------------------------------------------------------
-
-async def _vlm_skip_node(state: CharacterGraphState, config: object) -> dict:
-    """Placeholder that satisfies the vlm_analyzer → image_generator fan-in
-    when no source image is provided. Returns an empty update."""
-    return {}
+    return "cleanup_source_image" if state.get("error") is not None else END
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +53,6 @@ def build_graph():
         retry=RetryPolicy(max_attempts=4, retry_on=S3UploadFailedError),
     )
     g.add_node("vlm_analyzer", vlm_analyzer_node)
-    g.add_node("vlm_skip", _vlm_skip_node)
     g.add_node("image_generator", image_generator_node)
     g.add_node("generated_upload", generated_upload_node)
     g.add_node("builder", builder_node)
@@ -73,23 +61,38 @@ def build_graph():
     # ---- edges ----
     g.add_edge(START, "validate")
 
-    # validate fans out based on whether a source image was provided
-    g.add_conditional_edges("validate", decide)
+    # validate fans out based on whether a source image was provided.
+    # image-and-text: source_upload → vlm_analyzer; text-only: vlm_analyzer 직행.
+    g.add_conditional_edges(
+        "validate",
+        decide,
+        ["llm_persona", "source_upload", "vlm_analyzer"],
+    )
 
-    # image-and-text path: source_upload → vlm_analyzer → image_generator
+    # source_upload → vlm_analyzer → image_generator (image-and-text path).
+    # text-only path 는 conditional_edges 에서 vlm_analyzer 로 직접 진입한다.
     g.add_edge("source_upload", "vlm_analyzer")
     g.add_edge("vlm_analyzer", "image_generator")
-
-    # text-only path: vlm_skip → image_generator (dummy to satisfy fan-in)
-    g.add_edge("vlm_skip", "image_generator")
 
     # llm_persona always feeds into image_generator (fan-in with vlm branch)
     g.add_edge("llm_persona", "image_generator")
 
     # downstream pipeline with compensation routing on error
-    g.add_conditional_edges("image_generator", _ok_or_cleanup("generated_upload"))
-    g.add_conditional_edges("generated_upload", _ok_or_cleanup("builder"))
-    g.add_conditional_edges("builder", _ok_or_cleanup_end)
+    g.add_conditional_edges(
+        "image_generator",
+        _ok_or_cleanup("generated_upload"),
+        ["generated_upload", "cleanup_source_image"],
+    )
+    g.add_conditional_edges(
+        "generated_upload",
+        _ok_or_cleanup("builder"),
+        ["builder", "cleanup_source_image"],
+    )
+    g.add_conditional_edges(
+        "builder",
+        _ok_or_cleanup_end,
+        ["cleanup_source_image", END],
+    )
     g.add_edge("cleanup_source_image", END)
 
     return g.compile()

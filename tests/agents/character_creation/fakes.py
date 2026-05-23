@@ -102,15 +102,6 @@ class FakeImageGenerator:
 
 
 @dataclass
-class FakeCounter:
-    today: int = 0
-
-    async def increment(self, user_id: str) -> int:
-        self.today += 1
-        return self.today
-
-
-@dataclass
 class FakeRepository:
     active_count: int = 0
     regen_count_today: int = 0
@@ -121,6 +112,10 @@ class FakeRepository:
         return self.active_count
 
     async def today_regen_count(self, user_id: str) -> int:
+        return self.regen_count_today
+
+    async def increment(self, user_id: str) -> int:
+        self.regen_count_today += 1
         return self.regen_count_today
 
     async def save(self, entity: CharacterEntity) -> None:

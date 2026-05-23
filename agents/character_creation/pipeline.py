@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
+from agents.character_creation.debug import log_end, log_start, log_step
 from agents.character_creation.graph import build_graph
 from agents.character_creation.protocols import (
     CharacterRepositoryPort,
     ImageGeneratorPort,
     LLMPort,
-    RegenerationCounterPort,
     S3Port,
     VLMPort,
 )
@@ -22,7 +23,6 @@ class Ports:
     vlm: VLMPort
     s3: S3Port
     image_generator: ImageGeneratorPort
-    counter: RegenerationCounterPort
     repository: CharacterRepositoryPort
 
 
@@ -36,10 +36,26 @@ async def run(
     is_regeneration: bool,
     now: datetime | None = None,
 ) -> CharacterEntity:
-    initial = CharacterGraphState(input=input, is_regeneration=is_regeneration)
-    final = await _GRAPH.ainvoke(
-        initial, config={"configurable": {"ports": ports, "now": now}}
-    )
-    entity = final["entity"] if isinstance(final, dict) else final.entity
+    initial: CharacterGraphState = {"input": input, "is_regeneration": is_regeneration}
+    config = {"configurable": {"ports": ports, "now": now}}
+
+    log_start(input, is_regeneration)
+
+    final: Any = None
+    step = 0
+    async for mode, chunk in _GRAPH.astream(
+        initial, config=config, stream_mode=["updates", "values"]
+    ):
+        if mode == "updates":
+            for node_name, update in chunk.items():
+                step += 1
+                log_step(step, node_name, update)
+        elif mode == "values":
+            final = chunk
+
+    log_end(final)
+
+    assert final is not None
+    entity = final["entity"]
     assert entity is not None
     return entity

@@ -20,7 +20,7 @@ def _state(*, with_image: bool) -> CharacterGraphState:
 
 
 def test_decide_text_only_when_no_image() -> None:
-    assert decide(_state(with_image=False)) == ["llm_persona", "vlm_skip"]
+    assert decide(_state(with_image=False)) == ["llm_persona", "vlm_analyzer"]
 
 
 def test_decide_image_and_text_when_image_present() -> None:

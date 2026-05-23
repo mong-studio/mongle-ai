@@ -3,8 +3,24 @@ from __future__ import annotations
 import asyncio
 import sys
 import traceback
+import warnings
 from datetime import date
 from pathlib import Path
+
+# langgraph 가 import 시 langchain-core 의 Reviver 를 인자 없이 생성하여
+# LangChainPendingDeprecationWarning 을 띄운다. 라이브러리 내부 호출이라
+# 사용자가 인자를 넘길 수 없으므로 import 전에 필터링한다.
+# langchain_core._api.deprecation 은 import 시 자체 'default' 필터를 등록하므로
+# 더 구체적인 서브클래스로 ignore 를 지정해야 우선 적용된다.
+from langchain_core._api.deprecation import (  # noqa: E402
+    LangChainPendingDeprecationWarning,
+)
+
+warnings.filterwarnings(
+    "ignore",
+    message="The default value of `allowed_objects` will change",
+    category=LangChainPendingDeprecationWarning,
+)
 
 # Streamlit는 프로젝트 루트가 sys.path에 없는 상태로 실행되므로 임포트 전에 주입한다.
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]

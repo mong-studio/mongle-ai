@@ -11,8 +11,7 @@ flowchart TB
     • 일일 재생성 ≤3회
     • 이미지 형식/용량"]
     V -- 실패 --> VE[/"ValidationFailedError"/]
-    V -- "route = text_only" --> SKIP["vlm_skip_node
-    (fan-in 정렬용 더미)"]
+    V -- "route = text_only" --> VLM
     V -- "route = text_only" --> LLM
     V -- "route = image_and_text" --> SRC["source_upload_node
     원본 이미지 → S3 sources/
@@ -21,11 +20,11 @@ flowchart TB
     LLM 호출 1회
     RetryPolicy(max=3, LLMFailedError)"]
     SRC --> VLM["vlm_analyzer_node
-    VLM 호출 최대 3회 (노드 내부)
+    source_image 없으면 즉시 vlm_result=None
+    있으면 VLM 호출 최대 3회 (노드 내부)
     실패 시 vlm_result = None"]
     LLM --> IG
-    VLM --> IG
-    SKIP --> IG["image_generator_node
+    VLM --> IG["image_generator_node
     counter.increment + 1회 호출
     RetryPolicy(max=2, ImageGenerationFailedError)
     실패 시 state.error 기록"]
@@ -46,7 +45,6 @@ flowchart TB
      A:::input
      V:::validation
      VE:::error
-     SKIP:::process
      SRC:::storage
      LLM:::ai
      VLM:::ai

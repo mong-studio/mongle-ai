@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from pydantic import ValidationError
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from adapters.character_creation._prompts import load as load_prompt
 from agents.character_creation.exceptions import LLMFailedError
@@ -12,18 +11,16 @@ from agents.character_creation.schemas import LLMPersonaResult, PersonalityKeywo
 _SYSTEM_PROMPT = load_prompt("llm_persona_v1")
 
 
-def _strict_schema() -> dict[str, Any]:
-    schema = LLMPersonaResult.model_json_schema()
-    schema["additionalProperties"] = False
-    return schema
-
-
 class OpenAILLM:
-    """Implements LLMPort using OpenAI Chat Completions + Structured Outputs."""
+    """Implements LLMPort via a LangChain Runnable that yields LLMPersonaResult.
 
-    def __init__(self, *, client: Any, model: str = "gpt-4o") -> None:
-        self._client = client
-        self._model = model
+    The runnable is expected to be
+    ``ChatOpenAI(model=...).with_structured_output(LLMPersonaResult, method="json_schema", strict=True)``
+    so the LangChain stack enforces the Pydantic schema end-to-end.
+    """
+
+    def __init__(self, *, runnable: Any) -> None:
+        self._runnable = runnable
 
     async def generate_persona(
         self,
@@ -38,31 +35,17 @@ class OpenAILLM:
         )
 
         try:
-            response = self._client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": user_msg},
-                ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "LLMPersonaResult",
-                        "schema": _strict_schema(),
-                        "strict": True,
-                    },
-                },
+            result = await self._runnable.ainvoke(
+                [
+                    SystemMessage(content=_SYSTEM_PROMPT),
+                    HumanMessage(content=user_msg),
+                ]
             )
         except Exception as err:
-            raise LLMFailedError(f"OpenAI call failed: {err}") from err
+            raise LLMFailedError(f"LangChain LLM call failed: {err}") from err
 
-        content = response.choices[0].message.content
-        try:
-            data = json.loads(content)
-        except (TypeError, json.JSONDecodeError) as err:
-            raise LLMFailedError(f"Invalid JSON from LLM: {content!r}") from err
-
-        try:
-            return LLMPersonaResult(**data)
-        except ValidationError as err:
-            raise LLMFailedError(f"Schema mismatch: {err}") from err
+        if not isinstance(result, LLMPersonaResult):
+            raise LLMFailedError(
+                f"Structured output returned wrong type: {type(result).__name__}"
+            )
+        return result
