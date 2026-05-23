@@ -1,0 +1,62 @@
+---
+config:
+  layout: elk
+---
+flowchart TB
+    A[/"Input
+    당일 TODO 목록
+    사용자 보유 캐릭터 목록
+    남은 일일 생성 가능 수"/]
+
+    A --> CAP["처리 대상 결정
+    TODO 수와 남은 생성 가능 수 중 작은 값만큼 처리"]
+
+    CAP --> INIT["캐릭터 풀 초기화
+    보유 캐릭터 전체를 무작위 순서로 풀에 채움"]
+
+    INIT --> LP["다음 TODO 처리 시작"]
+
+    LP --> PC{"풀이 비어있음?"}
+    PC -- yes (라운드 종료) --> REFILL["풀 리셋
+    보유 캐릭터 전체를 무작위 순서로 다시 채움"]
+    REFILL --> CS
+    PC -- no --> CS["캐릭터 선택
+    풀에서 한 명 꺼냄 (풀에서 제거)"]
+
+    CS --> CTX["퀘스트 컨텍스트 조립
+    선택된 캐릭터 프로필만 포함
+    ※ TODO 내용은 포함하지 않음"]
+
+    CTX --> LLM{{"LLM
+    캐릭터 페르소나 / 외형 기반
+    퀘스트 텍스트 생성"}}
+
+    LLM -- 성공 --> APPEND["성공 결과에 누적"]
+    LLM -- 실패 (재시도 소진) --> SKIP["실패 결과에 누적
+    (사유: LLM 실패)"]
+
+    APPEND --> NEXT{"처리할 TODO가 더 있음?"}
+    SKIP --> NEXT
+    NEXT -- yes --> LP
+    NEXT -- no --> OUT[/"Output
+    성공 퀘스트 목록 + 실패 항목 목록"/]
+
+    classDef input fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef process fill:#ffffff,stroke:#6b7280,color:#111827
+    classDef ai fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+    classDef gate fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+    classDef skip fill:#fecaca,stroke:#dc2626,color:#7f1d1d
+
+    A:::input
+    OUT:::input
+    CAP:::process
+    INIT:::process
+    LP:::process
+    PC:::gate
+    REFILL:::process
+    CS:::process
+    CTX:::process
+    LLM:::ai
+    APPEND:::process
+    SKIP:::skip
+    NEXT:::gate

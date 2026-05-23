@@ -1,0 +1,117 @@
+---
+config:
+  layout: fixed
+---
+flowchart TB
+ subgraph SINGLE["싱글턴 TODO 생성"]
+    direction TB
+        SA@{ label: "User Input\n        자연어 프롬프트 (≤200자)\n        예: '오전 코테 3개, 저녁 면접 스터디, 3일 뒤 발표'" }
+        SV{"Validation
+        • 길이 ≤200자
+        • 빈 입력 차단"}
+        SVE[/"에러 응답"/]
+        SL["LLM
+        프롬프트 → task 단위 분할
+        각 task에 due_date 추론
+        (today 컨텍스트 주입)"]
+        SR{"날짜 라우팅
+        task별 due_date == today?"}
+        STD["오늘의 TODO 후보"]
+        SCD["캘린더 일정 후보"]
+        SE["사용자 확인/수정 UI"]
+        SC["저장 디스패처"]
+  end
+ subgraph MULTI["멀티턴 TODO/플랜 생성"]
+    direction TB
+        MA@{ label: "User Input\n        장기 플랜 자연어 (≤600자)\n        예: '3일 후 정보처리기사 시험'" }
+        MV{"Validation
+        • 길이 ≤600자
+        • 한국어 위주"}
+        MVE[/"에러 응답"/]
+        MPS["LLM (Planner)
+        의도 파악 → 충분/부족 판정"]
+        MQ{"정보 충분?"}
+        MFU["LLM
+        꼬리 질문 생성
+        (목표/시간/난이도 등)"]
+        MAU[/"사용자 답변
+        (멀티턴, ≤600자)"/]
+        MPG["LLM (Plan Generator)
+        일자별 플랜 생성
+        (≤1500자)"]
+        MTG["LLM (Tagger)
+        목표 기반 태그 부여"]
+        ME["사용자 확인/수정/삭제 UI"]
+        MC["저장 디스패처"]
+  end
+ subgraph COMMIT["저장 & 후처리"]
+    direction TB
+        DB1[("TODO DB")]
+        DB2[("Calendar DB")]
+        QA{"퀘스트 분배 트리거
+        당일 TODO 생성/확정?
+        일일 카운트 &lt; 5?"}
+        QAGENT["캐릭터 퀘스트 분배 Agent"]
+        END_OK[/"완료 응답"/]
+  end
+    SA --> SV
+    SV -- 실패 --> SVE
+    SV -- 통과 --> SL
+    SL --> SR
+    SR -- today --> STD
+    SR -- future --> SCD
+    STD --> SE
+    SCD --> SE
+    SE -- 확정 --> SC
+    MA --> MV
+    MV -- 실패 --> MVE
+    MV -- 통과 --> MPS
+    MPS --> MQ
+    MQ -- 부족 --> MFU
+    MFU --> MAU
+    MAU --> MPS
+    MQ -- 충분 --> MPG
+    MPG --> MTG
+    MTG --> ME
+    ME -- 멀티턴 추가 요청 --> MPS
+    ME -- 확정 --> MC
+    SC --> COMMIT
+    MC --> COMMIT
+    QA -- yes --> QAGENT
+    QA -- no --> END_OK
+    QAGENT --> END_OK
+
+    SA@{ shape: lean-r}
+    MA@{ shape: lean-r}
+     SA:::input
+     SV:::validation
+     SVE:::error
+     SL:::ai
+     SR:::process
+     STD:::process
+     SCD:::process
+     SE:::ui
+     SC:::process
+     MA:::input
+     MV:::validation
+     MVE:::error
+     MPS:::ai
+     MQ:::process
+     MFU:::ai
+     MAU:::input
+     MPG:::ai
+     MTG:::ai
+     ME:::ui
+     MC:::process
+     DB1:::storage
+     DB2:::storage
+     QA:::process
+     QAGENT:::ai
+     END_OK:::input
+    classDef input fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef validation fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+    classDef error fill:#fecaca,stroke:#dc2626,color:#7f1d1d
+    classDef process fill:#ffffff,stroke:#6b7280,color:#111827
+    classDef ai fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+    classDef storage fill:#bae6fd,stroke:#0284c7,color:#0c4a6e
+    classDef ui fill:#dcfce7,stroke:#16a34a,color:#14532d

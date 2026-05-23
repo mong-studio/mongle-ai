@@ -1,0 +1,42 @@
+---
+config:
+  layout: elk
+---
+flowchart TB
+    A[/"Input
+    퀘스트 정보
+    캐릭터 정보 (페르소나 / 외형 / 말투 / 이름)"/]
+
+    A --> CTX1["이미지 생성 컨텍스트 조립
+    퀘스트 + 캐릭터 외형 / 페르소나"]
+
+    CTX1 --> VLM{{"VLM
+    캐릭터가 퀘스트를 수행하는
+    이미지 생성"}}
+
+    VLM --> CTX2["캡션 컨텍스트 조립
+    퀘스트 + 캐릭터 말투 / 페르소나
+    + 생성된 이미지 묘사"]
+
+    CTX2 --> LLM{{"LLM
+    캐릭터 말투로
+    1~2줄 캡션 생성
+    (한글 140자 이내)"}}
+
+    LLM --> BUILD["피드 객체 구성
+    이미지 + 캡션 + 캐릭터 id"]
+
+    BUILD --> OUT[/"Output
+    GeneratedFeed"/]
+
+    classDef input fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef process fill:#ffffff,stroke:#6b7280,color:#111827
+    classDef ai fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+
+    A:::input
+    OUT:::input
+    CTX1:::process
+    VLM:::ai
+    CTX2:::process
+    LLM:::ai
+    BUILD:::process
