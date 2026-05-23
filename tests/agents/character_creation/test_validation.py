@@ -4,7 +4,7 @@ import pytest
 
 from agents.character_creation.exceptions import ValidationFailedError
 from agents.character_creation.schemas import CharacterCreationInput, SourceImage
-from agents.character_creation.validation import check
+from agents.character_creation.nodes.validate import check
 from tests.agents.character_creation.fakes import FakeRepository
 
 
