@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+from uuid import uuid4
+
+from agents.character_creation.schemas import (
+    CharacterCreationInput,
+    CharacterEntity,
+    LLMPersonaResult,
+    VLMResult,
+)
+from agents.character_creation.state import CharacterGraphState
+
+
+def build(
+    *,
+    input: CharacterCreationInput,
+    llm_result: LLMPersonaResult,
+    vlm_result: VLMResult | None,
+    generated_image_url: str,
+    source_image_url: str | None,
+    now: datetime,
+) -> CharacterEntity:
+    return CharacterEntity(
+        character_id=uuid4(),
+        user_id=input.user_id,
+        name=input.name,
+        persona=input.persona,
+        personality=llm_result.personality,
+        speech_style=llm_result.speech_style,
+        background=llm_result.background,
+        image_url=generated_image_url,
+        source_image_url=source_image_url,
+        appearance_description=vlm_result.appearance_description if vlm_result else None,
+        created_at=now,
+    )
+
+
+async def builder_node(
+    state: CharacterGraphState, config: dict[str, Any]
+) -> dict[str, Any]:
+    now = config["configurable"].get("now") or datetime.now(tz=UTC)
+    try:
+        assert state.llm_result is not None
+        assert state.generated_url is not None
+        entity = build(
+            input=state.input,
+            llm_result=state.llm_result,
+            vlm_result=state.vlm_result,
+            generated_image_url=state.generated_url,
+            source_image_url=state.source_url,
+            now=now,
+        )
+    except Exception as err:
+        return {"error": err}
+    return {"entity": entity}
