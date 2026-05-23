@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtualenv
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Local tool state
+.omc/
+.reports/
+.ruff_cache/
+
+# Data (synced via S3 — see data/README.md)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/
+data/interim/
