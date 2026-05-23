@@ -149,7 +149,7 @@ agents/character_creation/
 ├── graph.py                # StateGraph 정의 + 컴파일 (build_graph)
 ├── state.py                # CharacterGraphState (Pydantic)
 ├── validation.py           # 4.1 검증 헬퍼 (validate_node 가 호출)
-├── router.py               # decide(state) -> list[str] (vlm_skip 포함 fan-out 단일 소스, graph.py 에서 import)
+├── router.py               # decide(state) -> list[str] (text_only=vlm_analyzer 직행, image_and_text=source_upload 경유, graph.py 에서 import)
 ├── protocols.py            # Port 인터페이스 (변경 없음)
 ├── nodes/
 │   ├── validate.py         # 4.1 validate_node
@@ -223,8 +223,7 @@ def build_graph():
                retry=RetryPolicy(max_attempts=3, retry_on=LLMFailedError))
     g.add_node("source_upload", source_upload_node,
                retry=RetryPolicy(max_attempts=4, retry_on=S3UploadFailedError))
-    g.add_node("vlm_analyzer", vlm_analyzer_node)        # 내부 3회 retry + None 폴백
-    g.add_node("vlm_skip", _vlm_skip_node)               # text_only 에서 image_generator 의 fan-in 정렬용 더미
+    g.add_node("vlm_analyzer", vlm_analyzer_node)        # source_image 없으면 즉시 None, 있으면 내부 3회 retry + None 폴백
     g.add_node("image_generator", image_generator_node)  # 내부 2회 retry + 소진 시 state.error
     g.add_node("generated_upload", generated_upload_node)  # 내부 4회 retry + 소진 시 state.error
     g.add_node("builder", builder_node)
@@ -235,7 +234,6 @@ def build_graph():
     g.add_edge("source_upload", "vlm_analyzer")
     g.add_edge("llm_persona", "image_generator")
     g.add_edge("vlm_analyzer", "image_generator")
-    g.add_edge("vlm_skip", "image_generator")
     g.add_conditional_edges("image_generator",  _ok_or_cleanup("generated_upload"))
     g.add_conditional_edges("generated_upload", _ok_or_cleanup("builder"))
     g.add_conditional_edges("builder",          _ok_or_cleanup_end)
