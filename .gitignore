@@ -33,3 +33,6 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/
 data/interim/
+
+# Local storage outputs (LocalStorage adapter & character-creation debug logs)
+data/local_storage/
