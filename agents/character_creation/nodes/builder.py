@@ -42,14 +42,16 @@ async def builder_node(
 ) -> dict[str, Any]:
     now = config["configurable"].get("now") or datetime.now(tz=UTC)
     try:
-        assert state.llm_result is not None
-        assert state.generated_url is not None
+        llm_result = state.get("llm_result")
+        generated_url = state.get("generated_url")
+        assert llm_result is not None
+        assert generated_url is not None
         entity = build(
-            input=state.input,
-            llm_result=state.llm_result,
-            vlm_result=state.vlm_result,
-            generated_image_url=state.generated_url,
-            source_image_url=state.source_url,
+            input=state["input"],
+            llm_result=llm_result,
+            vlm_result=state.get("vlm_result"),
+            generated_image_url=generated_url,
+            source_image_url=state.get("source_url"),
             now=now,
         )
     except Exception as err:

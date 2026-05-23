@@ -9,7 +9,9 @@ async def cleanup_source_image_node(
     state: CharacterGraphState, config: dict[str, Any]
 ) -> dict[str, Any]:
     ports = config["configurable"]["ports"]
-    if state.source_key:
-        await ports.s3.delete_object(key=state.source_key)
-    assert state.error is not None
-    raise state.error
+    source_key = state.get("source_key")
+    if source_key:
+        await ports.s3.delete_object(key=source_key)
+    error = state.get("error")
+    assert error is not None
+    raise error

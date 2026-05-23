@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict
+from typing import Literal, TypedDict
 
 from agents.character_creation.schemas import (
     CharacterCreationInput,
@@ -14,23 +12,23 @@ from agents.character_creation.schemas import (
 Route = Literal["text_only", "image_and_text"]
 
 
-class CharacterGraphState(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+class _RequiredState(TypedDict):
     input: CharacterCreationInput
     is_regeneration: bool
 
-    route: Route | None = None
 
-    llm_result: LLMPersonaResult | None = None
-    vlm_result: VLMResult | None = None
+class CharacterGraphState(_RequiredState, total=False):
+    route: Route | None
 
-    source_url: str | None = None
-    source_key: str | None = None
+    llm_result: LLMPersonaResult | None
+    vlm_result: VLMResult | None
 
-    image_bytes: bytes | None = None
-    generated_url: str | None = None
+    source_url: str | None
+    source_key: str | None
 
-    entity: CharacterEntity | None = None
+    image_bytes: bytes | None
+    generated_url: str | None
 
-    error: Exception | None = None
+    entity: CharacterEntity | None
+
+    error: Exception | None

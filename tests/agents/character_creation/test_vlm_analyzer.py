@@ -45,3 +45,16 @@ async def test_vlm_analyzer_succeeds_on_second_attempt() -> None:
     out = await vlm_analyzer_node(_state(), _config(vlm))
     assert out["vlm_result"] is not None
     assert vlm.calls == 2
+
+
+async def test_vlm_analyzer_returns_none_without_calling_vlm_when_no_source_image() -> None:
+    vlm = FakeVLM()
+    state = CharacterGraphState(
+        input=CharacterCreationInput(
+            user_id="u1", name="몽글이", persona="다정한 곰", source_image=None
+        ),
+        is_regeneration=False,
+    )
+    out = await vlm_analyzer_node(state, _config(vlm))
+    assert out == {"vlm_result": None}
+    assert vlm.calls == 0
