@@ -4,7 +4,7 @@ from agents.character_creation.schemas import CharacterEntity
 
 
 class InMemoryRepo:
-    """Implements CharacterRepositoryPort + RegenerationCounterPort with dict storage.
+    """Implements CharacterRepositoryPort with dict storage.
 
     Lives inside Streamlit session_state. Resets when the Streamlit process restarts.
     """

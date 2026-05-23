@@ -8,7 +8,7 @@ from agents.character_creation.schemas import (
     VLMResult,
 )
 from agents.character_creation.state import CharacterGraphState
-from tests.agents.character_creation.fakes import FakeCounter, FakeImageGenerator
+from tests.agents.character_creation.fakes import FakeImageGenerator, FakeRepository
 
 
 def _state(*, with_vlm: bool = False) -> CharacterGraphState:
@@ -20,18 +20,18 @@ def _state(*, with_vlm: bool = False) -> CharacterGraphState:
     )
 
 
-def _config(img: FakeImageGenerator, counter: FakeCounter) -> dict:
+def _config(img: FakeImageGenerator, repo: FakeRepository) -> dict:
     class _Ports:
         pass
     p = _Ports()
     p.image_generator = img
-    p.counter = counter
+    p.repository = repo
     return {"configurable": {"ports": p}}
 
 
 async def test_image_generator_returns_bytes_on_success() -> None:
     img = FakeImageGenerator()
-    out = await image_generator_node(_state(), _config(img, FakeCounter()))
+    out = await image_generator_node(_state(), _config(img, FakeRepository()))
     assert out["image_bytes"] == b"GENERATED_PNG_BYTES"
     assert img.calls == 1
     assert out.get("error") is None
@@ -39,7 +39,7 @@ async def test_image_generator_returns_bytes_on_success() -> None:
 
 async def test_image_generator_retries_then_succeeds_within_attempts() -> None:
     img = FakeImageGenerator(fail_times=1)
-    out = await image_generator_node(_state(), _config(img, FakeCounter()))
+    out = await image_generator_node(_state(), _config(img, FakeRepository()))
     assert out["image_bytes"] == b"GENERATED_PNG_BYTES"
     assert img.calls == 2
     assert out.get("error") is None
@@ -47,7 +47,7 @@ async def test_image_generator_retries_then_succeeds_within_attempts() -> None:
 
 async def test_image_generator_records_error_after_attempts_exhausted() -> None:
     img = FakeImageGenerator(fail_times=99)
-    out = await image_generator_node(_state(), _config(img, FakeCounter()))
+    out = await image_generator_node(_state(), _config(img, FakeRepository()))
     assert out.get("image_bytes") is None
     assert isinstance(out["error"], ImageGenerationFailedError)
     assert img.calls == 2
@@ -55,19 +55,19 @@ async def test_image_generator_records_error_after_attempts_exhausted() -> None:
 
 async def test_image_generator_passes_vlm_result_when_present() -> None:
     img = FakeImageGenerator()
-    await image_generator_node(_state(with_vlm=True), _config(img, FakeCounter()))
+    await image_generator_node(_state(with_vlm=True), _config(img, FakeRepository()))
     assert img.last_inputs["vlm_result"] is not None
     assert img.last_inputs["fallback_persona"] is None
 
 
 async def test_image_generator_sets_fallback_persona_when_no_vlm() -> None:
     img = FakeImageGenerator()
-    await image_generator_node(_state(with_vlm=False), _config(img, FakeCounter()))
+    await image_generator_node(_state(with_vlm=False), _config(img, FakeRepository()))
     assert img.last_inputs["vlm_result"] is None
     assert img.last_inputs["fallback_persona"] == "다정한 곰"
 
 
 async def test_image_generator_increments_counter() -> None:
-    counter = FakeCounter()
-    await image_generator_node(_state(), _config(FakeImageGenerator(), counter))
-    assert counter.today == 1
+    repo = FakeRepository()
+    await image_generator_node(_state(), _config(FakeImageGenerator(), repo))
+    assert repo.regen_count_today == 1

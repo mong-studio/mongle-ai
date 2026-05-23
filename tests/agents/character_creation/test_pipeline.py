@@ -10,7 +10,6 @@ from agents.character_creation.exceptions import (
 from agents.character_creation.pipeline import Ports, run
 from agents.character_creation.schemas import CharacterCreationInput, SourceImage
 from tests.agents.character_creation.fakes import (
-    FakeCounter,
     FakeImageGenerator,
     FakeLLM,
     FakeRepository,
@@ -26,14 +25,12 @@ def _ports(
     vlm: FakeVLM | None = None,
     s3: FakeS3 | None = None,
     img: FakeImageGenerator | None = None,
-    counter: FakeCounter | None = None,
 ) -> Ports:
     return Ports(
         llm=llm or FakeLLM(),
         vlm=vlm or FakeVLM(),
         s3=s3 or FakeS3(),
         image_generator=img or FakeImageGenerator(),
-        counter=counter or FakeCounter(),
         repository=repo or FakeRepository(),
     )
 
