@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 from agents.character_creation.exceptions import S3UploadFailedError
 
@@ -40,12 +40,12 @@ class S3Storage:
                 Params={"Bucket": self._bucket, "Key": full_key},
                 ExpiresIn=self._expires,
             )
-        except ClientError as err:
+        except (BotoCoreError, ClientError) as err:
             raise S3UploadFailedError(f"S3 put_object failed: {err}") from err
 
     async def delete_object(self, *, key: str) -> None:
         full_key = self._full_key(key)
         try:
             self._client.delete_object(Bucket=self._bucket, Key=full_key)
-        except ClientError as err:
+        except (BotoCoreError, ClientError) as err:
             raise S3UploadFailedError(f"S3 delete_object failed: {err}") from err
