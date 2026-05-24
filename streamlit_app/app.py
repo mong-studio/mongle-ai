@@ -356,31 +356,6 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
   line-height: 1;
 }
 
-/* ───── Step tag (TODO multi-step header) ───── */
-.step-tag {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--wood-dark);
-  text-align: center;
-  margin-bottom: 4px;
-}
-.step-tag .step {
-  background: var(--wood-dark);
-  color: var(--gold);
-  padding: 3px 8px;
-  margin-right: 8px;
-}
-
-/* ───── Candidate row (TODO step 2) ───── */
-.cand-card {
-  background: var(--parchment-light);
-  border: 3px solid var(--wood-dark);
-  padding: 8px 12px;
-  margin: 6px 0;
-  box-shadow: 3px 3px 0 var(--shadow);
-}
-
 /* ───── Plan chat ───── */
 .plan-chat-wrap {
   background: var(--parchment-light);
@@ -477,7 +452,7 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
 }
 .stButton > button:hover {
   background: var(--gold) !important;
-  color: var(--ink) !important;
+  color: #000 !important;
   border-color: var(--wood-dark) !important;
   transform: translate(2px, 2px);
   box-shadow: 2px 2px 0 var(--wood-mid) !important;
@@ -488,11 +463,11 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
 }
 .stButton > button[kind="primary"] {
   background: var(--wood-dark) !important;
-  color: var(--gold) !important;
+  color: #fff !important;
 }
 .stButton > button[kind="primary"]:hover {
   background: var(--wood-mid) !important;
-  color: var(--bone) !important;
+  color: #fff !important;
 }
 
 /* ───── Inputs ───── */
@@ -505,6 +480,11 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
   font-family: 'DotGothic16', monospace !important;
   font-size: 15px !important;
   box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.12) !important;
+}
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {
+  color: var(--wood-mid) !important;
+  opacity: 0.7 !important;
 }
 .stMultiSelect div[data-baseweb="select"] > div {
   background: var(--parchment-light) !important;
@@ -829,7 +809,6 @@ def _chief_dialog() -> None:
     cols = st.columns(3)
     if cols[0].button("📝  오늘의 TODO 만들기", key="open_todo", width="stretch"):
         st.session_state["modal"] = "todo"
-        st.session_state["todo_step"] = 1
         st.rerun()
     if cols[1].button("📅  장기 플랜 짜기", key="open_plan", width="stretch"):
         st.session_state["modal"] = "plan"
@@ -920,18 +899,6 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
 def _todo_modal() -> None:
-    step = st.session_state.get("todo_step", 1)
-    if step == 1:
-        _todo_step_1()
-    else:
-        _todo_step_2()
-
-
-def _todo_step_1() -> None:
-    st.markdown(
-        '<div class="step-tag"><span class="step">STEP 1/2</span>오늘의 할 일 정리</div>',
-        unsafe_allow_html=True,
-    )
     st.markdown(
         '<div class="modal-sub">잎새마을 주민들이 너의 할 일을 정리해줄게</div>',
         unsafe_allow_html=True,
@@ -946,68 +913,50 @@ def _todo_step_1() -> None:
     )
     st.caption(f"{len(text)} / 200")
 
+    candidates: list[dict] = st.session_state.get("todo_candidates", [])
+    organize_label = "다시 정리하기 →" if candidates else "정리하기 →"
+
     cancel_col, ok_col = st.columns([1, 1])
-    if cancel_col.button("취소", key="todo_cancel_1", width="stretch"):
+    if cancel_col.button("취소", key="todo_cancel", width="stretch"):
         _reset_todo_state()
         st.session_state["modal"] = None
         st.rerun()
     if ok_col.button(
-        "정리하기 →",
-        key="todo_submit_1",
+        organize_label,
+        key="todo_submit",
         type="primary",
         width="stretch",
         disabled=not text.strip(),
     ):
         st.session_state["todo_text"] = text
         st.session_state["todo_candidates"] = _stub_split_tasks(text)
-        st.session_state["todo_step"] = 2
         st.rerun()
 
-
-def _todo_step_2() -> None:
-    st.markdown(
-        '<div class="step-tag"><span class="step">STEP 2/2</span>오늘의 할 일</div>',
-        unsafe_allow_html=True,
-    )
-    candidates: list[dict] = st.session_state.get("todo_candidates", [])
-
+    candidates = st.session_state.get("todo_candidates", [])
     if not candidates:
-        st.warning("정리된 할 일이 없습니다. 다시 적어주세요.")
-    else:
-        delete_index: int | None = None
-        for i, cand in enumerate(candidates):
-            with st.container():
-                st.markdown('<div class="cand-card">', unsafe_allow_html=True)
-                cols = st.columns([0.6, 5.5, 0.9])
-                with cols[0]:
-                    cand["checked"] = st.checkbox(
-                        "선택",
-                        value=cand.get("checked", True),
-                        key=f"cand_check_{i}",
-                        label_visibility="collapsed",
-                    )
-                with cols[1]:
-                    cand["title"] = st.text_input(
-                        "할 일 제목",
-                        value=cand["title"],
-                        key=f"cand_title_{i}",
-                        label_visibility="collapsed",
-                    )
-                with cols[2]:
-                    if st.button("✕", key=f"cand_del_{i}", width="stretch"):
-                        delete_index = i
-                st.markdown("</div>", unsafe_allow_html=True)
-        if delete_index is not None:
-            candidates.pop(delete_index)
-            st.session_state["todo_candidates"] = candidates
-            st.rerun()
+        return
 
-    confirmed = [c for c in candidates if c.get("checked") and c.get("title", "").strip()]
-    back_col, ok_col = st.columns([1, 1])
-    if back_col.button("← 다시 적기", key="todo_back", width="stretch"):
-        st.session_state["todo_step"] = 1
+    st.markdown("---")
+    delete_index: int | None = None
+    for i, cand in enumerate(candidates):
+        cols = st.columns([10, 1])
+        with cols[0]:
+            cand["title"] = st.text_input(
+                "할 일 제목",
+                value=cand["title"],
+                key=f"cand_title_{i}",
+                label_visibility="collapsed",
+            )
+        with cols[1]:
+            if st.button("✕", key=f"cand_del_{i}", width="stretch"):
+                delete_index = i
+    if delete_index is not None:
+        candidates.pop(delete_index)
+        st.session_state["todo_candidates"] = candidates
         st.rerun()
-    if ok_col.button(
+
+    confirmed = [c for c in candidates if c.get("title", "").strip()]
+    if st.button(
         f"확인 ({len(confirmed)})",
         key="todo_confirm",
         type="primary",
@@ -1034,7 +983,7 @@ def _stub_split_tasks(text: str) -> list[dict]:
 
 
 def _reset_todo_state() -> None:
-    for key in ("todo_text", "todo_candidates", "todo_step"):
+    for key in ("todo_text", "todo_candidates"):
         st.session_state.pop(key, None)
 
 
