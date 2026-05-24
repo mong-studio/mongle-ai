@@ -41,9 +41,9 @@ class OpenAILLM:
     ) -> list[TaskCandidate]:
         client = _get_client()
         try:
-            response = await client.responses.create(
+            response = await client.chat.completions.create(
                 model=self.model,
-                input=[
+                messages=[
                     {"role": "system", "content": TASK_SPLITTER_SYSTEM},
                     {"role": "user", "content": task_splitter_user(prompt, today)},
                 ],
@@ -52,7 +52,7 @@ class OpenAILLM:
         except Exception as err:
             raise LLMFailedError(f"openai call failed: {err}") from err
 
-        raw = getattr(response, "output_text", None) or ""
+        raw = (response.choices[0].message.content or "") if response.choices else ""
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError as err:

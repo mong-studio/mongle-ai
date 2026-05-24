@@ -15,6 +15,13 @@ async def quest_dispatch_node(
 
     TODO: emit to a back-off queue on failure so dispatch can be retried later
     without blocking the commit response. Out of scope for the current spec.
+
+    Known limitation: the daily quest counter was already incremented in
+    quest_gate BEFORE this node runs, so a silent dispatch failure consumes a
+    quota slot without delivering a quest. Over a day this can starve a user.
+    A real backend should either (a) decrement the counter on failure, or
+    (b) move the increment after a successful dispatch and accept the
+    micro-race. Tracked for follow-up alongside the back-off queue.
     """
     ports = config["configurable"]["ports"]
     user_id = state["input"].user_id

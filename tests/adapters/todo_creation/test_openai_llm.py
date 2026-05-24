@@ -10,9 +10,9 @@ from agents.todo_creation.exceptions import LLMOutputError
 
 @pytest.fixture
 def patch_openai(mocker):
-    """Patch the OpenAI client.responses.create call.
+    """Patch the OpenAI client.chat.completions.create call.
 
-    Returns a helper that takes the JSON string the model "produces" and wires
+    Returns a helper that takes the JSON string the model 'produces' and wires
     it through the mocked SDK response.
     """
     pytest.importorskip("openai")
@@ -21,8 +21,10 @@ def patch_openai(mocker):
         from adapters.todo_creation import openai_llm
 
         mock_client = mocker.MagicMock()
-        mock_client.responses.create = mocker.AsyncMock(
-            return_value=mocker.MagicMock(output_text=response_json)
+        mock_message = mocker.MagicMock(content=response_json)
+        mock_choice = mocker.MagicMock(message=mock_message)
+        mock_client.chat.completions.create = mocker.AsyncMock(
+            return_value=mocker.MagicMock(choices=[mock_choice])
         )
         mocker.patch.object(
             openai_llm, "_get_client", return_value=mock_client
@@ -62,8 +64,8 @@ async def test_split_tasks_today_is_in_prompt(patch_openai) -> None:
     llm = OpenAILLM(model="gpt-4o-mini")
     await llm.split_tasks(prompt="x", today=date(2026, 5, 24))
 
-    call_kwargs = mock_client.responses.create.call_args.kwargs
-    serialized = json.dumps(call_kwargs.get("input"), default=str)
+    call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+    serialized = json.dumps(call_kwargs.get("messages"), default=str)
     assert "2026-05-24" in serialized
 
 
