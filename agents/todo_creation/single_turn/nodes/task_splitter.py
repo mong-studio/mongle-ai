@@ -32,21 +32,16 @@ async def task_splitter_node(
     today = state["input"].today
 
     raw = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
-
-    if len(raw) > MAX_TASKS:
-        raise LLMOutputError(
-            f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
-        )
-
     if not raw:
         # B2: one retry on empty
         raw = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
         if not raw:
             raise LLMOutputError("task_splitter returned empty list after retry")
-        if len(raw) > MAX_TASKS:
-            raise LLMOutputError(
-                f"task_splitter retry returned {len(raw)} tasks (max {MAX_TASKS})"
-            )
+
+    if len(raw) > MAX_TASKS:
+        raise LLMOutputError(
+            f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
+        )
 
     corrected = [_correct(t, today) for t in raw]
     return {"split_tasks": corrected}
