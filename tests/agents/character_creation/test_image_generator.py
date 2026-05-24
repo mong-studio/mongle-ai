@@ -70,4 +70,4 @@ async def test_image_generator_sets_fallback_persona_when_no_vlm() -> None:
 async def test_image_generator_increments_counter() -> None:
     repo = FakeRepository()
     await image_generator_node(_state(), _config(FakeImageGenerator(), repo))
-    assert repo.regen_count_today == 1
+    assert repo.increments == 1

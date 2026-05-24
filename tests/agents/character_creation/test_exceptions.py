@@ -13,10 +13,10 @@ from agents.character_creation.exceptions import (
 
 
 def test_validation_error_is_subclass_of_creation_error() -> None:
-    err = ValidationFailedError(code="C1", message="보유 캐릭터 ≥ 10")
+    err = ValidationFailedError(code="C3", message="허용되지 않는 형식")
     assert isinstance(err, CharacterCreationError)
-    assert err.code == "C1"
-    assert "C1" in str(err)
+    assert err.code == "C3"
+    assert "C3" in str(err)
 
 
 @pytest.mark.parametrize(

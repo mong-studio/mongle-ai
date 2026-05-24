@@ -73,14 +73,14 @@
 
 ### 4.1 Validation
 
-- **Input:** 전체 user input + 사용자 컨텍스트(보유 캐릭터 수, 오늘 재생성 횟수)
+- **Input:** validated `CharacterCreationInput` (백엔드가 C1·C2 를 이미 통과시킨 상태)
 - **검사 항목:**
-  - C1: 보유 캐릭터 ≤ 10
-  - C2: 오늘 재생성 횟수 ≤ 3 (재생성 요청인 경우)
-  - C3, C4: 이미지 MIME 타입 및 바이트 크기
-  - 필수 필드(persona, name) 존재 여부
-- **실패 시:** 파이프라인 중단, 어떤 제약이 깨졌는지 명시한 에러 반환
-- **부수효과:** 없음 (read-only)
+  - C3, C4: 이미지 MIME 타입 및 바이트 크기 (source_image 가 있을 때만)
+  - 필수 필드(persona, name) 존재 여부는 Pydantic 스키마(`CharacterCreationInput`)에서 처리
+- **실패 시:** `ValidationFailedError(code=...)` 즉시 raise → 파이프라인 미실행
+- **부수효과:** 없음 (read-only, 레포지토리 호출 없음)
+
+> C1(보유 상한)·C2(일일 재생성 제한)은 **에이전트의 책임이 아니다**. 백엔드(호출자)가 사전 검증해야 하며, `CharacterRepositoryPort` 는 이를 위한 메서드를 노출하지 않는다.
 
 ### 4.2 Input Type Router
 
@@ -204,10 +204,9 @@ async def run(
     input: CharacterCreationInput,
     *,
     ports: Ports,
-    is_regeneration: bool,
     now: datetime | None = None,
 ) -> CharacterEntity:
-    initial = CharacterGraphState(input=input, is_regeneration=is_regeneration)
+    initial = CharacterGraphState(input=input)
     final = await _GRAPH.ainvoke(
         initial, config={"configurable": {"ports": ports, "now": now}}
     )

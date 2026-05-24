@@ -312,6 +312,27 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
   border-radius: 2px;
 }
 
+/* ───── Chief CTA ───── */
+.chief-cta-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-align: center;
+  margin: 22px 0 6px;
+  text-shadow: 2px 2px 0 #000;
+  opacity: 0.9;
+}
+.chief-cta-hint .arrow {
+  display: inline-block;
+  margin: 0 10px;
+  animation: bob 1.3s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
 /* ───── Chief dialog ───── */
 .chief-dialog {
   position: relative;
@@ -323,6 +344,89 @@ div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
   box-shadow:
     inset 0 0 0 3px var(--parchment-dark),
     8px 8px 0 var(--shadow);
+}
+.chief-dialog::before {
+  content: "▲";
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--wood-dark);
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* ───── Step tag (TODO multi-step header) ───── */
+.step-tag {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--wood-dark);
+  text-align: center;
+  margin-bottom: 4px;
+}
+.step-tag .step {
+  background: var(--wood-dark);
+  color: var(--gold);
+  padding: 3px 8px;
+  margin-right: 8px;
+}
+
+/* ───── Candidate row (TODO step 2) ───── */
+.cand-card {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  padding: 8px 12px;
+  margin: 6px 0;
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+
+/* ───── Plan chat ───── */
+.plan-chat-wrap {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  padding: 12px 14px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.1);
+}
+.plan-chat-row {
+  display: flex;
+  margin: 6px 0;
+}
+.plan-chat-row.user   { justify-content: flex-end; }
+.plan-chat-row.chief  { justify-content: flex-start; }
+.plan-chat-bubble {
+  max-width: 78%;
+  padding: 8px 12px;
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 2px solid var(--wood-dark);
+}
+.plan-chat-row.user  .plan-chat-bubble {
+  background: var(--wood-dark);
+  color: var(--gold);
+}
+.plan-chat-row.chief .plan-chat-bubble {
+  background: var(--parchment);
+  color: var(--ink);
+}
+.plan-chat-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--wood-dark);
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.plan-empty {
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--wood-mid);
+  text-align: center;
+  padding: 24px 0;
+  opacity: 0.7;
 }
 .chief-row {
   display: grid;
@@ -675,7 +779,37 @@ def _village_map() -> None:
     )
 
 
+def _chief_house_cta() -> None:
+    """Toggle the chief dialog. Stands in for clicking the chief house tile."""
+    is_open = st.session_state.get("chief_open", False)
+    if is_open:
+        st.markdown(
+            '<div class="chief-cta-hint">'
+            '<span class="arrow">▼</span> 이장님이 기다리고 있어요 '
+            '<span class="arrow">▼</span>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        label = "✕  대화 닫기"
+    else:
+        st.markdown(
+            '<div class="chief-cta-hint">'
+            "마을 가운데 이장님 집을 두드려 보세요"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        label = "🏠  이장님 집 두드리기"
+
+    cols = st.columns([2, 2, 2])
+    with cols[1]:
+        if st.button(label, key="knock_chief", type="primary", width="stretch"):
+            st.session_state["chief_open"] = not is_open
+            st.rerun()
+
+
 def _chief_dialog() -> None:
+    if not st.session_state.get("chief_open", False):
+        return
     st.markdown(
         """
         <div class="chief-dialog">
@@ -692,12 +826,16 @@ def _chief_dialog() -> None:
         """,
         unsafe_allow_html=True,
     )
-    cols = st.columns(2)
-    if cols[0].button("☐  새 주민 맞이하기", key="open_character", width="stretch"):
-        st.session_state["modal"] = "character"
+    cols = st.columns(3)
+    if cols[0].button("📝  오늘의 TODO 만들기", key="open_todo", width="stretch"):
+        st.session_state["modal"] = "todo"
+        st.session_state["todo_step"] = 1
         st.rerun()
-    if cols[1].button("☐  오늘의 퀘스트 만들기", key="open_quest", width="stretch"):
-        st.session_state["modal"] = "quest"
+    if cols[1].button("📅  장기 플랜 짜기", key="open_plan", width="stretch"):
+        st.session_state["modal"] = "plan"
+        st.rerun()
+    if cols[2].button("👋  새 주민 맞이하기", key="open_character", width="stretch"):
+        st.session_state["modal"] = "character"
         st.rerun()
 
 
@@ -769,7 +907,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
         with st.spinner("새 친구를 그리는 중..."):
             try:
                 entity = asyncio.run(
-                    pipeline_run(user_input, ports=ports, is_regeneration=is_regen)
+                    pipeline_run(user_input, ports=ports)
                 )
             except Exception as err:  # noqa: BLE001
                 _handle_pipeline_error(err)
@@ -780,31 +918,192 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
         st.rerun()
 
 
-@st.dialog("< TODO LIST · STEP 1/2 >  오늘 뭐 할거야?", width="large")
-def _quest_modal() -> None:
+@st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
+def _todo_modal() -> None:
+    step = st.session_state.get("todo_step", 1)
+    if step == 1:
+        _todo_step_1()
+    else:
+        _todo_step_2()
+
+
+def _todo_step_1() -> None:
+    st.markdown(
+        '<div class="step-tag"><span class="step">STEP 1/2</span>오늘의 할 일 정리</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         '<div class="modal-sub">잎새마을 주민들이 너의 할 일을 정리해줄게</div>',
         unsafe_allow_html=True,
     )
     text = st.text_area(
         "할 일",
-        height=200,
-        max_chars=500,
-        placeholder="예) 주말까지 정자 1단계 끝내고, 청소도 하고, 강아지 산책 두 번 시켜야 함.",
-        key="quest_text",
+        value=st.session_state.get("todo_text", ""),
+        height=180,
+        max_chars=200,
+        placeholder="예) 정자 1단계 끝내고, 청소도 하고, 강아지 산책 두 번 시켜야 함.",
+        key="todo_text_input",
     )
-    st.caption(f"{len(text)} / 500")
+    st.caption(f"{len(text)} / 200")
 
     cancel_col, ok_col = st.columns([1, 1])
-    if cancel_col.button("취소", key="quest_cancel", width="stretch"):
+    if cancel_col.button("취소", key="todo_cancel_1", width="stretch"):
+        _reset_todo_state()
         st.session_state["modal"] = None
         st.rerun()
     if ok_col.button(
-        "정리하기 →", key="quest_submit", type="primary", width="stretch"
+        "정리하기 →",
+        key="todo_submit_1",
+        type="primary",
+        width="stretch",
+        disabled=not text.strip(),
     ):
-        st.session_state["last_quest"] = text
+        st.session_state["todo_text"] = text
+        st.session_state["todo_candidates"] = _stub_split_tasks(text)
+        st.session_state["todo_step"] = 2
+        st.rerun()
+
+
+def _todo_step_2() -> None:
+    st.markdown(
+        '<div class="step-tag"><span class="step">STEP 2/2</span>오늘의 할 일</div>',
+        unsafe_allow_html=True,
+    )
+    candidates: list[dict] = st.session_state.get("todo_candidates", [])
+
+    if not candidates:
+        st.warning("정리된 할 일이 없습니다. 다시 적어주세요.")
+    else:
+        delete_index: int | None = None
+        for i, cand in enumerate(candidates):
+            with st.container():
+                st.markdown('<div class="cand-card">', unsafe_allow_html=True)
+                cols = st.columns([0.6, 5.5, 0.9])
+                with cols[0]:
+                    cand["checked"] = st.checkbox(
+                        "선택",
+                        value=cand.get("checked", True),
+                        key=f"cand_check_{i}",
+                        label_visibility="collapsed",
+                    )
+                with cols[1]:
+                    cand["title"] = st.text_input(
+                        "할 일 제목",
+                        value=cand["title"],
+                        key=f"cand_title_{i}",
+                        label_visibility="collapsed",
+                    )
+                with cols[2]:
+                    if st.button("✕", key=f"cand_del_{i}", width="stretch"):
+                        delete_index = i
+                st.markdown("</div>", unsafe_allow_html=True)
+        if delete_index is not None:
+            candidates.pop(delete_index)
+            st.session_state["todo_candidates"] = candidates
+            st.rerun()
+
+    confirmed = [c for c in candidates if c.get("checked") and c.get("title", "").strip()]
+    back_col, ok_col = st.columns([1, 1])
+    if back_col.button("← 다시 적기", key="todo_back", width="stretch"):
+        st.session_state["todo_step"] = 1
+        st.rerun()
+    if ok_col.button(
+        f"확인 ({len(confirmed)})",
+        key="todo_confirm",
+        type="primary",
+        width="stretch",
+        disabled=not confirmed,
+    ):
+        st.session_state["last_todo_committed"] = confirmed
+        _reset_todo_state()
         st.session_state["modal"] = None
-        st.info("퀘스트 정리 파이프라인은 곧 연결될 예정입니다.")
+        st.rerun()
+
+
+def _stub_split_tasks(text: str) -> list[dict]:
+    """Placeholder for `agents.todo_creation.single_turn.task_splitter`.
+
+    Replace with real LLM split + date routing once the pipeline lands.
+    """
+    today = date.today()
+    parts = [p.strip(" .,") for p in text.replace("\n", ",").split(",") if p.strip()]
+    return [
+        {"title": p, "due_date": today.isoformat(), "checked": True, "tags": []}
+        for p in parts
+    ]
+
+
+def _reset_todo_state() -> None:
+    for key in ("todo_text", "todo_candidates", "todo_step"):
+        st.session_state.pop(key, None)
+
+
+@st.dialog("< LONG-TERM PLAN >  장기 플랜 짜기", width="large")
+def _plan_modal() -> None:
+    st.markdown(
+        '<div class="modal-sub">이장님과 대화하며 일자별 플랜을 만들어요</div>',
+        unsafe_allow_html=True,
+    )
+
+    history: list[dict] = st.session_state.get("plan_history", [])
+
+    if not history:
+        st.markdown(
+            '<div class="plan-chat-wrap"><div class="plan-empty">'
+            "예) 3일 후 정보처리기사 시험을 준비해야 해."
+            "</div></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        bubbles = []
+        for msg in history:
+            role = msg["role"]
+            label = "나" if role == "user" else "이장"
+            bubbles.append(
+                f'<div class="plan-chat-row {role}">'
+                f'<div>'
+                f'<div class="plan-chat-label">{label}</div>'
+                f'<div class="plan-chat-bubble">{msg["text"]}</div>'
+                f"</div></div>"
+            )
+        st.markdown(
+            f'<div class="plan-chat-wrap">{"".join(bubbles)}</div>',
+            unsafe_allow_html=True,
+        )
+
+    msg = st.text_area(
+        "메시지",
+        height=120,
+        max_chars=600,
+        placeholder="목표, 기한, 하루 가용 시간 등을 알려주세요.",
+        key="plan_msg",
+    )
+    st.caption(f"{len(msg)} / 600")
+
+    cols = st.columns([1, 1, 1])
+    if cols[0].button("닫기", key="plan_close", width="stretch"):
+        st.session_state["modal"] = None
+        st.rerun()
+    if cols[1].button("대화 초기화", key="plan_reset", width="stretch"):
+        st.session_state["plan_history"] = []
+        st.rerun()
+    if cols[2].button(
+        "보내기 →",
+        key="plan_send",
+        type="primary",
+        width="stretch",
+        disabled=not msg.strip(),
+    ):
+        history.append({"role": "user", "text": msg.strip()})
+        # TODO: hook up agents/todo_creation/multi_turn/pipeline.py
+        # For now, stub a follow-up question so the UX shape is visible.
+        history.append(
+            {
+                "role": "chief",
+                "text": "좋아요. 목표 점수나 결과는 어떻게 되나요? 하루에 얼마나 시간을 낼 수 있어요?",
+            }
+        )
+        st.session_state["plan_history"] = history
         st.rerun()
 
 
@@ -898,17 +1197,25 @@ def main() -> None:
     with cols[2]:
         _date_panel(date.today())
 
+    _chief_house_cta()
     _chief_dialog()
 
     if "last_created" in st.session_state:
         entity: CharacterEntity = st.session_state.pop("last_created")
         st.success(f"'{entity.name}' 님이 마을에 도착했어요!")
 
+    if "last_todo_committed" in st.session_state:
+        committed = st.session_state.pop("last_todo_committed")
+        titles = ", ".join(c["title"] for c in committed)
+        st.success(f"오늘의 할 일 {len(committed)}개가 등록되었어요 — {titles}")
+
     modal = st.session_state.get("modal")
     if modal == "character":
         _character_modal(user_id, is_regen, repo, cfg)
-    elif modal == "quest":
-        _quest_modal()
+    elif modal == "todo":
+        _todo_modal()
+    elif modal == "plan":
+        _plan_modal()
 
     _gallery(repo, user_id)
 

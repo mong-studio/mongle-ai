@@ -103,20 +103,13 @@ class FakeImageGenerator:
 
 @dataclass
 class FakeRepository:
-    active_count: int = 0
-    regen_count_today: int = 0
     saved: list[CharacterEntity] = field(default_factory=list)
     save_should_fail: bool = False
-
-    async def count_active(self, user_id: str) -> int:
-        return self.active_count
-
-    async def today_regen_count(self, user_id: str) -> int:
-        return self.regen_count_today
+    increments: int = 0
 
     async def increment(self, user_id: str) -> int:
-        self.regen_count_today += 1
-        return self.regen_count_today
+        self.increments += 1
+        return self.increments
 
     async def save(self, entity: CharacterEntity) -> None:
         if self.save_should_fail:

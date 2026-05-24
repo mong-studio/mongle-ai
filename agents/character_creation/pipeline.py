@@ -33,13 +33,12 @@ async def run(
     input: CharacterCreationInput,
     *,
     ports: Ports,
-    is_regeneration: bool,
     now: datetime | None = None,
 ) -> CharacterEntity:
-    initial: CharacterGraphState = {"input": input, "is_regeneration": is_regeneration}
+    initial: CharacterGraphState = {"input": input}
     config = {"configurable": {"ports": ports, "now": now}}
 
-    log_start(input, is_regeneration)
+    log_start(input)
 
     final: Any = None
     step = 0

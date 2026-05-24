@@ -35,12 +35,15 @@ def _ports(
     )
 
 
-def _input(with_image: bool = False) -> CharacterCreationInput:
-    src = (
-        SourceImage(filename="a.png", content_type="image/png", data=b"\x89PNG")
-        if with_image
-        else None
-    )
+def _input(with_image: bool = False, *, bad_mime: bool = False) -> CharacterCreationInput:
+    if with_image:
+        src = SourceImage(
+            filename="a.png",
+            content_type="application/pdf" if bad_mime else "image/png",
+            data=b"\x89PNG",
+        )
+    else:
+        src = None
     return CharacterCreationInput(
         user_id="u1",
         name="몽글이",
@@ -51,7 +54,7 @@ def _input(with_image: bool = False) -> CharacterCreationInput:
 
 async def test_text_only_pipeline_returns_entity_without_source_url() -> None:
     ports = _ports()
-    entity = await run(_input(), ports=ports, is_regeneration=False)
+    entity = await run(_input(), ports=ports)
     assert entity.source_image_url is None
     assert entity.image_url.startswith("https://fake-s3.local/characters/u1/")
     assert ports.vlm.calls == 0  # type: ignore[attr-defined]
@@ -59,7 +62,7 @@ async def test_text_only_pipeline_returns_entity_without_source_url() -> None:
 
 async def test_image_plus_text_pipeline_uploads_source_and_invokes_vlm() -> None:
     ports = _ports()
-    entity = await run(_input(with_image=True), ports=ports, is_regeneration=False)
+    entity = await run(_input(with_image=True), ports=ports)
     assert entity.source_image_url is not None
     assert entity.source_image_url.startswith("https://fake-s3.local/sources/u1/")
     assert ports.vlm.calls == 1  # type: ignore[attr-defined]
@@ -68,15 +71,15 @@ async def test_image_plus_text_pipeline_uploads_source_and_invokes_vlm() -> None
 
 async def test_vlm_failure_degrades_but_completes() -> None:
     ports = _ports(vlm=FakeVLM(fail_times=3))
-    entity = await run(_input(with_image=True), ports=ports, is_regeneration=False)
+    entity = await run(_input(with_image=True), ports=ports)
     assert entity is not None
     assert ports.image_generator.last_inputs["vlm_result"] is None  # type: ignore[attr-defined]
 
 
 async def test_validation_failure_does_not_call_external_services() -> None:
-    ports = _ports(repo=FakeRepository(active_count=10))
+    ports = _ports()
     with pytest.raises(ValidationFailedError):
-        await run(_input(), ports=ports, is_regeneration=False)
+        await run(_input(with_image=True, bad_mime=True), ports=ports)
     assert ports.llm.calls == 0  # type: ignore[attr-defined]
     assert ports.image_generator.calls == 0  # type: ignore[attr-defined]
 
@@ -84,7 +87,7 @@ async def test_validation_failure_does_not_call_external_services() -> None:
 async def test_llm_failure_propagates_after_retries() -> None:
     ports = _ports(llm=FakeLLM(fail_times=3))
     with pytest.raises(LLMFailedError):
-        await run(_input(), ports=ports, is_regeneration=False)
+        await run(_input(), ports=ports)
 
 
 async def test_image_generator_failure_cleans_up_source_upload() -> None:
@@ -92,13 +95,6 @@ async def test_image_generator_failure_cleans_up_source_upload() -> None:
     repo = FakeRepository()
     ports = _ports(s3=s3, repo=repo, img=FakeImageGenerator(fail_times=2))
     with pytest.raises(ImageGenerationFailedError):
-        await run(_input(with_image=True), ports=ports, is_regeneration=False)
+        await run(_input(with_image=True), ports=ports)
     assert len(s3.deleted_keys) >= 1
     assert any(k.startswith("sources/u1/") for k in s3.deleted_keys)
-
-
-async def test_regeneration_path_checks_daily_limit() -> None:
-    ports = _ports(repo=FakeRepository(active_count=1, regen_count_today=3))
-    with pytest.raises(ValidationFailedError) as exc:
-        await run(_input(), ports=ports, is_regeneration=True)
-    assert exc.value.code == "C2"
