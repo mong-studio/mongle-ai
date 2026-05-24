@@ -41,7 +41,7 @@ def _format(text: str) -> str:
     return text.replace("\n", "\n                   ")
 
 
-def log_start(input: CharacterCreationInput, is_regeneration: bool) -> None:
+def log_start(input: CharacterCreationInput) -> None:
     global _current_log_path
     if not _enabled():
         _current_log_path = None
@@ -60,10 +60,7 @@ def log_start(input: CharacterCreationInput, is_regeneration: bool) -> None:
 
     _emit("")
     _emit("=" * 72)
-    _emit(
-        f"[character_creation] start  user={input.user_id}  "
-        f"name={input.name}  regen={is_regeneration}"
-    )
+    _emit(f"[character_creation] start  user={input.user_id}  name={input.name}")
     _emit(f"  persona       : {_format(input.persona)}")
     _emit(f"  keywords      : {[k.value for k in input.personality_keywords]}")
     _emit(

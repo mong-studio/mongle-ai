@@ -70,7 +70,6 @@ def build_graph():
     )
 
     # source_upload → vlm_analyzer → image_generator (image-and-text path).
-    # text-only path 는 conditional_edges 에서 vlm_analyzer 로 직접 진입한다.
     g.add_edge("source_upload", "vlm_analyzer")
     g.add_edge("vlm_analyzer", "image_generator")
 

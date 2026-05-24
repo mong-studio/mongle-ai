@@ -14,7 +14,6 @@ Route = Literal["text_only", "image_and_text"]
 
 class _RequiredState(TypedDict):
     input: CharacterCreationInput
-    is_regeneration: bool
 
 
 class CharacterGraphState(_RequiredState, total=False):

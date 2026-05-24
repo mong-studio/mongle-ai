@@ -769,7 +769,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
         with st.spinner("새 친구를 그리는 중..."):
             try:
                 entity = asyncio.run(
-                    pipeline_run(user_input, ports=ports, is_regeneration=is_regen)
+                    pipeline_run(user_input, ports=ports)
                 )
             except Exception as err:  # noqa: BLE001
                 _handle_pipeline_error(err)

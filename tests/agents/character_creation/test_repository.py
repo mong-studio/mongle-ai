@@ -22,22 +22,17 @@ def _entity(user_id: str = "u1") -> CharacterEntity:
     )
 
 
-async def test_active_count_starts_at_zero() -> None:
-    repo = InMemoryCharacterRepository()
-    assert await repo.count_active("u1") == 0
-
-
-async def test_save_increments_active_count() -> None:
+async def test_save_appends_per_user() -> None:
     repo = InMemoryCharacterRepository()
     await repo.save(_entity("u1"))
     await repo.save(_entity("u1"))
     await repo.save(_entity("u2"))
-    assert await repo.count_active("u1") == 2
-    assert await repo.count_active("u2") == 1
+    assert len(repo._by_user["u1"]) == 2
+    assert len(repo._by_user["u2"]) == 1
 
 
-async def test_today_regen_count_is_caller_managed() -> None:
+async def test_increment_returns_running_total() -> None:
     repo = InMemoryCharacterRepository()
-    assert await repo.today_regen_count("u1") == 0
-    repo.set_regen_count("u1", 2)
-    assert await repo.today_regen_count("u1") == 2
+    assert await repo.increment("u1") == 1
+    assert await repo.increment("u1") == 2
+    assert await repo.increment("u2") == 1

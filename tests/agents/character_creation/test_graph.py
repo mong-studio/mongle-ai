@@ -37,7 +37,6 @@ def _state(*, with_image: bool = False) -> CharacterGraphState:
         input=CharacterCreationInput(
             user_id="u1", name="몽글이", persona="다정한 곰", source_image=src
         ),
-        is_regeneration=False,
     )
 
 
