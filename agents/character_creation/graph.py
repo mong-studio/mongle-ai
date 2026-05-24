@@ -29,10 +29,6 @@ def _ok_or_cleanup(next_ok: str):
     return _route
 
 
-def _ok_or_cleanup_end(state: CharacterGraphState) -> str:
-    return "cleanup_source_image" if state.get("error") is not None else END
-
-
 # ---------------------------------------------------------------------------
 # Graph factory
 # ---------------------------------------------------------------------------
@@ -89,7 +85,7 @@ def build_graph():
     )
     g.add_conditional_edges(
         "builder",
-        _ok_or_cleanup_end,
+        _ok_or_cleanup(END),
         ["cleanup_source_image", END],
     )
     g.add_edge("cleanup_source_image", END)
