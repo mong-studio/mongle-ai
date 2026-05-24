@@ -66,3 +66,17 @@ agents/{feature}/
 - 내부 작업 로그: `docs/TODO.md`
 - 본 작업 스펙: `docs/superpowers/specs/2026-05-22-docs-harness-design.md`
 - 본 작업 계획: `docs/superpowers/plans/2026-05-22-docs-harness.md`
+
+## 6. Setup
+
+```bash
+uv sync              # 기본 의존성 (agents/, tests/)
+uv sync --extra ui   # streamlit 데모 실행 시 (langchain-openai, openai, streamlit 등)
+```
+
+> UI 작업 진입 시 `ModuleNotFoundError: No module named 'langchain_openai'` 가 나면 `--extra ui` 누락이다.
+
+실행:
+```bash
+uv run streamlit run streamlit_app/app.py
+```
