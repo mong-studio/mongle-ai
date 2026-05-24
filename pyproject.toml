@@ -26,7 +26,10 @@ ui = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --cov=agents --cov-report=term-missing --cov-fail-under=80"
+addopts = "-ra --strict-markers -m 'not contract' --cov=agents --cov-report=term-missing --cov-fail-under=80"
+markers = [
+    "contract: requires external services (OPENAI_API_KEY etc.); skipped by default",
+]
 
 [tool.coverage.run]
 branch = true
