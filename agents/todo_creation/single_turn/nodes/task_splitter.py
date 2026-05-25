@@ -11,18 +11,17 @@ from agents.todo_creation.single_turn.state import GenerateGraphState
 logger = logging.getLogger(__name__)
 
 MAX_TASKS = 20
-MAX_TITLE_LEN = 80
 
 
 def _correct(task: TaskCandidate, today: date) -> TaskCandidate:
-    title = task.title[:MAX_TITLE_LEN]
     due = task.due_date if task.due_date >= today else today
-    if due != task.due_date:
-        logger.info(
-            "task_splitter: past due_date %s corrected to today %s (title=%r)",
-            task.due_date, today, task.title,
-        )
-    return task.model_copy(update={"title": title, "due_date": due})
+    if due == task.due_date:
+        return task
+    logger.info(
+        "task_splitter: past due_date %s corrected to today %s (title=%r)",
+        task.due_date, today, task.title,
+    )
+    return task.model_copy(update={"due_date": due})
 
 
 async def task_splitter_node(

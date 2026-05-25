@@ -1,0 +1,77 @@
+/* ───── Chief CTA hint ───── */
+.chief-cta-hint {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-align: center;
+  margin: 22px 0 6px;
+  text-shadow: 2px 2px 0 #000;
+  opacity: 0.9;
+}
+.chief-cta-hint .arrow {
+  display: inline-block;
+  margin: 0 10px;
+  animation: bob 1.3s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
+/* ───── Chief dialog bubble ───── */
+.chief-dialog {
+  position: relative;
+  margin-top: 18px;
+  background: var(--parchment);
+  border: 4px solid var(--wood-dark);
+  outline: 2px solid #000;
+  padding: 16px 20px 18px;
+  box-shadow:
+    inset 0 0 0 3px var(--parchment-dark),
+    8px 8px 0 var(--shadow);
+}
+.chief-dialog::before {
+  content: "▲";
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--wood-dark);
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* ───── Chief avatar & speech ───── */
+.chief-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 18px;
+  align-items: center;
+}
+.chief-avatar {
+  width: 76px;
+  height: 76px;
+  background: linear-gradient(180deg, #d4a86a 0%, #8b6f3a 100%);
+  border: 3px solid var(--wood-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+.chief-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--wood-dark);
+  margin-top: 6px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+.chief-speech {
+  font-size: 18px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+.chief-speech::before { content: "\201C "; color: var(--wood-mid); }
+.chief-speech::after  { content: " \201D"; color: var(--wood-mid); }

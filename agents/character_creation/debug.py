@@ -79,10 +79,6 @@ def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
     if not update:
         return
 
-    route = update.get("route")
-    if route is not None:
-        _emit(f"  route          : {route}")
-
     llm_result = update.get("llm_result")
     if isinstance(llm_result, LLMPersonaResult):
         _emit("  --- LLM persona ---")

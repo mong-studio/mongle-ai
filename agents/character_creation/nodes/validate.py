@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
+
+from langgraph.types import Command
 
 from agents.character_creation.exceptions import ValidationFailedError
 from agents.character_creation.schemas import CharacterCreationInput
@@ -8,6 +10,8 @@ from agents.character_creation.state import CharacterGraphState
 
 ALLOWED_MIME = {"image/jpeg", "image/jpg", "image/png"}
 MAX_BYTES = 5 * 1024 * 1024
+
+_ValidateTarget = Literal["llm_persona", "source_upload", "vlm_analyzer"]
 
 
 def check(input: CharacterCreationInput) -> None:
@@ -25,7 +29,13 @@ def check(input: CharacterCreationInput) -> None:
         )
 
 
-async def validate_node(state: CharacterGraphState, config: dict[str, Any]) -> dict[str, Any]:
+async def validate_node(
+    state: CharacterGraphState, config: dict[str, Any]
+) -> Command[_ValidateTarget]:
     check(state["input"])
-    route = "image_and_text" if state["input"].source_image is not None else "text_only"
-    return {"route": route}
+    targets: list[_ValidateTarget] = (
+        ["llm_persona", "source_upload"]
+        if state["input"].source_image is not None
+        else ["llm_persona", "vlm_analyzer"]
+    )
+    return Command(goto=targets)

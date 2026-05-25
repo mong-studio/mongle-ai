@@ -32,24 +32,25 @@ def _config(img: FakeImageGenerator, repo: FakeRepository) -> dict:
 async def test_image_generator_returns_bytes_on_success() -> None:
     img = FakeImageGenerator()
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
-    assert out["image_bytes"] == b"GENERATED_PNG_BYTES"
+    assert out.update == {"image_bytes": b"GENERATED_PNG_BYTES"}
+    assert out.goto == "generated_upload"
     assert img.calls == 1
-    assert out.get("error") is None
 
 
 async def test_image_generator_retries_then_succeeds_within_attempts() -> None:
     img = FakeImageGenerator(fail_times=1)
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
-    assert out["image_bytes"] == b"GENERATED_PNG_BYTES"
+    assert out.update == {"image_bytes": b"GENERATED_PNG_BYTES"}
+    assert out.goto == "generated_upload"
     assert img.calls == 2
-    assert out.get("error") is None
 
 
 async def test_image_generator_records_error_after_attempts_exhausted() -> None:
     img = FakeImageGenerator(fail_times=99)
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
-    assert out.get("image_bytes") is None
-    assert isinstance(out["error"], ImageGenerationFailedError)
+    assert isinstance(out.update["error"], ImageGenerationFailedError)
+    assert "image_bytes" not in out.update
+    assert out.goto == "cleanup_source_image"
     assert img.calls == 2
 
 

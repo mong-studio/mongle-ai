@@ -27,6 +27,7 @@ venv/
 .omc/
 .reports/
 .ruff_cache/
+.claude/
 
 # Data (synced via S3 — see data/README.md)
 data/raw/*

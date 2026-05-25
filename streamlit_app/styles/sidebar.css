@@ -1,0 +1,47 @@
+/* ───── Sidebar ───── */
+section[data-testid="stSidebar"] {
+  background: #1a1a1a !important;
+  border-right: 4px solid var(--wood-dark) !important;
+}
+section[data-testid="stSidebar"] * { color: var(--bone) !important; }
+section[data-testid="stSidebar"] .stMetric label,
+section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+  color: var(--gold) !important;
+}
+.sidebar-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  padding: 4px 0 12px;
+  border-bottom: 2px dashed var(--wood-mid);
+  margin-bottom: 12px;
+}
+
+/* ───── Character gallery ───── */
+.gallery-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  border-top: 2px dashed var(--wood-mid);
+  padding-top: 16px;
+  margin-top: 24px;
+  text-shadow: 2px 2px 0 #000;
+}
+.char-card {
+  background: var(--parchment);
+  border: 3px solid var(--wood-dark);
+  padding: 8px;
+  color: var(--ink);
+  margin-top: 10px;
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.char-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--wood-dark);
+  letter-spacing: 1px;
+  margin-top: 6px;
+}
+.char-meta { font-size: 13px; color: var(--ink); }

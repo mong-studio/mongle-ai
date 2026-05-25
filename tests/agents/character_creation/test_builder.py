@@ -72,10 +72,11 @@ async def test_builder_node_assembles_entity() -> None:
         generated_url="https://fake-s3.local/characters/u1/x.png",
     )
     out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
-    entity = out["entity"]
+    entity = out.update["entity"]
     assert entity.name == "몽글이"
     assert entity.image_url.endswith("x.png")
     assert entity.source_image_url is None
+    assert out.goto == "__end__"
 
 
 async def test_builder_node_records_error_when_state_invalid() -> None:
@@ -84,4 +85,5 @@ async def test_builder_node_records_error_when_state_invalid() -> None:
         is_regeneration=False,
     )
     out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
-    assert isinstance(out.get("error"), Exception)
+    assert isinstance(out.update["error"], Exception)
+    assert out.goto == "cleanup_source_image"
