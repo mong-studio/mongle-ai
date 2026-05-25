@@ -23,26 +23,30 @@ flowchart TB
   end
  subgraph MULTI["멀티턴 TODO/플랜 생성"]
     direction TB
-        MA@{ label: "User Input\n        장기 플랜 자연어 (≤600자)\n        예: '3일 후 정보처리기사 시험'" }
+        MA@{ label: "User Input
+        자연어 메시지 (≤600자, 한국어 위주)" }
         MV{"Validation
-        • 길이 ≤600자
-        • 한국어 위주"}
+        • 길이 ≤600자 (M1)
+        • 빈 입력 (M2)
+        • 한글 비율 ≥0.3 (M3)"}
         MVE[/"에러 응답"/]
-        MPS["LLM (Planner)
-        의도 파악 → 충분/부족 판정"]
-        MQ{"정보 충분?"}
-        MFU["LLM
-        꼬리 질문 생성
-        (목표/시간/난이도 등)"]
-        MAU[/"사용자 답변
-        (멀티턴, ≤600자)"/]
-        MPG["LLM (Plan Generator)
-        일자별 플랜 생성
-        (≤1500자)"]
-        MTG["LLM (Tagger)
-        목표 기반 태그 부여"]
-        ME["사용자 확인/수정/삭제 UI"]
-        MC["저장 디스패처"]
+        MPR{"phase_router
+        SessionStore 조회"}
+        MPS["LLM Planner judge
+        is_sufficient + parsed_goal 갱신"]
+        MQ{"is_sufficient?"}
+        MFU["LLM Follow-up
+        꼬리 질문 생성"]
+        MPG["LLM Plan Generator
+        일자별 플랜 (≤1500자 + truncate fallback)"]
+        MTG["LLM Tagger
+        자유 형식 태그"]
+        EA["LLM Edit Agent
+        tools: regenerate_plan / confirm"]
+        ME["present
+        TurnResult + SessionStore.save"]
+        MC["commit_invoke
+        commit/pipeline.run() 위임"]
   end
  subgraph COMMIT["저장 & 후처리"]
     direction TB
@@ -65,16 +69,14 @@ flowchart TB
     SE -- 확정 --> SC
     MA --> MV
     MV -- 실패 --> MVE
-    MV -- 통과 --> MPS
+    MV -- 통과 --> MPR
+    MPR -- gathering --> MPS
+    MPR -- reviewing --> EA
     MPS --> MQ
-    MQ -- 부족 --> MFU
-    MFU --> MAU
-    MAU --> MPS
-    MQ -- 충분 --> MPG
-    MPG --> MTG
-    MTG --> ME
-    ME -- 멀티턴 추가 요청 --> MPS
-    ME -- 확정 --> MC
+    MQ -- 부족 --> MFU --> ME
+    MQ -- 충분 --> MPG --> MTG --> ME
+    EA -- regenerate_plan --> MPG
+    EA -- confirm --> MC --> ME
     SC --> COMMIT
     MC --> COMMIT
     QA -- yes --> QAGENT
@@ -95,12 +97,13 @@ flowchart TB
      MA:::input
      MV:::validation
      MVE:::error
+     MPR:::process
      MPS:::ai
      MQ:::process
      MFU:::ai
-     MAU:::input
      MPG:::ai
      MTG:::ai
+     EA:::ai
      ME:::ui
      MC:::process
      DB1:::storage
