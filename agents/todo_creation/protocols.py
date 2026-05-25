@@ -8,12 +8,31 @@ from agents.todo_creation.schemas import (
     CommitResult,
     TaskCandidate,
 )
+from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 
 
 class LLMPort(Protocol):
+    # single
     async def split_tasks(
         self, *, prompt: str, today: date
     ) -> list[TaskCandidate]: ...
+
+    # multi
+    async def judge_sufficiency(
+        self, *, history: list[Turn], message: str, today: date
+    ) -> tuple[bool, list[str], ParsedGoal]: ...
+
+    async def generate_follow_up_question(
+        self, *, missing_aspects: list[str], history: list[Turn]
+    ) -> str: ...
+
+    async def generate_plan(
+        self, *, parsed_goal: ParsedGoal, today: date
+    ) -> tuple[str, list[PlanDay]]: ...
+
+    async def tag_plan(
+        self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
+    ) -> list[PlanDay]: ...
 
 
 class TodoRepositoryPort(Protocol):
