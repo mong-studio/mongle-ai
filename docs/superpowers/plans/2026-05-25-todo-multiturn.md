@@ -1,2702 +1,1326 @@
-# Multi-Turn TODO Chatbot Implementation Plan
+# TODO Multi-turn Unified Graph Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `agents/todo_creation/multi_turn/` 멀티턴 챗봇 LangGraph 파이프라인 구현 (정보수집=결정론적, 수정루프=tool-calling 하이브리드).
+**Goal:** `agents/todo_creation/` 의 single 모드와 multi 모드를 단일 `generate_graph` 로 통합. multi 모드는 `checkpointer + interrupt(follow_up)` 패턴. 이전 multi-only 부산물 어댑터(`openai_multi_turn.py`, `fake_multi_turn_llm.py`)는 단일 `LLMPort` 로 흡수 후 폐기. `commit_graph` 는 분리 유지.
 
-**Architecture:** Hybrid LangGraph 그래프. `validate → phase_router → (gathering: planner_judge → follow_up | plan_generator → tagger) | (reviewing: edit_agent → regenerate_plan | confirm) → present → END`. SessionStorePort 로 turn 간 상태 보관. commit/pipeline.run() 위임.
+**Architecture:** 단일 컴파일 그래프(`checkpointer=MemorySaver`) 가 mode 필드를 보고 `single_validate` 또는 `multi_validate` 로 `Command(goto=...)` 분기. multi 경로는 `planner` → (`follow_up + interrupt` | `plan_generator` → `tagger`) 루프. 양 경로는 `date_router` 로 fan-in 한 뒤 END. plan 검토·확정은 클라가 별도 `commit_graph` 호출.
 
-**Tech Stack:** Python 3.12, LangGraph 0.2+ (StateGraph, RetryPolicy), Pydantic v2, pytest, asyncio.
+**Tech Stack:** Python 3.12, LangGraph 0.2+ (StateGraph, Command, interrupt, MemorySaver, RetryPolicy), Pydantic v2 (discriminated union), pytest + pytest-asyncio, character_creation 의 RetryPolicy·debug·ports 패턴.
 
-**Working directory:** `/Users/jpaper/Documents/projects/mongle-village-todo`
-**Branch:** `feat/todo-multiturn` (이미 생성됨)
+**Working directory:** `/Users/jpaper/Documents/projects/mongle-village` (current main worktree). 이전 plan 의 `mongle-village-todo` 경로 명시는 무효.
+**Branch:** plan 실행 sub-skill 이 결정. 본 plan 은 spec commit `640c876` 머지된 `main` 기준.
 **Spec:** [`docs/superpowers/specs/2026-05-25-todo-multiturn-design.md`](../specs/2026-05-25-todo-multiturn-design.md)
+**Replaces:** 본 파일은 spec 폐기와 일관되게 이전 multi-only plan(SessionStorePort + edit_agent + phase_router + commit_invoke)을 폐기·대체.
 
 ---
 
 ## File Structure
 
-**신규 (Create):**
+### Create
+- `agents/todo_creation/pipeline.py`
+- `agents/todo_creation/graph.py`
+- `agents/todo_creation/state.py`
+- `agents/todo_creation/nodes/__init__.py`
+- `agents/todo_creation/nodes/entry.py`
 - `agents/todo_creation/multi_turn/__init__.py`
-- `agents/todo_creation/multi_turn/state.py`
-- `agents/todo_creation/multi_turn/session_store.py`
-- `agents/todo_creation/multi_turn/tools.py`
-- `agents/todo_creation/multi_turn/graph.py`
-- `agents/todo_creation/multi_turn/pipeline.py`
 - `agents/todo_creation/multi_turn/nodes/__init__.py`
-- `agents/todo_creation/multi_turn/nodes/{validate,phase_router,planner_judge,follow_up,plan_generator,tagger,edit_agent,commit_invoke,present}.py`
-- `adapters/todo_creation/{fake_multi_turn_llm,openai_multi_turn}.py`
-- `tests/agents/todo_creation/multi_turn/{__init__,conftest,test_session_store,test_graph,test_pipeline}.py`
-- `tests/agents/todo_creation/multi_turn/nodes/{__init__,test_validate,test_phase_router,test_planner_judge,test_follow_up,test_plan_generator,test_tagger,test_edit_agent,test_commit_invoke,test_present}.py`
-- `tests/adapters/todo_creation/test_openai_multi_turn.py`
+- `agents/todo_creation/multi_turn/nodes/validate.py`
+- `agents/todo_creation/multi_turn/nodes/planner.py`
+- `agents/todo_creation/multi_turn/nodes/follow_up.py`
+- `agents/todo_creation/multi_turn/nodes/plan_generator.py`
+- `agents/todo_creation/multi_turn/nodes/tagger.py`
+- `tests/agents/todo_creation/nodes/__init__.py`
+- `tests/agents/todo_creation/nodes/test_entry.py`
+- `tests/agents/todo_creation/multi_turn/__init__.py`
+- `tests/agents/todo_creation/multi_turn/nodes/__init__.py`
+- `tests/agents/todo_creation/multi_turn/nodes/test_validate.py`
+- `tests/agents/todo_creation/multi_turn/nodes/test_planner.py`
+- `tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py`
+- `tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py`
+- `tests/agents/todo_creation/multi_turn/nodes/test_tagger.py`
+- `tests/agents/todo_creation/test_graph.py`
+- `tests/agents/todo_creation/test_pipeline.py`
 
-**수정 (Modify):**
-- `agents/todo_creation/schemas.py` — 신규 Pydantic 모델 11개
-- `agents/todo_creation/protocols.py` — `MultiTurnLLMPort`, `SessionStorePort`
-- `agents/todo_creation/exceptions.py` — `SessionStoreError`, `EditAgentError`
-- `agents/todo_creation/debug.py` — `Kind` 에 `"multi_turn"` 추가
-- `docs/features/todo/architecture.mmd` — MULTI 서브그래프 교체
-- `docs/features/todo/CLAUDE.md` — §7 갱신
-- `CHANGELOG.md` — Unreleased/Added
+### Modify
+- `agents/todo_creation/schemas.py` — `SingleGenerateInput`/`MultiGenerateInput`/`GenerateInput` Union, `GenerateResult`/`FollowUpResult`/`TurnResult` Union 추가
+- `agents/todo_creation/protocols.py` — `LLMPort` 에 4 메서드 추가
+- `agents/todo_creation/exceptions.py` — `ThreadNotFoundError` 추가
+- `adapters/todo_creation/openai_llm.py` — 4 메서드 흡수
+- `adapters/todo_creation/fake_llm.py` — 4 메서드 흡수 (`fail_times`/`responses` 큐 패턴 유지)
+- `tests/adapters/todo_creation/test_openai_llm.py` — 4 메서드 모킹 케이스 흡수
+- `streamlit_app/app.py` — 통합 그래프 사용
+- `CHANGELOG.md`
+- `docs/features/todo/architecture.mmd`
+- `docs/features/todo/CLAUDE.md` — §4 갱신
+
+### Delete
+- `agents/todo_creation/single_turn/pipeline.py`
+- `agents/todo_creation/single_turn/graph.py`
+- `agents/todo_creation/single_turn/state.py`
+- `tests/agents/todo_creation/single_turn/test_pipeline.py`
+- `adapters/todo_creation/openai_multi_turn.py`
+- `adapters/todo_creation/fake_multi_turn_llm.py`
+- `tests/adapters/todo_creation/test_openai_multi_turn.py`
 
 ---
 
-## Phase 1: Schemas (Foundation)
+## Phase A — Foundation
 
-### Task 1.1: 새 Pydantic 모델 추가
+### Task A1: schemas Union 입력 + TurnResult Union
 
-**Files:**
-- Modify: `agents/todo_creation/schemas.py`
-- Test: `tests/agents/todo_creation/test_schemas.py`
+**Files:** Modify `agents/todo_creation/schemas.py`; Test `tests/agents/todo_creation/test_schemas.py`.
 
-- [ ] **Step 1: 테스트 작성** — `tests/agents/todo_creation/test_schemas.py` 파일 끝에 추가:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-# === multi_turn schemas ===
-from datetime import date, datetime
-
+from datetime import date
 import pytest
-from pydantic import ValidationError as PydanticValidationError
-
+from pydantic import TypeAdapter, ValidationError as PydanticValidationError
 from agents.todo_creation.schemas import (
-    AgentDecision, ChatMessage, Day, MultiTurnInput, ParsedGoal, PlanDraft,
-    PlannerJudgment, SessionState, TaggedPlan, Task, TurnResult,
+    SingleGenerateInput, MultiGenerateInput, GenerateInput,
+    GenerateResult, FollowUpResult, TurnResult,
 )
 
+def test_single_input_max_200():
+    assert SingleGenerateInput(user_id="u1", prompt="a"*200, today=date(2026,5,25)).mode == "single"
 
-def test_multi_turn_input_max_length_600():
-    inp = MultiTurnInput(user_id="u1", session_id="s1", message="가" * 600, today=date(2026, 5, 25))
-    assert len(inp.message) == 600
-
-
-def test_multi_turn_input_over_600_rejected():
+def test_single_input_over_200_rejected():
     with pytest.raises(PydanticValidationError):
-        MultiTurnInput(user_id="u1", session_id="s1", message="가" * 601, today=date(2026, 5, 25))
+        SingleGenerateInput(user_id="u1", prompt="a"*201, today=date(2026,5,25))
 
+def test_multi_input_max_600():
+    inp = MultiGenerateInput(user_id="u1", message="가"*600, today=date(2026,5,25))
+    assert inp.mode == "multi"
+    assert inp.thread_id is None
 
-def test_chat_message_roles():
-    assert ChatMessage(role="user", content="hi").role == "user"
+def test_multi_input_over_600_rejected():
     with pytest.raises(PydanticValidationError):
-        ChatMessage(role="system", content="x")
+        MultiGenerateInput(user_id="u1", message="가"*601, today=date(2026,5,25))
 
+def test_generate_input_discriminator_single():
+    parsed = TypeAdapter(GenerateInput).validate_python(
+        {"mode":"single","user_id":"u1","prompt":"x","today":"2026-05-25"})
+    assert isinstance(parsed, SingleGenerateInput)
 
-def test_parsed_goal_all_optional():
-    g = ParsedGoal()
-    assert g.goal_type is None and g.extras == {}
+def test_generate_input_discriminator_multi():
+    parsed = TypeAdapter(GenerateInput).validate_python(
+        {"mode":"multi","user_id":"u1","message":"안녕","today":"2026-05-25"})
+    assert isinstance(parsed, MultiGenerateInput)
 
-
-def test_planner_judgment_round_trip():
-    j = PlannerJudgment(is_sufficient=False, missing_aspects=["하루 시간"], parsed_goal=ParsedGoal(goal_type="정처기"))
-    assert j.missing_aspects == ["하루 시간"]
-
-
-def test_plan_draft_no_length_at_schema():
-    draft = PlanDraft(summary_text="가" * 2000, days=[])
-    assert len(draft.summary_text) == 2000
-
-
-def test_tagged_plan_has_tags():
-    plan = TaggedPlan(
-        summary_text="요약",
-        days=[Day(date=date(2026, 5, 25), tasks=[Task(title="공부", tags=["학습"])])],
-    )
-    assert plan.days[0].tasks[0].tags == ["학습"]
-
-
-def test_agent_decision_tool_names():
-    assert AgentDecision(tool_name="confirm", tool_args={}).tool_name == "confirm"
-    d = AgentDecision(tool_name="regenerate_plan", tool_args={"instructions": "더 짧게"})
-    assert d.tool_args["instructions"] == "더 짧게"
-    with pytest.raises(PydanticValidationError):
-        AgentDecision(tool_name="invalid", tool_args={})
-
-
-def test_turn_result_kinds():
-    assert TurnResult(kind="question", question="?").kind == "question"
-    assert TurnResult(kind="plan", plan=TaggedPlan(summary_text="x", days=[])).plan is not None
-    assert TurnResult(kind="committed").kind == "committed"
-
-
-def test_session_state_phase_literals():
-    now = datetime(2026, 5, 25, 12, 0)
-    s = SessionState(session_id="s1", user_id="u1", phase="gathering", history=[], parsed_goal=None, current_plan=None, created_at=now, updated_at=now)
-    assert s.phase == "gathering"
-    with pytest.raises(PydanticValidationError):
-        SessionState(session_id="s1", user_id="u1", phase="invalid", history=[], parsed_goal=None, current_plan=None, created_at=now, updated_at=now)
+def test_turn_result_discriminator():
+    a = TypeAdapter(TurnResult)
+    c = a.validate_python({"kind":"candidates","thread_id":"t1","todos":[],"calendar_events":[]})
+    f = a.validate_python({"kind":"follow_up","thread_id":"t1","question":"?","missing_aspects":[]})
+    assert isinstance(c, GenerateResult)
+    assert isinstance(f, FollowUpResult)
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-cd /Users/jpaper/Documents/projects/mongle-village-todo && uv run pytest tests/agents/todo_creation/test_schemas.py -v 2>&1 | tail -20
-```
-
-Expected: ImportError (새 심볼들이 schemas.py 에 없음)
-
-- [ ] **Step 3: 스키마 추가 구현** — `agents/todo_creation/schemas.py` 파일 끝에 추가:
-
-```python
-from datetime import datetime
-from typing import Literal
-
-
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: Annotated[str, Field(min_length=1)]
-
-
-class ParsedGoal(BaseModel):
-    goal_type: str | None = None
-    deadline: date | None = None
-    daily_capacity: str | None = None
-    target_level: str | None = None
-    extras: Annotated[dict[str, str], Field(default_factory=dict)]
-
-
-class PlannerJudgment(BaseModel):
-    is_sufficient: bool
-    missing_aspects: Annotated[list[str], Field(default_factory=list)]
-    parsed_goal: ParsedGoal
-
-
-class Task(BaseModel):
-    title: Annotated[str, Field(min_length=1, max_length=80)]
-    detail: str | None = None
-    time_hint: str | None = None
-    tags: Annotated[list[str], Field(default_factory=list)]
-
-
-class Day(BaseModel):
-    date: date
-    tasks: Annotated[list[Task], Field(default_factory=list)]
-
-
-class PlanDraft(BaseModel):
-    summary_text: Annotated[str, Field(min_length=1)]
-    days: Annotated[list[Day], Field(default_factory=list)]
-
-
-class TaggedPlan(BaseModel):
-    summary_text: Annotated[str, Field(min_length=1)]
-    days: Annotated[list[Day], Field(default_factory=list)]
-
-
-class MultiTurnInput(BaseModel):
-    user_id: Annotated[str, Field(min_length=1)]
-    session_id: Annotated[str, Field(min_length=1)]
-    message: Annotated[str, Field(min_length=1, max_length=600)]
-    today: date
-
-
-class AgentDecision(BaseModel):
-    tool_name: Literal["regenerate_plan", "confirm"]
-    tool_args: Annotated[dict[str, str], Field(default_factory=dict)]
-
-
-class TurnResult(BaseModel):
-    kind: Literal["question", "plan", "committed"]
-    question: str | None = None
-    plan: TaggedPlan | None = None
-    commit_result: CommitResult | None = None
-
-
-class SessionState(BaseModel):
-    session_id: Annotated[str, Field(min_length=1)]
-    user_id: Annotated[str, Field(min_length=1)]
-    phase: Literal["gathering", "reviewing"]
-    history: Annotated[list[ChatMessage], Field(default_factory=list)]
-    parsed_goal: ParsedGoal | None = None
-    current_plan: TaggedPlan | None = None
-    created_at: datetime
-    updated_at: datetime
-```
-
-- [ ] **Step 4: 테스트 통과 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/test_schemas.py -v 2>&1 | tail -20
-```
-
-Expected: 모든 신규 테스트 + 기존 테스트 PASS
-
-- [ ] **Step 5: 커밋**
+- [ ] **Step 2: 실패 확인** — `uv run pytest tests/agents/todo_creation/test_schemas.py -v`. Expected: ImportError.
+- [ ] **Step 3: 구현** — `agents/todo_creation/schemas.py` 끝에 spec §3.1 의 6 모델 + 두 Union 추가 (`Annotated[A|B, Field(discriminator="mode"|"kind")]`). 기존 `TaskCandidate` 변경 없음.
+- [ ] **Step 4: 통과 확인** — Expected: 7 passed.
+- [ ] **Step 5: commit**
 
 ```bash
 git add agents/todo_creation/schemas.py tests/agents/todo_creation/test_schemas.py
-git commit -m "feat(todo): multi_turn schemas (Pydantic 모델 11개 추가)"
+git commit -m "feat(todo): add unified generate Input/TurnResult discriminated unions"
 ```
 
 ---
 
-## Phase 2: Protocols & Exceptions
+### Task A2: exceptions — ThreadNotFoundError
 
-### Task 2.1: Protocol + Exception 추가
+**Files:** Modify `agents/todo_creation/exceptions.py`; Test `tests/agents/todo_creation/test_exceptions.py`.
 
-**Files:**
-- Modify: `agents/todo_creation/protocols.py`
-- Modify: `agents/todo_creation/exceptions.py`
-
-- [ ] **Step 1: exceptions 추가** — `agents/todo_creation/exceptions.py` 끝에 추가:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-class SessionStoreError(TodoCreationError):
-    pass
-
-
-class EditAgentError(TodoCreationError):
-    def __init__(self, *, code: str, message: str) -> None:
-        super().__init__(f"[{code}] {message}")
-        self.code = code
-        self.message = message
+def test_thread_not_found_inherits():
+    from agents.todo_creation.exceptions import ThreadNotFoundError, TodoCreationError
+    assert isinstance(ThreadNotFoundError("missing"), TodoCreationError)
 ```
 
-- [ ] **Step 2: protocols 추가** — `agents/todo_creation/protocols.py` 끝에 추가 (필요한 import 도 함께):
-
-```python
-from agents.todo_creation.schemas import (
-    AgentDecision, ChatMessage, ParsedGoal, PlanDraft, PlannerJudgment,
-    SessionState, TaggedPlan,
-)
-
-
-class MultiTurnLLMPort(Protocol):
-    async def judge_planner(self, *, history: list[ChatMessage], previous_goal: ParsedGoal | None, today: date) -> PlannerJudgment: ...
-    async def generate_follow_up(self, *, missing_aspects: list[str], history: list[ChatMessage]) -> str: ...
-    async def generate_plan(self, *, parsed_goal: ParsedGoal, today: date, edit_instructions: str | None) -> PlanDraft: ...
-    async def tag_plan(self, *, plan_draft: PlanDraft, parsed_goal: ParsedGoal) -> TaggedPlan: ...
-    async def edit_agent_step(self, *, history: list[ChatMessage], current_plan: TaggedPlan) -> AgentDecision: ...
-
-
-class SessionStorePort(Protocol):
-    async def load(self, *, session_id: str) -> SessionState | None: ...
-    async def save(self, *, state: SessionState) -> None: ...
-    async def delete(self, *, session_id: str) -> None: ...
-```
-
-- [ ] **Step 3: import 검증**
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현** — `exceptions.py` 에 `class ThreadNotFoundError(TodoCreationError): """4xx — invalid or expired LangGraph thread_id."""`.
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run python -c "
-from agents.todo_creation.protocols import MultiTurnLLMPort, SessionStorePort
-from agents.todo_creation.exceptions import SessionStoreError, EditAgentError
-print('OK')
-"
-```
-
-Expected: `OK`
-
-- [ ] **Step 4: 커밋**
-
-```bash
-git add agents/todo_creation/protocols.py agents/todo_creation/exceptions.py
-git commit -m "feat(todo): MultiTurnLLMPort + SessionStorePort + 신규 예외"
+git add agents/todo_creation/exceptions.py tests/agents/todo_creation/test_exceptions.py
+git commit -m "feat(todo): add ThreadNotFoundError"
 ```
 
 ---
 
-## Phase 3: Session Store
+### Task A3: state.py 신규 (GenerateState)
 
-### Task 3.1: InMemorySessionStore + 테스트
+**Files:** Create `agents/todo_creation/state.py`. (TypedDict 만 — 별도 단위 테스트 없음.)
 
-**Files:**
-- Create: `agents/todo_creation/multi_turn/{__init__.py,session_store.py}`, `agents/todo_creation/multi_turn/nodes/__init__.py`
-- Create: `tests/agents/todo_creation/multi_turn/{__init__.py,test_session_store.py}`, `tests/agents/todo_creation/multi_turn/nodes/__init__.py`
-
-- [ ] **Step 1: 빈 패키지 마커 생성**
-
-```bash
-cd /Users/jpaper/Documents/projects/mongle-village-todo
-mkdir -p agents/todo_creation/multi_turn/nodes tests/agents/todo_creation/multi_turn/nodes
-touch agents/todo_creation/multi_turn/__init__.py \
-      agents/todo_creation/multi_turn/nodes/__init__.py \
-      tests/agents/todo_creation/multi_turn/__init__.py \
-      tests/agents/todo_creation/multi_turn/nodes/__init__.py
-```
-
-- [ ] **Step 2: 테스트 작성** — `tests/agents/todo_creation/multi_turn/test_session_store.py`:
+- [ ] **Step 1: state.py 작성** — spec §3.2 의사코드 그대로
 
 ```python
-from __future__ import annotations
-
-from datetime import datetime
-
-import pytest
-
-from agents.todo_creation.multi_turn.session_store import InMemorySessionStore
-from agents.todo_creation.schemas import SessionState
-
-
-def _state(session_id: str = "s1") -> SessionState:
-    now = datetime(2026, 5, 25, 12, 0)
-    return SessionState(
-        session_id=session_id, user_id="u1", phase="gathering", history=[],
-        parsed_goal=None, current_plan=None, created_at=now, updated_at=now,
-    )
-
-
-@pytest.mark.asyncio
-async def test_load_returns_none_when_missing():
-    store = InMemorySessionStore()
-    assert await store.load(session_id="nope") is None
-
-
-@pytest.mark.asyncio
-async def test_save_then_load_roundtrip():
-    store = InMemorySessionStore()
-    await store.save(state=_state())
-    loaded = await store.load(session_id="s1")
-    assert loaded is not None and loaded.phase == "gathering"
-
-
-@pytest.mark.asyncio
-async def test_save_is_upsert():
-    store = InMemorySessionStore()
-    s = _state()
-    await store.save(state=s)
-    await store.save(state=s.model_copy(update={"phase": "reviewing"}))
-    loaded = await store.load(session_id="s1")
-    assert loaded.phase == "reviewing"
-
-
-@pytest.mark.asyncio
-async def test_delete_removes():
-    store = InMemorySessionStore()
-    await store.save(state=_state())
-    await store.delete(session_id="s1")
-    assert await store.load(session_id="s1") is None
-
-
-@pytest.mark.asyncio
-async def test_delete_missing_is_idempotent():
-    store = InMemorySessionStore()
-    await store.delete(session_id="nope")
-```
-
-- [ ] **Step 3: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_session_store.py -v 2>&1 | tail -20
-```
-
-Expected: ImportError
-
-- [ ] **Step 4: 구현 작성** — `agents/todo_creation/multi_turn/session_store.py`:
-
-```python
-from __future__ import annotations
-
-import asyncio
-from dataclasses import dataclass, field
-
-from agents.todo_creation.schemas import SessionState
-
-
-@dataclass
-class InMemorySessionStore:
-    """In-memory SessionStorePort implementation for tests/dev. Single asyncio.Lock."""
-
-    _by_id: dict[str, SessionState] = field(default_factory=dict)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-    async def load(self, *, session_id: str) -> SessionState | None:
-        async with self._lock:
-            return self._by_id.get(session_id)
-
-    async def save(self, *, state: SessionState) -> None:
-        async with self._lock:
-            self._by_id[state.session_id] = state
-
-    async def delete(self, *, session_id: str) -> None:
-        async with self._lock:
-            self._by_id.pop(session_id, None)
-```
-
-- [ ] **Step 5: 테스트 통과 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_session_store.py -v 2>&1 | tail -10
-```
-
-Expected: 5 passed
-
-- [ ] **Step 6: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/__init__.py \
-        agents/todo_creation/multi_turn/nodes/__init__.py \
-        agents/todo_creation/multi_turn/session_store.py \
-        tests/agents/todo_creation/multi_turn/__init__.py \
-        tests/agents/todo_creation/multi_turn/nodes/__init__.py \
-        tests/agents/todo_creation/multi_turn/test_session_store.py
-git commit -m "feat(todo): InMemorySessionStore + 단위 테스트"
-```
-
----
-
-## Phase 4: FakeMultiTurnLLM + Conftest
-
-### Task 4.1: FakeMultiTurnLLM
-
-**Files:**
-- Create: `adapters/todo_creation/fake_multi_turn_llm.py`
-
-- [ ] **Step 1: 구현 작성** — `adapters/todo_creation/fake_multi_turn_llm.py`:
-
-```python
-from __future__ import annotations
-
-from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import date
-
-from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.schemas import (
-    AgentDecision, ChatMessage, ParsedGoal, PlanDraft, PlannerJudgment, TaggedPlan,
-)
-
-
-@dataclass
-class FakeMultiTurnLLM:
-    """Scripted MultiTurnLLMPort for tests.
-
-    Response lists are FIFO queues. `fail_times_<method>` raises LLMFailedError
-    that many times before any response is popped.
-    """
-
-    judge_responses: list[PlannerJudgment] = field(default_factory=list)
-    follow_up_responses: list[str] = field(default_factory=list)
-    plan_responses: list[PlanDraft] = field(default_factory=list)
-    tag_responses: list[TaggedPlan] = field(default_factory=list)
-    agent_decisions: list[AgentDecision] = field(default_factory=list)
-
-    fail_times_judge: int = 0
-    fail_times_follow_up: int = 0
-    fail_times_plan: int = 0
-    fail_times_tag: int = 0
-    fail_times_agent: int = 0
-
-    calls: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    last_plan_edit_instructions: list[str | None] = field(default_factory=list)
-
-    async def judge_planner(self, *, history, previous_goal, today) -> PlannerJudgment:
-        self.calls["judge_planner"] += 1
-        if self.fail_times_judge > 0:
-            self.fail_times_judge -= 1
-            raise LLMFailedError("simulated judge failure")
-        assert self.judge_responses, "unexpected judge_planner call"
-        return self.judge_responses.pop(0)
-
-    async def generate_follow_up(self, *, missing_aspects, history) -> str:
-        self.calls["generate_follow_up"] += 1
-        if self.fail_times_follow_up > 0:
-            self.fail_times_follow_up -= 1
-            raise LLMFailedError("simulated follow_up failure")
-        assert self.follow_up_responses, "unexpected generate_follow_up call"
-        return self.follow_up_responses.pop(0)
-
-    async def generate_plan(self, *, parsed_goal, today, edit_instructions) -> PlanDraft:
-        self.calls["generate_plan"] += 1
-        self.last_plan_edit_instructions.append(edit_instructions)
-        if self.fail_times_plan > 0:
-            self.fail_times_plan -= 1
-            raise LLMFailedError("simulated plan failure")
-        assert self.plan_responses, "unexpected generate_plan call"
-        return self.plan_responses.pop(0)
-
-    async def tag_plan(self, *, plan_draft, parsed_goal) -> TaggedPlan:
-        self.calls["tag_plan"] += 1
-        if self.fail_times_tag > 0:
-            self.fail_times_tag -= 1
-            raise LLMFailedError("simulated tag failure")
-        assert self.tag_responses, "unexpected tag_plan call"
-        return self.tag_responses.pop(0)
-
-    async def edit_agent_step(self, *, history, current_plan) -> AgentDecision:
-        self.calls["edit_agent_step"] += 1
-        if self.fail_times_agent > 0:
-            self.fail_times_agent -= 1
-            raise LLMFailedError("simulated agent failure")
-        assert self.agent_decisions, "unexpected edit_agent_step call"
-        return self.agent_decisions.pop(0)
-```
-
-- [ ] **Step 2: import 검증**
-
-```bash
-uv run python -c "from adapters.todo_creation.fake_multi_turn_llm import FakeMultiTurnLLM; print('OK')"
-```
-
-Expected: `OK`
-
-- [ ] **Step 3: 커밋**
-
-```bash
-git add adapters/todo_creation/fake_multi_turn_llm.py
-git commit -m "feat(todo): FakeMultiTurnLLM 어댑터 (큐 기반 스크립트 LLM)"
-```
-
-### Task 4.2: conftest.py
-
-**Files:**
-- Create: `tests/agents/todo_creation/multi_turn/conftest.py`
-
-- [ ] **Step 1: conftest 작성**:
-
-```python
-from __future__ import annotations
-
 from datetime import date, datetime
-
-import pytest
-
-from adapters.todo_creation.fake_multi_turn_llm import FakeMultiTurnLLM
-from agents.todo_creation.multi_turn.session_store import InMemorySessionStore
-from agents.todo_creation.schemas import MultiTurnInput
-
-
-@pytest.fixture
-def today() -> date:
-    return date(2026, 5, 25)
-
-
-@pytest.fixture
-def now() -> datetime:
-    return datetime(2026, 5, 25, 12, 0, 0)
-
-
-@pytest.fixture
-def fake_mt_llm() -> FakeMultiTurnLLM:
-    return FakeMultiTurnLLM()
-
-
-@pytest.fixture
-def session_store() -> InMemorySessionStore:
-    return InMemorySessionStore()
-
-
-@pytest.fixture
-def base_input(today) -> MultiTurnInput:
-    return MultiTurnInput(user_id="u1", session_id="s1", message="3일 후 정보처리기사 시험", today=today)
-```
-
-- [ ] **Step 2: collection 검증**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_session_store.py --collect-only 2>&1 | tail -10
-```
-
-Expected: collection 정상
-
-- [ ] **Step 3: 커밋**
-
-```bash
-git add tests/agents/todo_creation/multi_turn/conftest.py
-git commit -m "test(todo): multi_turn conftest fixtures"
-```
-
----
-
-## Phase 5: Validate Node
-
-### Task 5.1: validate_node + state
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/state.py`
-- Create: `agents/todo_creation/multi_turn/nodes/validate.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_validate.py`
-
-- [ ] **Step 1: state 정의** — `agents/todo_creation/multi_turn/state.py`:
-
-```python
-from __future__ import annotations
-
-from datetime import datetime
 from typing import Literal, TypedDict
+from agents.todo_creation.schemas import TaskCandidate
 
-from agents.todo_creation.schemas import (
-    ChatMessage, MultiTurnInput, ParsedGoal, PlanDraft, PlannerJudgment, TaggedPlan, TurnResult,
-)
+class Turn(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
 
+class ParsedGoal(TypedDict, total=False):
+    goal_text: str
+    deadline: date | None
+    daily_capacity_minutes: int | None
 
-class MultiTurnGraphState(TypedDict, total=False):
-    input: MultiTurnInput
+class PlanDay(TypedDict):
+    date: date
+    tasks: list[TaskCandidate]
+
+class GenerateState(TypedDict, total=False):
+    mode: Literal["single", "multi"]
+    user_id: str
+    today: date
     now: datetime
-
-    phase: Literal["gathering", "reviewing"]
-    history: list[ChatMessage]
+    prompt: str
+    split_tasks: list[TaskCandidate]
+    message: str
+    history: list[Turn]
     parsed_goal: ParsedGoal | None
-    current_plan: TaggedPlan | None
-
-    judgment: PlannerJudgment | None
+    sufficiency: bool | None
+    missing_aspects: list[str]
     follow_up_question: str | None
-
-    edit_instructions: str | None
-    confirmed: bool | None
-
-    plan_draft: PlanDraft | None
-
-    result: TurnResult | None
+    plan: list[PlanDay] | None
+    summary_text: str | None
+    todos: list[TaskCandidate]
+    calendar_events: list[TaskCandidate]
     error: Exception | None
 ```
 
-- [ ] **Step 2: 테스트 작성** — `tests/agents/todo_creation/multi_turn/nodes/test_validate.py`:
-
-```python
-from __future__ import annotations
-
-import pytest
-
-from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.nodes.validate import HANGUL_RATIO_MIN, validate_node
-
-
-@pytest.mark.asyncio
-async def test_validate_passes_normal_korean(base_input):
-    assert await validate_node({"input": base_input}, {}) == {}
-
-
-@pytest.mark.asyncio
-async def test_m2_whitespace_only(base_input):
-    state = {"input": base_input.model_copy(update={"message": "   "})}
-    with pytest.raises(ValidationError) as ei:
-        await validate_node(state, {})
-    assert ei.value.code == "M2"
-
-
-@pytest.mark.asyncio
-async def test_m3_hangul_ratio_too_low(base_input):
-    state = {"input": base_input.model_copy(update={"message": "abcdefghij"})}
-    with pytest.raises(ValidationError) as ei:
-        await validate_node(state, {})
-    assert ei.value.code == "M3"
-
-
-@pytest.mark.asyncio
-async def test_m3_passes_mixed_korean_above_threshold(base_input):
-    state = {"input": base_input.model_copy(update={"message": "한국어 a"})}
-    assert await validate_node(state, {}) == {}
-
-
-def test_hangul_ratio_constant():
-    assert HANGUL_RATIO_MIN == 0.3
-```
-
-- [ ] **Step 3: 테스트 실패 확인**
+- [ ] **Step 2: import smoke**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_validate.py -v 2>&1 | tail -15
+uv run python -c "from agents.todo_creation.state import GenerateState, Turn, ParsedGoal, PlanDay; print('ok')"
+```
+Expected: `ok`.
+
+- [ ] **Step 3: commit**
+
+```bash
+git add agents/todo_creation/state.py
+git commit -m "feat(todo): add unified GenerateState TypedDict"
 ```
 
-Expected: ImportError
+---
 
-- [ ] **Step 4: 구현 작성** — `agents/todo_creation/multi_turn/nodes/validate.py`:
+### Task A4: protocols — LLMPort 4 신규 메서드
+
+**Files:** Modify `agents/todo_creation/protocols.py`; Test `tests/agents/todo_creation/test_protocols.py`.
+
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
+import inspect
+from agents.todo_creation.protocols import LLMPort
+def test_llm_port_has_five_methods():
+    names = {n for n,_ in inspect.getmembers(LLMPort, predicate=inspect.isfunction)}
+    assert {"split_tasks","judge_sufficiency","generate_follow_up_question",
+            "generate_plan","tag_plan"} <= names
+```
 
-import re
-from typing import Any
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현** — `LLMPort` Protocol 에 spec §3.3 시그니처 4개 추가 (async, kwonly). `Turn`/`ParsedGoal`/`PlanDay` 는 `agents.todo_creation.state` 에서 import.
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
+```bash
+git add agents/todo_creation/protocols.py tests/agents/todo_creation/test_protocols.py
+git commit -m "feat(todo): extend LLMPort with 4 multi-turn methods"
+```
+
+---
+
+## Phase B — Multi-turn Nodes
+
+character_creation 의 노드 패턴 (`async (state, config)`, state diff 또는 `Command` 반환). `RetryPolicy` 는 그래프 등록 시점 부여 (Task C2).
+
+### Task B1: multi_validate_node
+
+**Files:** Create `agents/todo_creation/multi_turn/nodes/validate.py`; Test `tests/agents/todo_creation/multi_turn/nodes/test_validate.py`.
+
+- [ ] **Step 1: 실패 테스트**
+
+```python
+import pytest
+from datetime import date, datetime, timezone
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-from agents.todo_creation.schemas import MultiTurnInput
+from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
 
-HANGUL_RATIO_MIN = 0.3
+def _state(message: str) -> dict:
+    return {"mode":"multi","user_id":"u1","message":message,
+            "today":date(2026,5,25),
+            "now":datetime(2026,5,25,tzinfo=timezone.utc),
+            "history":[]}
 
-_HANGUL_RE = re.compile(r"[가-힣ㄱ-ㅎㅏ-ㅣ]")
+@pytest.mark.asyncio
+async def test_600_ok():
+    out = await multi_validate_node(_state("가"*600), {})
+    assert out["history"][-1] == {"role":"user","content":"가"*600}
 
+@pytest.mark.asyncio
+async def test_601_rejected():
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("가"*601), {})
 
-def _hangul_ratio(text: str) -> float:
-    stripped = re.sub(r"\s", "", text)
-    if not stripped:
+@pytest.mark.asyncio
+async def test_empty_rejected():
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state(""), {})
+
+@pytest.mark.asyncio
+async def test_whitespace_rejected():
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("   "), {})
+
+@pytest.mark.asyncio
+async def test_korean_ratio_threshold_ok():
+    out = await multi_validate_node(_state("안녕하세요hello"), {})
+    assert "history" in out
+
+@pytest.mark.asyncio
+async def test_no_korean_rejected():
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("hello world only english"), {})
+
+@pytest.mark.asyncio
+async def test_history_appended_to_prior():
+    s = _state("두번째")
+    s["history"] = [{"role":"user","content":"첫번째"},
+                    {"role":"assistant","content":"질문"}]
+    out = await multi_validate_node(s, {})
+    assert len(out["history"]) == 3
+    assert out["history"][-1] == {"role":"user","content":"두번째"}
+```
+
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
+
+```python
+from agents.todo_creation.exceptions import ValidationError
+
+def _korean_syllable_ratio(text: str) -> float:
+    """U+AC00–U+D7A3 ratio (공백·숫자 제외)."""
+    chars = [c for c in text if not c.isspace() and not c.isdigit()]
+    if not chars:
         return 0.0
-    return len(_HANGUL_RE.findall(stripped)) / len(stripped)
+    h = sum(1 for c in chars if 0xAC00 <= ord(c) <= 0xD7A3)
+    return h / len(chars)
 
-
-def check(input: MultiTurnInput) -> None:
-    if len(input.message) > 600:
-        raise ValidationError(code="M1", message="message exceeds 600 chars")
-    if not input.message.strip():
-        raise ValidationError(code="M2", message="message is empty or whitespace")
-    if _hangul_ratio(input.message) < HANGUL_RATIO_MIN:
-        raise ValidationError(code="M3", message="message must be mostly Korean")
-
-
-async def validate_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    check(state["input"])
-    return {}
+async def multi_validate_node(state, config):
+    msg = state.get("message", "")
+    if not msg or not msg.strip():
+        raise ValidationError("multi_validate: empty message")
+    if len(msg) > 600:
+        raise ValidationError(f"multi_validate: length {len(msg)} > 600")
+    if _korean_syllable_ratio(msg) < 0.5:
+        raise ValidationError("multi_validate: korean syllable ratio < 0.5")
+    return {"history": state.get("history", []) + [{"role":"user","content":msg}]}
 ```
 
-- [ ] **Step 5: 테스트 통과 확인**
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_validate.py -v 2>&1 | tail -10
-```
-
-Expected: 5 passed
-
-- [ ] **Step 6: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/state.py \
-        agents/todo_creation/multi_turn/nodes/validate.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_validate.py
-git commit -m "feat(todo): multi_turn validate 노드 + state TypedDict"
+git add agents/todo_creation/multi_turn/nodes/validate.py tests/agents/todo_creation/multi_turn/nodes/test_validate.py
+git commit -m "feat(todo): add multi_validate (≤600, korean ratio 0.5)"
 ```
 
 ---
 
-## Phase 6: Phase Router
+### Task B2: planner_node
 
-### Task 6.1: phase_router_node
+**Files:** Create `agents/todo_creation/multi_turn/nodes/planner.py`; Test `tests/agents/todo_creation/multi_turn/nodes/test_planner.py`.
 
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/phase_router.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_phase_router.py`
-
-- [ ] **Step 1: 테스트 작성**:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
-
-from datetime import datetime
-
 import pytest
+from unittest.mock import AsyncMock
+from langgraph.types import Command
+from agents.todo_creation.exceptions import LLMOutputError
+from agents.todo_creation.multi_turn.nodes.planner import planner_node
 
-from agents.todo_creation.multi_turn.nodes.phase_router import (
-    phase_router_node, route_after_phase_router,
-)
-from agents.todo_creation.schemas import ChatMessage, ParsedGoal, SessionState
-
-
-class _Ports:
-    def __init__(self, session_store):
-        self.session_store = session_store
-
-
-def _config(session_store):
-    return {"configurable": {"ports": _Ports(session_store=session_store)}}
-
+def _state(): return {"history":[{"role":"user","content":"내일 토익"}], "message":"내일 토익"}
+def _config(llm): return {"configurable":{"ports": type("P",(),{"llm":llm})()}}
 
 @pytest.mark.asyncio
-async def test_new_session_starts_gathering(base_input, session_store):
-    out = await phase_router_node({"input": base_input}, _config(session_store))
-    assert out["phase"] == "gathering"
-    assert out["parsed_goal"] is None and out["current_plan"] is None
-    assert len(out["history"]) == 1 and out["history"][0].role == "user"
-
-
-@pytest.mark.asyncio
-async def test_existing_gathering_session_loads(base_input, session_store):
-    now = datetime(2026, 5, 25, 11, 0)
-    await session_store.save(state=SessionState(
-        session_id=base_input.session_id, user_id=base_input.user_id, phase="gathering",
-        history=[ChatMessage(role="user", content="이전")], parsed_goal=ParsedGoal(goal_type="X"),
-        current_plan=None, created_at=now, updated_at=now,
-    ))
-    out = await phase_router_node({"input": base_input}, _config(session_store))
-    assert out["phase"] == "gathering"
-    assert out["parsed_goal"].goal_type == "X"
-    assert len(out["history"]) == 2
-
+async def test_sufficient_goes_to_plan_generator():
+    llm = AsyncMock(); llm.judge_sufficiency = AsyncMock(return_value=(True,[],{"goal_text":"토익 800"}))
+    cmd = await planner_node(_state(), _config(llm))
+    assert isinstance(cmd, Command); assert cmd.goto == "plan_generator"
+    assert cmd.update["sufficiency"] is True
+    assert cmd.update["parsed_goal"] == {"goal_text":"토익 800"}
 
 @pytest.mark.asyncio
-async def test_reviewing_session_loads(base_input, session_store):
-    now = datetime(2026, 5, 25, 11, 0)
-    await session_store.save(state=SessionState(
-        session_id=base_input.session_id, user_id=base_input.user_id, phase="reviewing",
-        history=[], parsed_goal=ParsedGoal(), current_plan=None,
-        created_at=now, updated_at=now,
-    ))
-    out = await phase_router_node({"input": base_input}, _config(session_store))
-    assert out["phase"] == "reviewing"
+async def test_insufficient_goes_to_follow_up():
+    llm = AsyncMock(); llm.judge_sufficiency = AsyncMock(return_value=(False,["목표 점수"],{}))
+    cmd = await planner_node(_state(), _config(llm))
+    assert cmd.goto == "follow_up"
+    assert cmd.update["missing_aspects"] == ["목표 점수"]
 
-
-def test_route_after_phase_router():
-    assert route_after_phase_router({"phase": "gathering"}) == "planner_judge"
-    assert route_after_phase_router({"phase": "reviewing"}) == "edit_agent"
+@pytest.mark.asyncio
+async def test_llm_output_error_propagates():
+    llm = AsyncMock(); llm.judge_sufficiency = AsyncMock(side_effect=LLMOutputError("schema"))
+    with pytest.raises(LLMOutputError):
+        await planner_node(_state(), _config(llm))
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_phase_router.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/phase_router.py`:
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
 
 ```python
-from __future__ import annotations
+from langgraph.types import Command
 
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-from agents.todo_creation.schemas import ChatMessage
-
-
-async def phase_router_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    input_ = state["input"]
-    loaded = await ports.session_store.load(session_id=input_.session_id)
-
-    if loaded is None:
-        phase = "gathering"
-        history: list[ChatMessage] = []
-        parsed_goal = None
-        current_plan = None
-    else:
-        phase = loaded.phase
-        history = list(loaded.history)
-        parsed_goal = loaded.parsed_goal
-        current_plan = loaded.current_plan
-
-    history.append(ChatMessage(role="user", content=input_.message))
-    return {"phase": phase, "history": history, "parsed_goal": parsed_goal, "current_plan": current_plan}
-
-
-def route_after_phase_router(state: MultiTurnGraphState) -> str:
-    return "planner_judge" if state["phase"] == "gathering" else "edit_agent"
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_phase_router.py -v 2>&1 | tail -10
-```
-
-Expected: 4 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/phase_router.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_phase_router.py
-git commit -m "feat(todo): phase_router 노드 (gathering vs reviewing 분기)"
-```
-
----
-
-## Phase 7: Planner Judge & Follow-up
-
-### Task 7.1: planner_judge_node
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/planner_judge.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_planner_judge.py`
-
-- [ ] **Step 1: 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-import pytest
-
-from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.multi_turn.nodes.planner_judge import (
-    planner_judge_node, route_after_judge,
-)
-from agents.todo_creation.schemas import ChatMessage, ParsedGoal, PlannerJudgment
-
-
-class _Ports:
-    def __init__(self, llm):
-        self.llm = llm
-
-
-def _config(fake_mt_llm):
-    return {"configurable": {"ports": _Ports(llm=fake_mt_llm)}}
-
-
-@pytest.mark.asyncio
-async def test_judge_returns_insufficient(base_input, fake_mt_llm):
-    fake_mt_llm.judge_responses = [PlannerJudgment(
-        is_sufficient=False, missing_aspects=["하루 시간"], parsed_goal=ParsedGoal(goal_type="정처기"),
-    )]
-    state = {"input": base_input, "history": [ChatMessage(role="user", content=base_input.message)], "parsed_goal": None}
-    out = await planner_judge_node(state, _config(fake_mt_llm))
-    assert out["judgment"].is_sufficient is False
-    assert out["parsed_goal"].goal_type == "정처기"
-    assert fake_mt_llm.calls["judge_planner"] == 1
-
-
-@pytest.mark.asyncio
-async def test_judge_returns_sufficient(base_input, fake_mt_llm):
-    fake_mt_llm.judge_responses = [PlannerJudgment(
-        is_sufficient=True, missing_aspects=[],
-        parsed_goal=ParsedGoal(goal_type="정처기", daily_capacity="3h"),
-    )]
-    state = {"input": base_input, "history": [], "parsed_goal": ParsedGoal(goal_type="정처기")}
-    out = await planner_judge_node(state, _config(fake_mt_llm))
-    assert out["judgment"].is_sufficient is True
-    assert out["parsed_goal"].daily_capacity == "3h"
-
-
-@pytest.mark.asyncio
-async def test_judge_raises_on_llm_failure(base_input, fake_mt_llm):
-    fake_mt_llm.fail_times_judge = 1
-    state = {"input": base_input, "history": [], "parsed_goal": None}
-    with pytest.raises(LLMFailedError):
-        await planner_judge_node(state, _config(fake_mt_llm))
-
-
-def test_route_after_judge():
-    yes = PlannerJudgment(is_sufficient=True, missing_aspects=[], parsed_goal=ParsedGoal())
-    no = PlannerJudgment(is_sufficient=False, missing_aspects=["x"], parsed_goal=ParsedGoal())
-    assert route_after_judge({"judgment": yes}) == "plan_generator"
-    assert route_after_judge({"judgment": no}) == "follow_up"
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_planner_judge.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/planner_judge.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-
-
-async def planner_judge_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    judgment = await ports.llm.judge_planner(
-        history=state["history"],
-        previous_goal=state.get("parsed_goal"),
-        today=state["input"].today,
+async def planner_node(state, config):
+    llm = config["configurable"]["ports"].llm
+    sufficient, missing, parsed = await llm.judge_sufficiency(
+        history=state.get("history", []),
+        message=state.get("message", ""),
+        today=state.get("today"),
     )
-    return {"judgment": judgment, "parsed_goal": judgment.parsed_goal}
-
-
-def route_after_judge(state: MultiTurnGraphState) -> str:
-    return "plan_generator" if state["judgment"].is_sufficient else "follow_up"
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_planner_judge.py -v 2>&1 | tail -10
-```
-
-Expected: 4 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/planner_judge.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_planner_judge.py
-git commit -m "feat(todo): planner_judge 노드 (충분성 판정 + parsed_goal 갱신)"
-```
-
-### Task 7.2: follow_up_node
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/follow_up.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py`
-
-- [ ] **Step 1: 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-import pytest
-
-from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
-from agents.todo_creation.schemas import ChatMessage, ParsedGoal, PlannerJudgment
-
-
-class _Ports:
-    def __init__(self, llm):
-        self.llm = llm
-
-
-def _config(fake_mt_llm):
-    return {"configurable": {"ports": _Ports(llm=fake_mt_llm)}}
-
-
-@pytest.mark.asyncio
-async def test_follow_up_returns_question(base_input, fake_mt_llm):
-    fake_mt_llm.follow_up_responses = ["하루에 몇 시간 정도 가능하실까요?"]
-    state = {
-        "input": base_input,
-        "history": [ChatMessage(role="user", content=base_input.message)],
-        "judgment": PlannerJudgment(is_sufficient=False, missing_aspects=["하루 시간"], parsed_goal=ParsedGoal()),
-    }
-    out = await follow_up_node(state, _config(fake_mt_llm))
-    assert out["follow_up_question"] == "하루에 몇 시간 정도 가능하실까요?"
-
-
-@pytest.mark.asyncio
-async def test_follow_up_raises_on_llm_failure(base_input, fake_mt_llm):
-    fake_mt_llm.fail_times_follow_up = 1
-    state = {
-        "input": base_input, "history": [],
-        "judgment": PlannerJudgment(is_sufficient=False, missing_aspects=["x"], parsed_goal=ParsedGoal()),
-    }
-    with pytest.raises(LLMFailedError):
-        await follow_up_node(state, _config(fake_mt_llm))
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py -v 2>&1 | tail -10
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/follow_up.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-
-
-async def follow_up_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    question = await ports.llm.generate_follow_up(
-        missing_aspects=state["judgment"].missing_aspects,
-        history=state["history"],
-    )
-    return {"follow_up_question": question}
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py -v 2>&1 | tail -10
-```
-
-Expected: 2 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/follow_up.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py
-git commit -m "feat(todo): follow_up 노드 (꼬리 질문 생성)"
-```
-
----
-
-## Phase 8: Plan Generator (C3 핸들링)
-
-### Task 8.1: plan_generator_node
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/plan_generator.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py`
-
-- [ ] **Step 1: 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-from datetime import date
-
-import pytest
-
-from agents.todo_creation.multi_turn.nodes.plan_generator import (
-    C3_LIMIT, plan_generator_node, truncate_at_sentence,
-)
-from agents.todo_creation.schemas import Day, ParsedGoal, PlanDraft, Task
-
-
-class _Ports:
-    def __init__(self, llm):
-        self.llm = llm
-
-
-def _config(fake_mt_llm):
-    return {"configurable": {"ports": _Ports(llm=fake_mt_llm)}}
-
-
-def _draft(summary: str) -> PlanDraft:
-    return PlanDraft(summary_text=summary, days=[Day(date=date(2026, 5, 26), tasks=[Task(title="공부")])])
-
-
-@pytest.mark.asyncio
-async def test_plan_generator_happy_path(base_input, fake_mt_llm):
-    fake_mt_llm.plan_responses = [_draft("짧은 요약.")]
-    state = {"input": base_input, "parsed_goal": ParsedGoal(goal_type="정처기")}
-    out = await plan_generator_node(state, _config(fake_mt_llm))
-    assert out["plan_draft"].summary_text == "짧은 요약."
-    assert fake_mt_llm.last_plan_edit_instructions == [None]
-
-
-@pytest.mark.asyncio
-async def test_plan_generator_uses_edit_instructions(base_input, fake_mt_llm):
-    fake_mt_llm.plan_responses = [_draft("수정된 요약.")]
-    state = {"input": base_input, "parsed_goal": ParsedGoal(goal_type="정처기"), "edit_instructions": "마지막 날을 가볍게"}
-    await plan_generator_node(state, _config(fake_mt_llm))
-    assert fake_mt_llm.last_plan_edit_instructions == ["마지막 날을 가볍게"]
-
-
-@pytest.mark.asyncio
-async def test_plan_generator_c3_regenerates_once(base_input, fake_mt_llm):
-    long_summary = "가" * (C3_LIMIT + 100)
-    fake_mt_llm.plan_responses = [_draft(long_summary), _draft("이번엔 짧음.")]
-    state = {"input": base_input, "parsed_goal": ParsedGoal(goal_type="정처기")}
-    out = await plan_generator_node(state, _config(fake_mt_llm))
-    assert out["plan_draft"].summary_text == "이번엔 짧음."
-    assert fake_mt_llm.calls["generate_plan"] == 2
-
-
-@pytest.mark.asyncio
-async def test_plan_generator_c3_truncates_after_retry(base_input, fake_mt_llm):
-    too_long = "첫 문장입니다. 두 번째 문장입니다. " + ("가" * (C3_LIMIT + 100))
-    fake_mt_llm.plan_responses = [_draft(too_long), _draft(too_long)]
-    state = {"input": base_input, "parsed_goal": ParsedGoal(goal_type="정처기")}
-    out = await plan_generator_node(state, _config(fake_mt_llm))
-    assert len(out["plan_draft"].summary_text) <= C3_LIMIT
-    assert out["plan_draft"].summary_text.endswith(".")
-
-
-def test_truncate_at_sentence_uses_last_period():
-    text = "첫 문장. 두 번째 문장. 세 번째 문장입니다."
-    out = truncate_at_sentence(text, limit=20)
-    assert out.endswith(".") and len(out) <= 20
-
-
-def test_truncate_at_sentence_hard_cut_when_no_period():
-    text = "마침표가 전혀 없는 매우 긴 문장입니다 마침표 없음"
-    out = truncate_at_sentence(text, limit=10)
-    assert len(out) == 10
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/plan_generator.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-
-C3_LIMIT = 1500
-
-
-def truncate_at_sentence(text: str, *, limit: int = C3_LIMIT) -> str:
-    """Truncate text to <= limit chars, preferring the last sentence boundary."""
-    if len(text) <= limit:
-        return text
-    candidate = text[:limit]
-    last_period = candidate.rfind(".")
-    if last_period >= 0:
-        return candidate[: last_period + 1]
-    return candidate
-
-
-async def plan_generator_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    parsed_goal = state["parsed_goal"]
-    today = state["input"].today
-    edit_instructions = state.get("edit_instructions")
-
-    draft = await ports.llm.generate_plan(
-        parsed_goal=parsed_goal, today=today, edit_instructions=edit_instructions,
-    )
-
-    if len(draft.summary_text) > C3_LIMIT:
-        retry_instructions = (
-            (edit_instructions or "")
-            + f"\n[중요] summary_text 는 반드시 {C3_LIMIT}자 이하."
-        ).strip()
-        draft = await ports.llm.generate_plan(
-            parsed_goal=parsed_goal, today=today, edit_instructions=retry_instructions,
-        )
-        if len(draft.summary_text) > C3_LIMIT:
-            draft = draft.model_copy(update={"summary_text": truncate_at_sentence(draft.summary_text)})
-
-    return {"plan_draft": draft, "edit_instructions": None}
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py -v 2>&1 | tail -10
-```
-
-Expected: 6 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/plan_generator.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py
-git commit -m "feat(todo): plan_generator 노드 (C3 재생성 + truncate fallback)"
-```
-
----
-
-## Phase 9: Tagger
-
-### Task 9.1: tagger_node
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/tagger.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_tagger.py`
-
-- [ ] **Step 1: 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-from datetime import date
-
-import pytest
-
-from agents.todo_creation.multi_turn.nodes.tagger import tagger_node
-from agents.todo_creation.schemas import Day, ParsedGoal, PlanDraft, TaggedPlan, Task
-
-
-class _Ports:
-    def __init__(self, llm):
-        self.llm = llm
-
-
-def _config(fake_mt_llm):
-    return {"configurable": {"ports": _Ports(llm=fake_mt_llm)}}
-
-
-@pytest.mark.asyncio
-async def test_tagger_returns_tagged_plan(base_input, fake_mt_llm):
-    fake_mt_llm.tag_responses = [TaggedPlan(
-        summary_text="요약",
-        days=[Day(date=date(2026, 5, 26), tasks=[Task(title="공부", tags=["학습", "정처기"])])],
-    )]
-    state = {
-        "input": base_input,
-        "plan_draft": PlanDraft(summary_text="요약", days=[Day(date=date(2026, 5, 26), tasks=[Task(title="공부")])]),
-        "parsed_goal": ParsedGoal(goal_type="정처기"),
-    }
-    out = await tagger_node(state, _config(fake_mt_llm))
-    assert out["current_plan"].days[0].tasks[0].tags == ["학습", "정처기"]
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_tagger.py -v 2>&1 | tail -10
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/tagger.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-
-
-async def tagger_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    tagged = await ports.llm.tag_plan(
-        plan_draft=state["plan_draft"], parsed_goal=state["parsed_goal"],
-    )
-    return {"current_plan": tagged}
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_tagger.py -v 2>&1 | tail -10
-```
-
-Expected: 1 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/tagger.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_tagger.py
-git commit -m "feat(todo): tagger 노드 (자유 형식 태그 부여)"
-```
-
----
-
-## Phase 10: Edit Agent
-
-### Task 10.1: edit_agent_node + tools.py
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/tools.py`
-- Create: `agents/todo_creation/multi_turn/nodes/edit_agent.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_edit_agent.py`
-
-- [ ] **Step 1: tools.py 작성** — `agents/todo_creation/multi_turn/tools.py`:
-
-```python
-from __future__ import annotations
-
-TOOL_DEFINITIONS = [
-    {
-        "name": "regenerate_plan",
-        "description": "사용자 요청을 반영해 플랜을 다시 생성한다.",
-        "parameters": {
-            "type": "object",
-            "properties": {"instructions": {"type": "string", "description": "수정 방향 자연어 지침"}},
-            "required": ["instructions"],
+    return Command(
+        goto="plan_generator" if sufficient else "follow_up",
+        update={
+            "sufficiency": sufficient,
+            "missing_aspects": list(missing),
+            "parsed_goal": dict(parsed) if parsed else None,
         },
-    },
-    {
-        "name": "confirm",
-        "description": "사용자가 현재 플랜을 그대로 확정.",
-        "parameters": {"type": "object", "properties": {}},
-    },
-]
-```
-
-- [ ] **Step 2: 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-from datetime import date
-
-import pytest
-
-from agents.todo_creation.exceptions import EditAgentError
-from agents.todo_creation.multi_turn.nodes.edit_agent import (
-    edit_agent_node, route_after_edit_agent,
-)
-from agents.todo_creation.schemas import AgentDecision, ChatMessage, Day, TaggedPlan, Task
-
-
-class _Ports:
-    def __init__(self, llm):
-        self.llm = llm
-
-
-def _config(fake_mt_llm):
-    return {"configurable": {"ports": _Ports(llm=fake_mt_llm)}}
-
-
-def _plan() -> TaggedPlan:
-    return TaggedPlan(
-        summary_text="요약",
-        days=[Day(date=date(2026, 5, 26), tasks=[Task(title="공부")])],
     )
-
-
-@pytest.mark.asyncio
-async def test_edit_agent_confirm_tool(base_input, fake_mt_llm):
-    fake_mt_llm.agent_decisions = [AgentDecision(tool_name="confirm", tool_args={})]
-    state = {
-        "input": base_input,
-        "history": [ChatMessage(role="user", content=base_input.message)],
-        "current_plan": _plan(),
-    }
-    out = await edit_agent_node(state, _config(fake_mt_llm))
-    assert out["confirmed"] is True
-
-
-@pytest.mark.asyncio
-async def test_edit_agent_regenerate_tool(base_input, fake_mt_llm):
-    fake_mt_llm.agent_decisions = [AgentDecision(
-        tool_name="regenerate_plan", tool_args={"instructions": "마지막 날 가볍게"},
-    )]
-    state = {"input": base_input, "history": [], "current_plan": _plan()}
-    out = await edit_agent_node(state, _config(fake_mt_llm))
-    assert out["edit_instructions"] == "마지막 날 가볍게"
-
-
-@pytest.mark.asyncio
-async def test_edit_agent_regenerate_without_instructions_raises(base_input, fake_mt_llm):
-    fake_mt_llm.agent_decisions = [AgentDecision(tool_name="regenerate_plan", tool_args={})]
-    state = {"input": base_input, "history": [], "current_plan": _plan()}
-    with pytest.raises(EditAgentError) as ei:
-        await edit_agent_node(state, _config(fake_mt_llm))
-    assert ei.value.code == "M9"
-
-
-def test_route_after_edit_agent_confirm():
-    assert route_after_edit_agent({"confirmed": True}) == "commit_invoke"
-
-
-def test_route_after_edit_agent_regenerate():
-    assert route_after_edit_agent({"edit_instructions": "x"}) == "plan_generator"
 ```
 
-- [ ] **Step 3: 테스트 실패 확인**
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_edit_agent.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 4: 구현 작성** — `agents/todo_creation/multi_turn/nodes/edit_agent.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.exceptions import EditAgentError
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-
-
-async def edit_agent_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    decision = await ports.llm.edit_agent_step(
-        history=state["history"], current_plan=state["current_plan"],
-    )
-
-    if decision.tool_name == "confirm":
-        return {"confirmed": True}
-
-    if decision.tool_name == "regenerate_plan":
-        instructions = decision.tool_args.get("instructions")
-        if not instructions:
-            raise EditAgentError(code="M9", message="regenerate_plan called without instructions")
-        return {"edit_instructions": instructions}
-
-    raise EditAgentError(code="M9", message=f"unknown tool: {decision.tool_name}")
-
-
-def route_after_edit_agent(state: MultiTurnGraphState) -> str:
-    if state.get("confirmed"):
-        return "commit_invoke"
-    if state.get("edit_instructions"):
-        return "plan_generator"
-    raise EditAgentError(code="M9", message="edit_agent produced no decision")
-```
-
-- [ ] **Step 5: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_edit_agent.py -v 2>&1 | tail -10
-```
-
-Expected: 5 passed
-
-- [ ] **Step 6: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/tools.py \
-        agents/todo_creation/multi_turn/nodes/edit_agent.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_edit_agent.py
-git commit -m "feat(todo): edit_agent 노드 (regenerate_plan / confirm 분기)"
+git add agents/todo_creation/multi_turn/nodes/planner.py tests/agents/todo_creation/multi_turn/nodes/test_planner.py
+git commit -m "feat(todo): add planner node (sufficiency Command)"
 ```
 
 ---
 
-## Phase 11: Commit Invoke
+### Task B3: follow_up_node (interrupt)
 
-### Task 11.1: commit_invoke_node
+**Files:** Create `agents/todo_creation/multi_turn/nodes/follow_up.py`; Test `tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py`.
 
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/commit_invoke.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_commit_invoke.py`
-
-- [ ] **Step 1: 테스트 작성**:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import date
-
 import pytest
+from unittest.mock import AsyncMock, patch
+from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
 
-from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
-from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from agents.todo_creation.commit.pipeline import CommitPorts
-from agents.todo_creation.multi_turn.nodes.commit_invoke import commit_invoke_node
-from agents.todo_creation.multi_turn.session_store import InMemorySessionStore
-from agents.todo_creation.schemas import Day, SessionState, TaggedPlan, Task
-
-
-@dataclass
-class _Dispatch:
-    calls: int = 0
-    async def dispatch(self, *, user_id: str) -> None:
-        self.calls += 1
-
-
-@dataclass
-class _MtPorts:
-    session_store: InMemorySessionStore
-    commit_ports: CommitPorts
-
-
-def _config(mt_ports, now):
-    return {"configurable": {"ports": mt_ports, "now": now}}
-
-
-def _plan(today: date) -> TaggedPlan:
-    return TaggedPlan(
-        summary_text="요약",
-        days=[
-            Day(date=today, tasks=[Task(title="오늘 할일", tags=["todo"])]),
-            Day(date=date(2026, 5, 27), tasks=[Task(title="내일 일정", tags=["event"])]),
-        ],
-    )
-
+def _state(): return {"history":[{"role":"user","content":"내일 시험"}],
+                       "missing_aspects":["목표 점수"]}
+def _config(llm): return {"configurable":{"ports": type("P",(),{"llm":llm})()}}
 
 @pytest.mark.asyncio
-async def test_commit_invoke_runs_commit_and_deletes_session(base_input, today, now, session_store):
-    await session_store.save(state=SessionState(
-        session_id=base_input.session_id, user_id=base_input.user_id, phase="reviewing",
-        history=[], parsed_goal=None, current_plan=_plan(today),
-        created_at=now, updated_at=now,
-    ))
-    commit_ports = CommitPorts(
-        repository=MemoryTodoRepository(),
-        quest_counter=MemoryQuestCounter(),
-        quest_dispatch=_Dispatch(),
-    )
-    mt_ports = _MtPorts(session_store=session_store, commit_ports=commit_ports)
-
-    state = {"input": base_input, "current_plan": _plan(today), "now": now}
-    out = await commit_invoke_node(state, _config(mt_ports, now))
-
-    assert out["result"].kind == "committed"
-    assert await session_store.load(session_id=base_input.session_id) is None
-
-
-@pytest.mark.asyncio
-async def test_commit_invoke_keeps_session_on_failure(base_input, today, now, session_store):
-    await session_store.save(state=SessionState(
-        session_id=base_input.session_id, user_id=base_input.user_id, phase="reviewing",
-        history=[], parsed_goal=None, current_plan=_plan(today),
-        created_at=now, updated_at=now,
-    ))
-    commit_ports = CommitPorts(
-        repository=MemoryTodoRepository(fail_next=True),
-        quest_counter=MemoryQuestCounter(),
-        quest_dispatch=_Dispatch(),
-    )
-    mt_ports = _MtPorts(session_store=session_store, commit_ports=commit_ports)
-
-    state = {"input": base_input, "current_plan": _plan(today), "now": now}
-    with pytest.raises(Exception):
-        await commit_invoke_node(state, _config(mt_ports, now))
-
-    assert await session_store.load(session_id=base_input.session_id) is not None
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_commit_invoke.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/commit_invoke.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-from uuid import NAMESPACE_URL, UUID, uuid5
-
-from agents.todo_creation.commit.pipeline import run as commit_run
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-from agents.todo_creation.schemas import CommitInput, TaskCandidate, TurnResult
-
-
-def _idempotency_key(session_id: str) -> UUID:
-    return uuid5(NAMESPACE_URL, f"multi:{session_id}")
-
-
-async def commit_invoke_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
-    now = config["configurable"]["now"]
-    input_ = state["input"]
-    plan = state["current_plan"]
-    today = input_.today
-
-    candidates = [
-        TaskCandidate(title=t.title, due_date=d.date, time_hint=t.time_hint, tags=t.tags)
-        for d in plan.days for t in d.tasks
+async def test_calls_llm_and_interrupts():
+    llm = AsyncMock(); llm.generate_follow_up_question = AsyncMock(return_value="목표 점수는?")
+    with patch("agents.todo_creation.multi_turn.nodes.follow_up.interrupt", return_value="800점"):
+        out = await follow_up_node(_state(), _config(llm))
+    assert out["follow_up_question"] == "목표 점수는?"
+    assert out["history"][-2:] == [
+        {"role":"assistant","content":"목표 점수는?"},
+        {"role":"user","content":"800점"},
     ]
-    todos = [c for c in candidates if c.due_date == today]
-    events = [c for c in candidates if c.due_date != today]
-
-    commit_input = CommitInput(
-        user_id=input_.user_id,
-        idempotency_key=_idempotency_key(input_.session_id),
-        today=today,
-        todos=todos,
-        calendar_events=events,
+    llm.generate_follow_up_question.assert_awaited_once_with(
+        missing_aspects=["목표 점수"], history=[{"role":"user","content":"내일 시험"}],
     )
-    result = await commit_run(commit_input, ports=ports.commit_ports, now=now)
-
-    await ports.session_store.delete(session_id=input_.session_id)
-    return {"result": TurnResult(kind="committed", commit_result=result)}
 ```
 
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_commit_invoke.py -v 2>&1 | tail -10
-```
-
-Expected: 2 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/commit_invoke.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_commit_invoke.py
-git commit -m "feat(todo): commit_invoke 노드 (commit/pipeline 위임 + session 정리)"
-```
-
----
-
-## Phase 12: Present Node
-
-### Task 12.1: present_node
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/nodes/present.py`
-- Create: `tests/agents/todo_creation/multi_turn/nodes/test_present.py`
-
-- [ ] **Step 1: 테스트 작성**:
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현** — spec §2.2 의사코드
 
 ```python
-from __future__ import annotations
+from langgraph.types import interrupt
 
-from dataclasses import dataclass
-from datetime import date
-
-import pytest
-
-from agents.todo_creation.multi_turn.nodes.present import present_node
-from agents.todo_creation.multi_turn.session_store import InMemorySessionStore
-from agents.todo_creation.schemas import (
-    ChatMessage, CommitResult, Day, ParsedGoal, TaggedPlan, Task, TurnResult,
-)
-
-
-@dataclass
-class _Ports:
-    session_store: InMemorySessionStore
-
-
-def _config(ports, now):
-    return {"configurable": {"ports": ports, "now": now}}
-
-
-@pytest.mark.asyncio
-async def test_present_question_saves_session_gathering(base_input, now, session_store):
-    state = {
-        "input": base_input, "now": now, "phase": "gathering",
-        "history": [ChatMessage(role="user", content=base_input.message)],
-        "parsed_goal": ParsedGoal(goal_type="정처기"),
-        "current_plan": None,
-        "follow_up_question": "하루 시간은?",
-    }
-    out = await present_node(state, _config(_Ports(session_store), now))
-    assert out["result"].kind == "question"
-    assert out["result"].question == "하루 시간은?"
-
-    saved = await session_store.load(session_id=base_input.session_id)
-    assert saved.phase == "gathering"
-    assert saved.history[-1].role == "assistant"
-
-
-@pytest.mark.asyncio
-async def test_present_plan_saves_session_reviewing(base_input, now, session_store, today):
-    plan = TaggedPlan(
-        summary_text="요약",
-        days=[Day(date=today, tasks=[Task(title="공부", tags=["학습"])])],
-    )
-    state = {
-        "input": base_input, "now": now, "phase": "gathering",
-        "history": [ChatMessage(role="user", content=base_input.message)],
-        "parsed_goal": ParsedGoal(),
-        "current_plan": plan,
-    }
-    out = await present_node(state, _config(_Ports(session_store), now))
-    assert out["result"].kind == "plan"
-
-    saved = await session_store.load(session_id=base_input.session_id)
-    assert saved.phase == "reviewing"
-    assert saved.current_plan is not None
-
-
-@pytest.mark.asyncio
-async def test_present_committed_passthrough(base_input, now, session_store):
-    committed = TurnResult(
-        kind="committed",
-        commit_result=CommitResult(todo_ids=[], event_ids=[], quest_distribution_triggered=False),
-    )
-    state = {"input": base_input, "now": now, "result": committed}
-    out = await present_node(state, _config(_Ports(session_store), now))
-    assert out["result"].kind == "committed"
-    # commit_invoke 가 이미 session 삭제했으므로 present 는 save 하지 않음
-    assert await session_store.load(session_id=base_input.session_id) is None
-```
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_present.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/nodes/present.py`:
-
-```python
-from __future__ import annotations
-
-from typing import Any
-
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-from agents.todo_creation.schemas import ChatMessage, SessionState, TurnResult
-
-
-async def present_node(state: MultiTurnGraphState, config: dict[str, Any]) -> dict[str, Any]:
+async def follow_up_node(state, config):
     ports = config["configurable"]["ports"]
-    now = config["configurable"]["now"]
-    input_ = state["input"]
-
-    # commit_invoke 가 이미 result + session.delete 완료한 분기
-    if state.get("result") and state["result"].kind == "committed":
-        return {"result": state["result"]}
-
-    follow_up = state.get("follow_up_question")
-    current_plan = state.get("current_plan")
-    history = list(state.get("history") or [])
-
-    if follow_up is not None:
-        history.append(ChatMessage(role="assistant", content=follow_up))
-        result = TurnResult(kind="question", question=follow_up)
-        new_phase = "gathering"
-    else:
-        assert current_plan is not None
-        history.append(ChatMessage(role="assistant", content=current_plan.summary_text))
-        result = TurnResult(kind="plan", plan=current_plan)
-        new_phase = "reviewing"
-
-    session_state = SessionState(
-        session_id=input_.session_id, user_id=input_.user_id, phase=new_phase,
-        history=history[-20:],
-        parsed_goal=state.get("parsed_goal"),
-        current_plan=current_plan,
-        created_at=now, updated_at=now,
+    question = await ports.llm.generate_follow_up_question(
+        missing_aspects=state.get("missing_aspects", []),
+        history=state.get("history", []),
     )
-    await ports.session_store.save(state=session_state)
-    return {"result": result}
+    user_answer = interrupt(question)
+    return {
+        "follow_up_question": question,
+        "history": state.get("history", []) + [
+            {"role":"assistant","content":question},
+            {"role":"user","content":user_answer},
+        ],
+    }
 ```
 
-- [ ] **Step 4: 테스트 통과**
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/nodes/test_present.py -v 2>&1 | tail -10
-```
-
-Expected: 3 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/nodes/present.py \
-        tests/agents/todo_creation/multi_turn/nodes/test_present.py
-git commit -m "feat(todo): present 노드 (TurnResult 패키징 + session 저장)"
+git add agents/todo_creation/multi_turn/nodes/follow_up.py tests/agents/todo_creation/multi_turn/nodes/test_follow_up.py
+git commit -m "feat(todo): add follow_up node with interrupt-based resume"
 ```
 
 ---
 
-## Phase 13: Graph Builder
+### Task B4: plan_generator_node (C3 보장)
 
-### Task 13.1: build_multi_turn_graph
+**Files:** Create `agents/todo_creation/multi_turn/nodes/plan_generator.py`; Test `tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py`.
 
-**Files:**
-- Create: `agents/todo_creation/multi_turn/graph.py`
-- Create: `tests/agents/todo_creation/multi_turn/test_graph.py`
-
-- [ ] **Step 1: 테스트 작성**:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
+import pytest
+from datetime import date
+from unittest.mock import AsyncMock
+from agents.todo_creation.exceptions import LLMOutputError
+from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
 
-from agents.todo_creation.multi_turn.graph import build_multi_turn_graph
+def _state(): return {"today":date(2026,5,25), "parsed_goal":{"goal_text":"토익 800"}}
+def _config(llm): return {"configurable":{"ports": type("P",(),{"llm":llm})()}}
 
+@pytest.mark.asyncio
+async def test_ok():
+    llm = AsyncMock(); llm.generate_plan = AsyncMock(return_value=("요약",[{"date":date(2026,5,25),"tasks":[]}]))
+    out = await plan_generator_node(_state(), _config(llm))
+    assert out["summary_text"] == "요약"; assert len(out["plan"]) == 1
 
-def test_graph_compiles_with_expected_nodes():
-    graph = build_multi_turn_graph()
-    node_ids = set(graph.get_graph().nodes.keys())
-    expected = {
-        "validate", "phase_router", "planner_judge", "follow_up",
-        "plan_generator", "tagger", "edit_agent", "commit_invoke", "present",
-    }
-    assert expected.issubset(node_ids)
+@pytest.mark.asyncio
+async def test_c3_violation_regenerates():
+    llm = AsyncMock()
+    llm.generate_plan = AsyncMock(side_effect=[
+        ("가"*1501, [{"date":date(2026,5,25),"tasks":[]}]),
+        ("가"*1000, [{"date":date(2026,5,25),"tasks":[]}]),
+    ])
+    out = await plan_generator_node(_state(), _config(llm))
+    assert out["summary_text"] == "가"*1000
+    assert llm.generate_plan.await_count == 2
 
+@pytest.mark.asyncio
+async def test_c3_violation_twice_truncates():
+    llm = AsyncMock()
+    llm.generate_plan = AsyncMock(return_value=("가"*1600, [{"date":date(2026,5,25),"tasks":[]}]))
+    out = await plan_generator_node(_state(), _config(llm))
+    assert len(out["summary_text"]) == 1500
 
-def test_graph_mermaid_includes_phase_router_and_edit_agent():
-    graph = build_multi_turn_graph()
-    mmd = graph.get_graph().draw_mermaid()
-    assert "phase_router" in mmd
-    assert "edit_agent" in mmd
+@pytest.mark.asyncio
+async def test_empty_plan_raises():
+    llm = AsyncMock(); llm.generate_plan = AsyncMock(return_value=("요약",[]))
+    with pytest.raises(LLMOutputError):
+        await plan_generator_node(_state(), _config(llm))
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
+
+```python
+import logging
+from agents.todo_creation.exceptions import LLMOutputError
+
+log = logging.getLogger(__name__)
+_C3_MAX = 1500
+
+async def plan_generator_node(state, config):
+    llm = config["configurable"]["ports"].llm
+    parsed_goal = state.get("parsed_goal") or {}
+    today = state.get("today")
+    summary, days = await llm.generate_plan(parsed_goal=parsed_goal, today=today)
+    if not days:
+        raise LLMOutputError("plan: empty days")
+    if len(summary) > _C3_MAX:
+        log.warning("plan_generator: C3 violation (%d), regenerating", len(summary))
+        summary, days = await llm.generate_plan(parsed_goal=parsed_goal, today=today)
+        if not days:
+            raise LLMOutputError("plan: empty days on regenerate")
+        if len(summary) > _C3_MAX:
+            log.warning("plan_generator: C3 still violated (%d), truncating", len(summary))
+            summary = summary[:_C3_MAX]
+    return {"summary_text": summary, "plan": days}
+```
+
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_graph.py -v 2>&1 | tail -10
+git add agents/todo_creation/multi_turn/nodes/plan_generator.py tests/agents/todo_creation/multi_turn/nodes/test_plan_generator.py
+git commit -m "feat(todo): add plan_generator with C3 regenerate+truncate"
 ```
 
-Expected: ImportError
+---
 
-- [ ] **Step 3: 구현 작성** — `agents/todo_creation/multi_turn/graph.py`:
+### Task B5: tagger_node (silent degrade)
+
+**Files:** Create `agents/todo_creation/multi_turn/nodes/tagger.py`; Test `tests/agents/todo_creation/multi_turn/nodes/test_tagger.py`.
+
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
+import pytest
+from datetime import date
+from unittest.mock import AsyncMock
+from agents.todo_creation.exceptions import LLMFailedError
+from agents.todo_creation.multi_turn.nodes.tagger import tagger_node
 
+def _state(): return {
+    "plan":[{"date":date(2026,5,25),
+             "tasks":[{"title":"단어 30","due_date":date(2026,5,25),"time_hint":None,"tags":[]}]}],
+    "parsed_goal":{"goal_text":"토익 800"},
+}
+def _config(llm): return {"configurable":{"ports": type("P",(),{"llm":llm})()}}
+
+@pytest.mark.asyncio
+async def test_ok():
+    llm = AsyncMock()
+    tagged = [{"date":date(2026,5,25),
+               "tasks":[{"title":"단어 30","due_date":date(2026,5,25),"time_hint":None,"tags":["토익"]}]}]
+    llm.tag_plan = AsyncMock(return_value=tagged)
+    out = await tagger_node(_state(), _config(llm))
+    assert out["plan"][0]["tasks"][0]["tags"] == ["토익"]
+
+@pytest.mark.asyncio
+async def test_failure_degrades(caplog):
+    llm = AsyncMock(); llm.tag_plan = AsyncMock(side_effect=LLMFailedError("network"))
+    out = await tagger_node(_state(), _config(llm))
+    assert out["plan"][0]["tasks"][0]["tags"] == []
+    assert any("tagger" in r.message.lower() for r in caplog.records)
+```
+
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
+
+```python
+import logging
+log = logging.getLogger(__name__)
+
+async def tagger_node(state, config):
+    llm = config["configurable"]["ports"].llm
+    plan = state.get("plan") or []
+    parsed_goal = state.get("parsed_goal") or {}
+    try:
+        tagged = await llm.tag_plan(plan=plan, parsed_goal=parsed_goal)
+        return {"plan": tagged}
+    except Exception as exc:
+        log.warning("tagger: degrade to empty tags: %s", exc)
+        degraded = [
+            {**day, "tasks":[{**t, "tags":[]} for t in day.get("tasks", [])]}
+            for day in plan
+        ]
+        return {"plan": degraded}
+```
+
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git add agents/todo_creation/multi_turn/nodes/tagger.py tests/agents/todo_creation/multi_turn/nodes/test_tagger.py
+git commit -m "feat(todo): add tagger with silent degrade on LLM failure"
+```
+
+---
+
+## Phase C — Entry + Graph + Pipeline
+
+### Task C1: entry_node
+
+**Files:** Create `agents/todo_creation/nodes/entry.py`; Test `tests/agents/todo_creation/nodes/test_entry.py`.
+
+- [ ] **Step 1: 실패 테스트**
+
+```python
+import pytest
+from langgraph.types import Command
+from agents.todo_creation.exceptions import ValidationError
+from agents.todo_creation.nodes.entry import entry_node
+
+@pytest.mark.asyncio
+async def test_single():
+    cmd = await entry_node({"mode":"single"}, {})
+    assert isinstance(cmd, Command) and cmd.goto == "single_validate"
+
+@pytest.mark.asyncio
+async def test_multi():
+    cmd = await entry_node({"mode":"multi"}, {})
+    assert cmd.goto == "multi_validate"
+
+@pytest.mark.asyncio
+async def test_missing_raises():
+    with pytest.raises(ValidationError):
+        await entry_node({}, {})
+
+@pytest.mark.asyncio
+async def test_invalid_raises():
+    with pytest.raises(ValidationError):
+        await entry_node({"mode":"other"}, {})
+```
+
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
+
+```python
+from langgraph.types import Command
+from agents.todo_creation.exceptions import ValidationError
+
+async def entry_node(state, config):
+    mode = state.get("mode")
+    if mode == "single": return Command(goto="single_validate")
+    if mode == "multi":  return Command(goto="multi_validate")
+    raise ValidationError(f"entry: invalid mode {mode!r}")
+```
+
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git add agents/todo_creation/nodes/entry.py tests/agents/todo_creation/nodes/test_entry.py
+git commit -m "feat(todo): add entry node for single/multi mode branching"
+```
+
+---
+
+### Task C2: graph.py (build_generate_graph)
+
+**Files:** Create `agents/todo_creation/graph.py`; Test `tests/agents/todo_creation/test_graph.py` (smoke).
+
+- [ ] **Step 1: 실패 테스트**
+
+```python
+from langgraph.checkpoint.memory import MemorySaver
+from agents.todo_creation.graph import build_generate_graph
+
+def test_compiles():
+    g = build_generate_graph(checkpointer=MemorySaver())
+    assert g is not None
+
+def test_has_required_nodes():
+    g = build_generate_graph(checkpointer=MemorySaver())
+    names = set(g.get_graph().nodes.keys())
+    required = {"entry","single_validate","task_splitter","date_router",
+                "multi_validate","planner","follow_up","plan_generator","tagger"}
+    assert required <= names
+```
+
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
+
+```python
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import RetryPolicy
+from langgraph.pregel.retry import RetryPolicy
 
 from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.multi_turn.nodes.commit_invoke import commit_invoke_node
-from agents.todo_creation.multi_turn.nodes.edit_agent import (
-    edit_agent_node, route_after_edit_agent,
-)
+from agents.todo_creation.state import GenerateState
+from agents.todo_creation.nodes.entry import entry_node
+from agents.todo_creation.single_turn.nodes.validate import validate_node as single_validate_node
+from agents.todo_creation.single_turn.nodes.task_splitter import task_splitter_node
+from agents.todo_creation.single_turn.nodes.date_router import date_router_node
+from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
+from agents.todo_creation.multi_turn.nodes.planner import planner_node
 from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
-from agents.todo_creation.multi_turn.nodes.phase_router import (
-    phase_router_node, route_after_phase_router,
-)
 from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
-from agents.todo_creation.multi_turn.nodes.planner_judge import (
-    planner_judge_node, route_after_judge,
-)
-from agents.todo_creation.multi_turn.nodes.present import present_node
 from agents.todo_creation.multi_turn.nodes.tagger import tagger_node
-from agents.todo_creation.multi_turn.nodes.validate import validate_node
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
 
 
-def build_multi_turn_graph():
-    g = StateGraph(MultiTurnGraphState)
+_llm_retry = RetryPolicy(max_attempts=3, retry_on=(LLMFailedError,))
+_short_retry = RetryPolicy(max_attempts=2, retry_on=(LLMFailedError,))
 
-    g.add_node("validate", validate_node)
-    g.add_node("phase_router", phase_router_node)
-    g.add_node("planner_judge", planner_judge_node, retry=RetryPolicy(max_attempts=2, retry_on=(LLMFailedError,)))
-    g.add_node("follow_up", follow_up_node, retry=RetryPolicy(max_attempts=2, retry_on=(LLMFailedError,)))
-    g.add_node("plan_generator", plan_generator_node, retry=RetryPolicy(max_attempts=2, retry_on=(LLMFailedError,)))
-    g.add_node("tagger", tagger_node, retry=RetryPolicy(max_attempts=2, retry_on=(LLMFailedError,)))
-    g.add_node("edit_agent", edit_agent_node, retry=RetryPolicy(max_attempts=1, retry_on=(LLMFailedError,)))
-    g.add_node("commit_invoke", commit_invoke_node)
-    g.add_node("present", present_node)
 
-    g.add_edge(START, "validate")
-    g.add_edge("validate", "phase_router")
-    g.add_conditional_edges(
-        "phase_router", route_after_phase_router,
-        {"planner_judge": "planner_judge", "edit_agent": "edit_agent"},
-    )
-    g.add_conditional_edges(
-        "planner_judge", route_after_judge,
-        {"plan_generator": "plan_generator", "follow_up": "follow_up"},
-    )
-    g.add_edge("follow_up", "present")
+def build_generate_graph(checkpointer):
+    g = StateGraph(GenerateState)
+    g.add_node("entry", entry_node, destinations=("single_validate","multi_validate"))
+    g.add_node("single_validate", single_validate_node)
+    g.add_node("task_splitter", task_splitter_node, retry=_llm_retry)
+    g.add_node("date_router", date_router_node)
+    g.add_node("multi_validate", multi_validate_node)
+    g.add_node("planner", planner_node, retry=_llm_retry,
+               destinations=("follow_up","plan_generator"))
+    g.add_node("follow_up", follow_up_node, retry=_short_retry)
+    g.add_node("plan_generator", plan_generator_node, retry=_llm_retry)
+    g.add_node("tagger", tagger_node, retry=_short_retry)
+
+    g.add_edge(START, "entry")
+    g.add_edge("single_validate", "task_splitter")
+    g.add_edge("task_splitter", "date_router")
+    g.add_edge("multi_validate", "planner")
+    g.add_edge("follow_up", "planner")
     g.add_edge("plan_generator", "tagger")
-    g.add_edge("tagger", "present")
-    g.add_conditional_edges(
-        "edit_agent", route_after_edit_agent,
-        {"plan_generator": "plan_generator", "commit_invoke": "commit_invoke"},
-    )
-    g.add_edge("commit_invoke", "present")
-    g.add_edge("present", END)
-
-    return g.compile()
+    g.add_edge("tagger", "date_router")
+    g.add_edge("date_router", END)
+    return g.compile(checkpointer=checkpointer)
 ```
 
-- [ ] **Step 4: 테스트 통과**
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_graph.py -v 2>&1 | tail -10
-```
-
-Expected: 2 passed
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/graph.py \
-        tests/agents/todo_creation/multi_turn/test_graph.py
-git commit -m "feat(todo): multi_turn LangGraph 빌더 (conditional edges + RetryPolicy)"
+git add agents/todo_creation/graph.py tests/agents/todo_creation/test_graph.py
+git commit -m "feat(todo): build unified generate_graph with checkpointer"
 ```
 
 ---
 
-## Phase 14: Pipeline & Debug 확장
+### Task C3: pipeline.py (run + thread lifecycle)
 
-### Task 14.1: debug.py 확장
+**Files:** Create `agents/todo_creation/pipeline.py`; Test `tests/agents/todo_creation/test_pipeline.py` (smoke).
 
-**Files:**
-- Modify: `agents/todo_creation/debug.py`
-
-- [ ] **Step 1: Kind 확장** — `agents/todo_creation/debug.py` 의 `Kind` 라인 변경:
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-Kind = Literal["generate", "commit", "multi_turn"]
-```
-
-- [ ] **Step 2: summary 라인 변경** — `log_start` 안의 `summary = ...` 블록 교체:
-
-```python
-    summary = (
-        getattr(input, "prompt", None)
-        or getattr(input, "message", None)
-        or (
-            f"todos={len(getattr(input, 'todos', []))} "
-            f"events={len(getattr(input, 'calendar_events', []))}"
-        )
-    )
-```
-
-- [ ] **Step 3: log_step key 추가** — `log_step` 의 key 튜플에 다음 추가:
-
-```python
-        "phase",
-        "judgment",
-        "follow_up_question",
-        "plan_draft",
-        "current_plan",
-        "edit_instructions",
-        "confirmed",
-```
-
-- [ ] **Step 4: import 검증**
-
-```bash
-uv run python -c "from agents.todo_creation.debug import log_start, log_step, log_end; print('OK')"
-```
-
-Expected: `OK`
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add agents/todo_creation/debug.py
-git commit -m "feat(todo): debug 로거 multi_turn kind + 신규 state 키 지원"
-```
-
-### Task 14.2: pipeline.py — run_turn
-
-**Files:**
-- Create: `agents/todo_creation/multi_turn/pipeline.py`
-- Create: `tests/agents/todo_creation/multi_turn/test_pipeline.py`
-
-- [ ] **Step 1: 통합 테스트 작성**:
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import date
-
 import pytest
+from datetime import date, datetime, timezone
+from unittest.mock import AsyncMock
+from agents.todo_creation.schemas import SingleGenerateInput, GenerateResult
+from agents.todo_creation.pipeline import run, GeneratePorts
+from agents.todo_creation.state import PlanDay  # noqa
+from agents.todo_creation.schemas import TaskCandidate
 
-from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
-from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from agents.todo_creation.commit.pipeline import CommitPorts
-from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts, run_turn
-from agents.todo_creation.schemas import (
-    AgentDecision, ChatMessage, Day, ParsedGoal, PlanDraft, PlannerJudgment,
-    SessionState, TaggedPlan, Task,
-)
-
-
-@dataclass
-class _Dispatch:
-    calls: int = 0
-    async def dispatch(self, *, user_id: str) -> None:
-        self.calls += 1
-
-
-def _make_ports(fake_mt_llm, session_store, *, fail_repo=False) -> MultiTurnPorts:
-    return MultiTurnPorts(
-        llm=fake_mt_llm,
-        session_store=session_store,
-        commit_ports=CommitPorts(
-            repository=MemoryTodoRepository(fail_next=fail_repo),
-            quest_counter=MemoryQuestCounter(),
-            quest_dispatch=_Dispatch(),
-        ),
-    )
-
-
-def _plan_draft(today: date) -> PlanDraft:
-    return PlanDraft(summary_text="요약", days=[Day(date=today, tasks=[Task(title="공부")])])
-
-
-def _tagged_plan(today: date) -> TaggedPlan:
-    return TaggedPlan(summary_text="요약", days=[Day(date=today, tasks=[Task(title="공부", tags=["학습"])])])
-
-
-def _reviewing_state(input_, today, now):
-    return SessionState(
-        session_id=input_.session_id, user_id=input_.user_id, phase="reviewing",
-        history=[ChatMessage(role="user", content="이전")],
-        parsed_goal=ParsedGoal(goal_type="정처기"),
-        current_plan=_tagged_plan(today),
-        created_at=now, updated_at=now,
-    )
-
+@pytest.fixture
+def now(): return datetime(2026,5,25,tzinfo=timezone.utc)
 
 @pytest.mark.asyncio
-async def test_turn1_insufficient_returns_question(base_input, now, today, fake_mt_llm, session_store):
-    fake_mt_llm.judge_responses = [PlannerJudgment(
-        is_sufficient=False, missing_aspects=["하루 시간"], parsed_goal=ParsedGoal(goal_type="정처기"),
-    )]
-    fake_mt_llm.follow_up_responses = ["하루 학습 시간은?"]
-
-    result = await run_turn(base_input, ports=_make_ports(fake_mt_llm, session_store), now=now)
-    assert result.kind == "question"
-    assert result.question == "하루 학습 시간은?"
-    saved = await session_store.load(session_id=base_input.session_id)
-    assert saved.phase == "gathering"
-
-
-@pytest.mark.asyncio
-async def test_turn1_sufficient_returns_plan(base_input, now, today, fake_mt_llm, session_store):
-    fake_mt_llm.judge_responses = [PlannerJudgment(
-        is_sufficient=True, missing_aspects=[],
-        parsed_goal=ParsedGoal(goal_type="정처기", daily_capacity="3h"),
-    )]
-    fake_mt_llm.plan_responses = [_plan_draft(today)]
-    fake_mt_llm.tag_responses = [_tagged_plan(today)]
-
-    result = await run_turn(base_input, ports=_make_ports(fake_mt_llm, session_store), now=now)
-    assert result.kind == "plan"
-    saved = await session_store.load(session_id=base_input.session_id)
-    assert saved.phase == "reviewing"
-
-
-@pytest.mark.asyncio
-async def test_turn3a_confirm_commits_and_clears_session(base_input, now, today, fake_mt_llm, session_store):
-    await session_store.save(state=_reviewing_state(base_input, today, now))
-    fake_mt_llm.agent_decisions = [AgentDecision(tool_name="confirm", tool_args={})]
-
-    result = await run_turn(
-        base_input.model_copy(update={"message": "확정해줘"}),
-        ports=_make_ports(fake_mt_llm, session_store),
-        now=now,
-    )
-    assert result.kind == "committed"
-    assert await session_store.load(session_id=base_input.session_id) is None
-
-
-@pytest.mark.asyncio
-async def test_turn3b_regenerate_returns_new_plan(base_input, now, today, fake_mt_llm, session_store):
-    await session_store.save(state=_reviewing_state(base_input, today, now))
-    fake_mt_llm.agent_decisions = [AgentDecision(
-        tool_name="regenerate_plan", tool_args={"instructions": "더 가볍게"},
-    )]
-    fake_mt_llm.plan_responses = [_plan_draft(today)]
-    fake_mt_llm.tag_responses = [_tagged_plan(today)]
-
-    result = await run_turn(
-        base_input.model_copy(update={"message": "더 가볍게 해줘"}),
-        ports=_make_ports(fake_mt_llm, session_store),
-        now=now,
-    )
-    assert result.kind == "plan"
-    assert fake_mt_llm.last_plan_edit_instructions == ["더 가볍게"]
-
-
-@pytest.mark.asyncio
-async def test_commit_failure_preserves_session(base_input, now, today, fake_mt_llm, session_store):
-    await session_store.save(state=_reviewing_state(base_input, today, now))
-    fake_mt_llm.agent_decisions = [AgentDecision(tool_name="confirm", tool_args={})]
-
-    with pytest.raises(Exception):
-        await run_turn(
-            base_input.model_copy(update={"message": "확정"}),
-            ports=_make_ports(fake_mt_llm, session_store, fail_repo=True),
-            now=now,
-        )
-    assert await session_store.load(session_id=base_input.session_id) is not None
+async def test_single_returns_generate_result(now):
+    llm = AsyncMock()
+    llm.split_tasks = AsyncMock(return_value=[
+        TaskCandidate(title="x", due_date=date(2026,5,25), time_hint=None, tags=[])
+    ])
+    ports = GeneratePorts(llm=llm)
+    inp = SingleGenerateInput(user_id="u1", prompt="오늘 코테 1개", today=date(2026,5,25))
+    out = await run(inp, ports=ports, now=now)
+    assert isinstance(out, GenerateResult)
+    assert out.thread_id
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/test_pipeline.py -v 2>&1 | tail -15
-```
-
-Expected: ImportError
-
-- [ ] **Step 3: pipeline 구현** — `agents/todo_creation/multi_turn/pipeline.py`:
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현**
 
 ```python
-from __future__ import annotations
-
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from agents.todo_creation.commit.pipeline import CommitPorts
-from agents.todo_creation.debug import log_end, log_start, log_step
-from agents.todo_creation.multi_turn.graph import build_multi_turn_graph
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
-from agents.todo_creation.protocols import MultiTurnLLMPort, SessionStorePort
-from agents.todo_creation.schemas import MultiTurnInput, TurnResult
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
 
-
-@dataclass
-class MultiTurnPorts:
-    llm: MultiTurnLLMPort
-    session_store: SessionStorePort
-    commit_ports: CommitPorts
-
-
-_GRAPH = build_multi_turn_graph()
-
-
-async def run_turn(
-    input: MultiTurnInput,
-    *,
-    ports: MultiTurnPorts,
-    now: datetime,
-) -> TurnResult:
-    initial: MultiTurnGraphState = {"input": input, "now": now}
-    config = {"configurable": {"ports": ports, "now": now}}
-
-    log_start(input, "multi_turn")
-
-    final: Any = None
-    step = 0
-    async for mode, chunk in _GRAPH.astream(
-        initial, config=config, stream_mode=["updates", "values"]
-    ):
-        if mode == "updates":
-            for node_name, update in chunk.items():
-                step += 1
-                log_step(step, node_name, update)
-        elif mode == "values":
-            final = chunk
-
-    log_end(final)
-
-    assert final is not None
-    result = final.get("result")
-    assert result is not None
-    return result
-```
-
-- [ ] **Step 4: 테스트 통과**
-
-```bash
-uv run pytest tests/agents/todo_creation/multi_turn/ -v 2>&1 | tail -30
-```
-
-Expected: 모든 multi_turn 테스트 PASS
-
-- [ ] **Step 5: 회귀 확인**
-
-```bash
-uv run pytest 2>&1 | tail -10
-```
-
-Expected: 기존 테스트 영향 없음
-
-- [ ] **Step 6: 커밋**
-
-```bash
-git add agents/todo_creation/multi_turn/pipeline.py \
-        tests/agents/todo_creation/multi_turn/test_pipeline.py
-git commit -m "feat(todo): multi_turn run_turn entry + 통합 시나리오 5개"
-```
-
----
-
-## Phase 15: OpenAI Adapter
-
-### Task 15.1: OpenAIMultiTurnLLM
-
-**Files:**
-- Create: `adapters/todo_creation/openai_multi_turn.py`
-- Create: `tests/adapters/todo_creation/test_openai_multi_turn.py`
-
-- [ ] **Step 1: 기존 openai_llm.py 패턴 확인**
-
-```bash
-cd /Users/jpaper/Documents/projects/mongle-village-todo
-cat adapters/todo_creation/openai_llm.py | head -60
-```
-
-Expected: 기존 single_turn 용 OpenAI 어댑터 코드. 동일 패턴 차용.
-
-- [ ] **Step 2: 어댑터 구현** — `adapters/todo_creation/openai_multi_turn.py`:
-
-```python
-from __future__ import annotations
-
-import json
-import os
-from dataclasses import dataclass
-from datetime import date
-
-from openai import AsyncOpenAI
-
-from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
-from agents.todo_creation.multi_turn.tools import TOOL_DEFINITIONS
+from agents.todo_creation.exceptions import ThreadNotFoundError
+from agents.todo_creation.graph import build_generate_graph
+from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import (
-    AgentDecision, ChatMessage, ParsedGoal, PlanDraft, PlannerJudgment, TaggedPlan,
+    FollowUpResult, GenerateInput, GenerateResult, MultiGenerateInput,
+    SingleGenerateInput, TaskCandidate, TurnResult,
 )
 
 
 @dataclass
-class OpenAIMultiTurnLLM:
-    model: str = "gpt-4o-mini"
-    client: AsyncOpenAI | None = None
+class GeneratePorts:
+    llm: LLMPort
 
-    def _client(self) -> AsyncOpenAI:
-        if self.client is None:
-            self.client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-        return self.client
 
-    async def judge_planner(self, *, history, previous_goal, today) -> PlannerJudgment:
-        try:
-            resp = await self._client().beta.chat.completions.parse(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            f"오늘은 {today.isoformat()}. "
-                            "사용자 메시지와 이전 goal 로부터 정보 충분성 판단. "
-                            "이전 parsed_goal 을 보존하며 새 정보로 갱신. "
-                            f"이전 parsed_goal: {previous_goal.model_dump_json() if previous_goal else 'null'}"
-                        ),
-                    },
-                    *[{"role": m.role, "content": m.content} for m in history],
-                ],
-                response_format=PlannerJudgment,
-            )
-            parsed = resp.choices[0].message.parsed
-            if parsed is None:
-                raise LLMOutputError("parse returned None")
-            return parsed
-        except LLMOutputError:
-            raise
-        except Exception as e:
-            raise LLMFailedError(str(e)) from e
+_CHECKPOINTER = MemorySaver()
+_GRAPH = build_generate_graph(checkpointer=_CHECKPOINTER)
 
-    async def generate_follow_up(self, *, missing_aspects, history) -> str:
-        try:
-            resp = await self._client().chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": f"한국어 1~2문장의 짧은 꼬리 질문 생성. 부족 정보: {', '.join(missing_aspects)}",
-                    },
-                    *[{"role": m.role, "content": m.content} for m in history],
-                ],
-            )
-            content = resp.choices[0].message.content
-            if not content:
-                raise LLMOutputError("empty follow_up")
-            return content.strip()
-        except LLMOutputError:
-            raise
-        except Exception as e:
-            raise LLMFailedError(str(e)) from e
 
-    async def generate_plan(self, *, parsed_goal, today, edit_instructions) -> PlanDraft:
-        try:
-            sys_prompt = (
-                f"오늘은 {today.isoformat()}. "
-                "주어진 parsed_goal 에 맞춰 일자별 플랜 JSON 생성. "
-                "summary_text 는 ≤1500자 한국어."
-            )
-            if edit_instructions:
-                sys_prompt += f"\n[수정 지침] {edit_instructions}"
-            resp = await self._client().beta.chat.completions.parse(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": parsed_goal.model_dump_json()},
-                ],
-                response_format=PlanDraft,
-            )
-            parsed = resp.choices[0].message.parsed
-            if parsed is None:
-                raise LLMOutputError("parse returned None")
-            return parsed
-        except LLMOutputError:
-            raise
-        except Exception as e:
-            raise LLMFailedError(str(e)) from e
+def _initial_state(inp, now: datetime) -> dict[str, Any]:
+    if isinstance(inp, SingleGenerateInput):
+        return {"mode":"single","user_id":inp.user_id,"today":inp.today,"now":now,
+                "prompt":inp.prompt}
+    return {"mode":"multi","user_id":inp.user_id,"today":inp.today,"now":now,
+            "message":inp.message,"history":[]}
 
-    async def tag_plan(self, *, plan_draft, parsed_goal) -> TaggedPlan:
-        try:
-            resp = await self._client().beta.chat.completions.parse(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "plan_draft 의 각 task 에 자유 형식 한국어 태그 부여. "
-                            f"목표 컨텍스트: {parsed_goal.model_dump_json()}"
-                        ),
-                    },
-                    {"role": "user", "content": plan_draft.model_dump_json()},
-                ],
-                response_format=TaggedPlan,
-            )
-            parsed = resp.choices[0].message.parsed
-            if parsed is None:
-                raise LLMOutputError("parse returned None")
-            return parsed
-        except LLMOutputError:
-            raise
-        except Exception as e:
-            raise LLMFailedError(str(e)) from e
 
-    async def edit_agent_step(self, *, history, current_plan) -> AgentDecision:
-        try:
-            resp = await self._client().chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "현재 플랜과 사용자 메시지를 보고 적절한 도구 호출. "
-                            "사용자 수정 요청 → regenerate_plan(instructions), 확정 의도 → confirm(). "
-                            f"\n현재 플랜: {current_plan.model_dump_json()}"
-                        ),
-                    },
-                    *[{"role": m.role, "content": m.content} for m in history],
-                ],
-                tools=[{"type": "function", "function": t} for t in TOOL_DEFINITIONS],
-                tool_choice="required",
-            )
-            tool_calls = resp.choices[0].message.tool_calls or []
-            if not tool_calls:
-                raise LLMOutputError("no tool_call returned")
-            call = tool_calls[0]
-            args = json.loads(call.function.arguments or "{}")
-            return AgentDecision(tool_name=call.function.name, tool_args=args)
-        except LLMOutputError:
-            raise
-        except Exception as e:
-            raise LLMFailedError(str(e)) from e
+def _to_task_candidate(t):
+    return t if isinstance(t, TaskCandidate) else TaskCandidate(**t)
+
+
+async def run(inp: GenerateInput, *, ports: GeneratePorts, now: datetime) -> TurnResult:
+    config: dict[str, Any] = {"configurable":{"ports":ports,"now":now}}
+
+    is_resume = isinstance(inp, MultiGenerateInput) and inp.thread_id is not None
+    if is_resume:
+        thread_id = inp.thread_id
+        config["configurable"]["thread_id"] = thread_id
+        snap = await _CHECKPOINTER.aget({"configurable":{"thread_id":thread_id}})
+        if snap is None:
+            raise ThreadNotFoundError(f"thread {thread_id} not found")
+        result = await _GRAPH.ainvoke(Command(resume=inp.message), config=config)
+    else:
+        thread_id = str(uuid.uuid4())
+        config["configurable"]["thread_id"] = thread_id
+        result = await _GRAPH.ainvoke(_initial_state(inp, now), config=config)
+
+    interrupts = result.get("__interrupt__") if isinstance(result, dict) else None
+    if interrupts:
+        first = interrupts[0]
+        out = FollowUpResult(
+            thread_id=thread_id,
+            question=getattr(first, "value", str(first)),
+            missing_aspects=result.get("missing_aspects", []),
+        )
+    else:
+        out = GenerateResult(
+            thread_id=thread_id,
+            todos=[_to_task_candidate(t) for t in result.get("todos", [])],
+            calendar_events=[_to_task_candidate(t) for t in result.get("calendar_events", [])],
+            summary_text=result.get("summary_text"),
+        )
+
+    if isinstance(inp, SingleGenerateInput):
+        await _CHECKPOINTER.adelete_thread(thread_id)
+    return out
 ```
 
-- [ ] **Step 3: Contract 테스트 작성**:
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git add agents/todo_creation/pipeline.py tests/agents/todo_creation/test_pipeline.py
+git commit -m "feat(todo): add unified pipeline.run with thread lifecycle"
+```
+
+---
+
+## Phase D — Adapter Unification
+
+### Task D1: openai_llm.py 4 메서드 흡수 + 테스트 통합
+
+**Files:** Modify `adapters/todo_creation/openai_llm.py`, `tests/adapters/todo_creation/test_openai_llm.py`.
+
+- [ ] **Step 1: 기존 `tests/adapters/todo_creation/test_openai_multi_turn.py` 의 4 메서드 테스트를 그대로 `test_openai_llm.py` 끝에 복사** (이름·assert 변경 없음, import 만 단일 `OpenAILLM` 으로).
+- [ ] **Step 2: 실행해서 실패 확인** — Expected: AttributeError (`judge_sufficiency` 등 미정의).
+- [ ] **Step 3: 구현** — `OpenAILLM` 클래스에 4 async 메서드 추가. 본문은 기존 `adapters/todo_creation/openai_multi_turn.py` 의 동명 메서드를 그대로 이식 (`beta.chat.completions.parse` 호출, structured output 옵션 동일). 프롬프트 문자열도 그대로.
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git add adapters/todo_creation/openai_llm.py tests/adapters/todo_creation/test_openai_llm.py
+git commit -m "feat(todo): absorb 4 multi-turn methods into OpenAILLM"
+```
+
+---
+
+### Task D2: fake_llm.py 4 메서드 흡수
+
+**Files:** Modify `adapters/todo_creation/fake_llm.py`, `tests/adapters/todo_creation/test_fake_llm.py`.
+
+- [ ] **Step 1: 실패 테스트**
 
 ```python
-from __future__ import annotations
-
-import os
-from datetime import date
-
 import pytest
-
-from adapters.todo_creation.openai_multi_turn import OpenAIMultiTurnLLM
-from agents.todo_creation.schemas import (
-    ChatMessage, Day, ParsedGoal, TaggedPlan, Task,
-)
-
-pytestmark = pytest.mark.skipif(
-    os.environ.get("RUN_REAL_OPENAI") != "1",
-    reason="RUN_REAL_OPENAI=1 required",
-)
-
+from datetime import date
+from agents.todo_creation.exceptions import LLMFailedError
+from adapters.todo_creation.fake_llm import FakeLLM
 
 @pytest.mark.asyncio
-async def test_judge_planner_real_call():
-    llm = OpenAIMultiTurnLLM()
-    j = await llm.judge_planner(
-        history=[ChatMessage(role="user", content="3일 후 정보처리기사 시험")],
-        previous_goal=None,
-        today=date(2026, 5, 25),
-    )
-    assert j.parsed_goal.goal_type is not None or j.missing_aspects
-
+async def test_judge_sufficiency_queue():
+    llm = FakeLLM(judge_sufficiency_queue=[(False,["x"],{}), (True,[],{"goal_text":"g"})])
+    r1 = await llm.judge_sufficiency(history=[], message="x", today=date(2026,5,25))
+    r2 = await llm.judge_sufficiency(history=[], message="x", today=date(2026,5,25))
+    assert r1[0] is False and r2[0] is True
 
 @pytest.mark.asyncio
-async def test_edit_agent_step_real_call():
-    llm = OpenAIMultiTurnLLM()
-    plan = TaggedPlan(
-        summary_text="3일 학습 플랜",
-        days=[Day(date=date(2026, 5, 26), tasks=[Task(title="공부", tags=["학습"])])],
-    )
-    d = await llm.edit_agent_step(
-        history=[ChatMessage(role="user", content="이대로 확정")],
-        current_plan=plan,
-    )
-    assert d.tool_name in {"confirm", "regenerate_plan"}
+async def test_follow_up_question():
+    llm = FakeLLM(follow_up_questions=["목표 점수는?"])
+    q = await llm.generate_follow_up_question(missing_aspects=[], history=[])
+    assert q == "목표 점수는?"
+
+@pytest.mark.asyncio
+async def test_generate_plan():
+    llm = FakeLLM(plans=[("요약",[{"date":date(2026,5,25),"tasks":[]}])])
+    s, d = await llm.generate_plan(parsed_goal={}, today=date(2026,5,25))
+    assert s == "요약" and len(d) == 1
+
+@pytest.mark.asyncio
+async def test_tag_plan():
+    tagged = [{"date":date(2026,5,25),
+               "tasks":[{"title":"x","due_date":date(2026,5,25),"time_hint":None,"tags":["t"]}]}]
+    llm = FakeLLM(tagged_plans=[tagged])
+    out = await llm.tag_plan(plan=[], parsed_goal={})
+    assert out == tagged
+
+@pytest.mark.asyncio
+async def test_tag_plan_failure_simulation():
+    llm = FakeLLM(tag_plan_fail=True)
+    with pytest.raises(LLMFailedError):
+        await llm.tag_plan(plan=[], parsed_goal={})
 ```
 
-- [ ] **Step 4: skipif 검증**
+- [ ] **Step 2: 실패 확인**.
+- [ ] **Step 3: 구현** — `FakeLLM.__init__` 에 4 큐/플래그 인자 추가 (`judge_sufficiency_queue`, `follow_up_questions`, `plans`, `tagged_plans`, `tag_plan_fail`). 4 async 메서드 본문은 기존 `fake_multi_turn_llm.py` 의 동명 로직 이식.
+- [ ] **Step 4: 통과 확인**.
+- [ ] **Step 5: commit**
 
 ```bash
-uv run pytest tests/adapters/todo_creation/test_openai_multi_turn.py -v 2>&1 | tail -10
-```
-
-Expected: 2 skipped
-
-- [ ] **Step 5: 커밋**
-
-```bash
-git add adapters/todo_creation/openai_multi_turn.py \
-        tests/adapters/todo_creation/test_openai_multi_turn.py
-git commit -m "feat(todo): OpenAIMultiTurnLLM 어댑터 + contract test (gated)"
+git add adapters/todo_creation/fake_llm.py tests/adapters/todo_creation/test_fake_llm.py
+git commit -m "feat(todo): absorb 4 multi-turn methods into FakeLLM queue pattern"
 ```
 
 ---
 
-## Phase 16: 문서 갱신
+### Task D3: multi-turn-only 어댑터 삭제 + 호출처 정리
 
-### Task 16.1: architecture.mmd MULTI 서브그래프 갱신
+**Files to delete:** `adapters/todo_creation/openai_multi_turn.py`, `adapters/todo_creation/fake_multi_turn_llm.py`, `tests/adapters/todo_creation/test_openai_multi_turn.py`.
 
-**Files:**
-- Modify: `docs/features/todo/architecture.mmd`
-
-- [ ] **Step 1: 현재 다이어그램 확인**
+- [ ] **Step 1: 호출처 grep**
 
 ```bash
-cd /Users/jpaper/Documents/projects/mongle-village-todo
-grep -n "MULTI" docs/features/todo/architecture.mmd
+grep -rn "openai_multi_turn\|fake_multi_turn_llm\|FakeMultiTurnLLM\|OpenAIMultiTurn" \
+  --include="*.py" agents/ adapters/ tests/ streamlit_app/
 ```
 
-- [ ] **Step 2: MULTI 서브그래프 블록 교체** — `docs/features/todo/architecture.mmd` 의 `subgraph MULTI["멀티턴 TODO/플랜 생성"]` 부터 그 `end` 까지 다음으로 교체:
+- [ ] **Step 2: 호출처 import 교체** — 모두 단일 `OpenAILLM` / `FakeLLM` 으로. 생성자 인자가 다르면 새 큐 패턴(`judge_sufficiency_queue=...`) 으로 변환.
 
-```mermaid
- subgraph MULTI["멀티턴 TODO/플랜 생성"]
-    direction TB
-        MA@{ label: "User Input
-        자연어 메시지 (≤600자, 한국어 위주)" }
-        MV{"Validation
-        • 길이 ≤600자 (M1)
-        • 빈 입력 (M2)
-        • 한글 비율 ≥0.3 (M3)"}
-        MVE[/"에러 응답"/]
-        MPR{"phase_router
-        SessionStore 조회"}
-        MPS["LLM Planner judge
-        is_sufficient + parsed_goal 갱신"]
-        MQ{"is_sufficient?"}
-        MFU["LLM Follow-up
-        꼬리 질문 생성"]
-        MPG["LLM Plan Generator
-        일자별 플랜 (≤1500자 + truncate fallback)"]
-        MTG["LLM Tagger
-        자유 형식 태그"]
-        EA["LLM Edit Agent
-        tools: regenerate_plan / confirm"]
-        ME["present
-        TurnResult + SessionStore.save"]
-        MC["commit_invoke
-        commit/pipeline.run() 위임"]
-  end
-```
-
-그리고 그 아래 MULTI 의 엣지 정의 블록 (`MA --> MV` 부터 `ME -- 확정 --> MC` 까지) 을 다음으로 교체:
-
-```
-    MA --> MV
-    MV -- 실패 --> MVE
-    MV -- 통과 --> MPR
-    MPR -- gathering --> MPS
-    MPR -- reviewing --> EA
-    MPS --> MQ
-    MQ -- 부족 --> MFU --> ME
-    MQ -- 충분 --> MPG --> MTG --> ME
-    EA -- regenerate_plan --> MPG
-    EA -- confirm --> MC --> ME
-    ME --> COMMIT
-```
-
-마지막으로 classDef 매핑 부분에서:
-- `MAU:::input` 제거 (사용자 답변 노드는 다음 turn 진입으로 대체됨)
-- `EA:::ai` 추가
-- `MPR:::process` 추가
-
-- [ ] **Step 3: mermaid 노드 정합성 검증**
+- [ ] **Step 3: 파일 삭제**
 
 ```bash
-uv run python -c "
-from agents.todo_creation.multi_turn.graph import build_multi_turn_graph
-g = build_multi_turn_graph()
-print(g.get_graph().draw_mermaid())
-" 2>&1 | head -30
+git rm adapters/todo_creation/openai_multi_turn.py \
+       adapters/todo_creation/fake_multi_turn_llm.py \
+       tests/adapters/todo_creation/test_openai_multi_turn.py
 ```
 
-Expected: 생성된 mermaid 의 노드 이름이 다이어그램의 노드와 일치.
-
-- [ ] **Step 4: 커밋**
+- [ ] **Step 4: 전체 테스트 확인**
 
 ```bash
-git add docs/features/todo/architecture.mmd
-git commit -m "docs(todo): architecture.mmd MULTI 서브그래프 as-built 갱신"
+uv run pytest --cov=agents/todo_creation --cov-report=term-missing 2>&1 | tail -50
+```
+Expected: 통과, multi-turn 어댑터 import 에러 없음.
+
+- [ ] **Step 5: commit**
+
+```bash
+git add -u
+git commit -m "refactor(todo): remove multi-turn-only adapters after absorption"
 ```
 
-### Task 16.2: docs/features/todo/CLAUDE.md §7 갱신
+---
 
-**Files:**
-- Modify: `docs/features/todo/CLAUDE.md`
+## Phase E — Integration Scenarios
 
-- [ ] **Step 1: §7 절을 결정 사항 표로 교체**
+각 시나리오는 spec §6.2 기반. `build_generate_graph(checkpointer=MemorySaver())` + `FakeLLM` (Task D2 흡수 후) + `pipeline.run` (Task C3) 으로 검증.
 
-`docs/features/todo/CLAUDE.md` 의 `## 7. 미결 사항 (Open Questions)` 절 전체를 다음으로 교체:
+### Task E1: single happy path
+
+**File:** `tests/agents/todo_creation/test_graph.py` (확장).
+
+- [ ] **Step 1: 테스트 추가**
+
+```python
+import pytest
+from datetime import date, datetime, timezone
+from agents.todo_creation.pipeline import run, GeneratePorts
+from agents.todo_creation.schemas import SingleGenerateInput, GenerateResult, TaskCandidate
+from adapters.todo_creation.fake_llm import FakeLLM
+
+@pytest.fixture
+def now(): return datetime(2026,5,25,tzinfo=timezone.utc)
+
+@pytest.mark.asyncio
+async def test_single_today_only(now):
+    llm = FakeLLM(responses=[
+        [TaskCandidate(title="코테 1회", due_date=date(2026,5,25), time_hint=None, tags=[])]
+    ])
+    out = await run(SingleGenerateInput(user_id="u1", prompt="오늘 코테 1개", today=date(2026,5,25)),
+                    ports=GeneratePorts(llm=llm), now=now)
+    assert isinstance(out, GenerateResult)
+    assert len(out.todos) == 1 and len(out.calendar_events) == 0
+
+@pytest.mark.asyncio
+async def test_single_mixed(now):
+    llm = FakeLLM(responses=[[
+        TaskCandidate(title="오늘", due_date=date(2026,5,25), time_hint=None, tags=[]),
+        TaskCandidate(title="미래", due_date=date(2026,5,28), time_hint=None, tags=[]),
+    ]])
+    out = await run(SingleGenerateInput(user_id="u1", prompt="오늘과 미래", today=date(2026,5,25)),
+                    ports=GeneratePorts(llm=llm), now=now)
+    assert len(out.todos) == 1 and len(out.calendar_events) == 1
+```
+
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git add tests/agents/todo_creation/test_graph.py
+git commit -m "test(todo): single happy paths through unified graph"
+```
+
+---
+
+### Task E2: multi follow_up loop (2 turn)
+
+- [ ] **Step 1: 테스트 추가**
+
+```python
+from agents.todo_creation.schemas import MultiGenerateInput, FollowUpResult, GenerateResult
+
+@pytest.mark.asyncio
+async def test_multi_two_turns(now):
+    llm = FakeLLM(
+        judge_sufficiency_queue=[
+            (False, ["목표 점수"], {}),
+            (True,  [], {"goal_text":"토익 800"}),
+        ],
+        follow_up_questions=["목표 점수는?"],
+        plans=[("요약", [{"date":date(2026,5,25),
+                          "tasks":[{"title":"단어 30","due_date":date(2026,5,25),
+                                    "time_hint":None,"tags":[]}]}])],
+        tagged_plans=[[{"date":date(2026,5,25),
+                        "tasks":[{"title":"단어 30","due_date":date(2026,5,25),
+                                  "time_hint":None,"tags":["토익"]}]}]],
+    )
+    ports = GeneratePorts(llm=llm)
+
+    t1 = await run(MultiGenerateInput(user_id="u1", message="내일 토익 시험",
+                                       today=date(2026,5,25)),
+                   ports=ports, now=now)
+    assert isinstance(t1, FollowUpResult); assert t1.question == "목표 점수는?"
+    tid = t1.thread_id
+
+    t2 = await run(MultiGenerateInput(user_id="u1", message="800점",
+                                       today=date(2026,5,25), thread_id=tid),
+                   ports=ports, now=now)
+    assert isinstance(t2, GenerateResult); assert t2.thread_id == tid
+    assert t2.todos[0].tags == ["토익"]
+    assert (t2.summary_text or "") and len(t2.summary_text) <= 1500
+```
+
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git commit -am "test(todo): multi two-turn follow_up via interrupt+resume"
+```
+
+---
+
+### Task E3: multi N turn — turn 5 sufficient
+
+- [ ] **Step 1: 테스트 추가** — `judge_sufficiency_queue=[False*4, True]`, `follow_up_questions=["q1","q2","q3","q4"]`, plan/tagged_plan 1개. turn 1~4 각각 `FollowUpResult` 반환, turn 5 `GenerateResult`. `_CHECKPOINTER.aget(...)` 로 turn 5 후 `history` 길이가 `9` 임을 확인 (turn N → 2N-1).
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git commit -am "test(todo): multi 5-turn loop until sufficient with history length"
+```
+
+---
+
+### Task E4: multi C3 violation 시나리오
+
+- [ ] **Step 1: 테스트 추가** — (1) `plans=[("가"*1501, days), ("가"*1000, days)]` → 재생성 후 `len(summary_text)==1000`. (2) `plans=[("가"*1600, days)]` (한 응답을 반복적으로 반환하도록 FakeLLM 큐 다시 채우거나 queue 길이 2로) → `len(summary_text)==1500`.
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git commit -am "test(todo): plan_generator C3 regenerate and truncate scenarios"
+```
+
+---
+
+### Task E5: multi tagger silent degrade
+
+- [ ] **Step 1: 테스트 추가** — `FakeLLM(... tag_plan_fail=True ...)` → `GenerateResult` 정상 반환, 모든 `todos`/`calendar_events` 의 `tags == []`.
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git commit -am "test(todo): tagger failure degrades to empty tags"
+```
+
+---
+
+### Task E6: thread isolation + ThreadNotFoundError
+
+- [ ] **Step 1: 테스트 추가**
+
+```python
+from agents.todo_creation.exceptions import ThreadNotFoundError
+
+@pytest.mark.asyncio
+async def test_unknown_thread_raises(now):
+    llm = FakeLLM()
+    with pytest.raises(ThreadNotFoundError):
+        await run(MultiGenerateInput(user_id="u1", message="안녕",
+                                      today=date(2026,5,25), thread_id="ghost"),
+                  ports=GeneratePorts(llm=llm), now=now)
+
+@pytest.mark.asyncio
+async def test_two_threads_isolated(now):
+    llm_a = FakeLLM(judge_sufficiency_queue=[(False,["x"],{})], follow_up_questions=["A?"])
+    llm_b = FakeLLM(judge_sufficiency_queue=[(False,["y"],{})], follow_up_questions=["B?"])
+    out_a = await run(MultiGenerateInput(user_id="u1", message="대화A", today=date(2026,5,25)),
+                      ports=GeneratePorts(llm=llm_a), now=now)
+    out_b = await run(MultiGenerateInput(user_id="u2", message="대화B", today=date(2026,5,25)),
+                      ports=GeneratePorts(llm=llm_b), now=now)
+    assert out_a.thread_id != out_b.thread_id
+    assert out_a.question == "A?" and out_b.question == "B?"
+```
+
+- [ ] **Step 2~4: 실행·통과 확인**.
+- [ ] **Step 5: commit**
+
+```bash
+git commit -am "test(todo): thread isolation and ThreadNotFoundError"
+```
+
+---
+
+## Phase F — Migration & Cleanup
+
+### Task F1: streamlit_app/app.py 통합 그래프 사용
+
+- [ ] **Step 1: 호출처 grep**
+
+```bash
+grep -n "agents.todo_creation.single_turn\|single_turn.pipeline" streamlit_app/app.py
+```
+
+- [ ] **Step 2: import 교체** — `from agents.todo_creation.pipeline import run, GeneratePorts` + `from agents.todo_creation.schemas import SingleGenerateInput`. 호출은 `await run(SingleGenerateInput(user_id=..., prompt=..., today=...), ports=GeneratePorts(llm=...), now=datetime.now(tz))`.
+- [ ] **Step 3: streamlit smoke**
+
+```bash
+uv run streamlit run streamlit_app/app.py --server.headless true &
+sleep 3 && curl -s http://localhost:8501 > /dev/null && echo "ok"
+kill %1
+```
+
+- [ ] **Step 4: commit**
+
+```bash
+git add streamlit_app/app.py
+git commit -m "refactor(streamlit): use unified todo_creation.pipeline.run"
+```
+
+---
+
+### Task F2: single_turn pipeline 제거
+
+- [ ] **Step 1: 호출처 grep**
+
+```bash
+grep -rn "from agents.todo_creation.single_turn\.\(pipeline\|graph\|state\)" --include="*.py" .
+```
+Expected: graph.py 외 결과 없음 (graph.py 는 `single_turn.nodes.*` 만 import; pipeline/graph/state import 0).
+
+- [ ] **Step 2: 삭제**
+
+```bash
+git rm agents/todo_creation/single_turn/pipeline.py \
+       agents/todo_creation/single_turn/graph.py \
+       agents/todo_creation/single_turn/state.py \
+       tests/agents/todo_creation/single_turn/test_pipeline.py
+```
+
+- [ ] **Step 3: 전체 테스트 + cov**
+
+```bash
+uv run pytest --cov=agents/todo_creation --cov-report=term-missing 2>&1 | tail -50
+```
+Expected: 80%+, fail 없음.
+
+- [ ] **Step 4: commit**
+
+```bash
+git add -u
+git commit -m "refactor(todo): remove single_turn pipeline/graph/state (absorbed)"
+```
+
+---
+
+### Task F3: CHANGELOG entry
+
+- [ ] **Step 1: 항목 추가** — `CHANGELOG.md` 의 `Unreleased` 섹션:
 
 ```markdown
-## 7. 결정 사항 (이전 미결 사항 해결)
+### Added
+- `agents/todo_creation/` single/multi 통합 `generate_graph` (LangGraph checkpointer + interrupt(follow_up))
+- `MultiGenerateInput`, `FollowUpResult`, `TurnResult` 스키마
+- `LLMPort` 의 4 메서드 (`judge_sufficiency`, `generate_follow_up_question`, `generate_plan`, `tag_plan`)
+- `ThreadNotFoundError` (4xx)
 
-| #  | 항목                              | 결정                                                          | 출처 |
-|----|----------------------------------|--------------------------------------------------------------|------|
-| Q1 | 태그 어휘 (Tagger)                  | 자유 형식 문자열                                                  | 2026-05-25 multi_turn 설계 |
-| Q2 | 멀티턴 세션 저장소                       | 커스텀 `SessionStorePort` (in-memory → MySQL)                    | 2026-05-25 multi_turn 설계 |
-| Q3 | 수정 회귀 범위                         | edit_agent → plan_generator 직진 (Planner 거치지 않음)          | 2026-05-25 multi_turn 설계 |
-| Q4 | 싱글턴 time_hint 처리                | 별도 결정 필요 (싱글턴 영역)                                          | 미결 |
-| Q5 | Plan Generator C3 초과              | 재생성 1회 → 실패 시 마침표 기준 잘라내기                                | 2026-05-25 multi_turn 설계 |
-| Q6 | 한국어 위주 검증                      | 한글 유니코드 비율 ≥ 0.3 휴리스틱                                    | 2026-05-25 multi_turn 설계 |
-| Q7 | 퀘스트 분배 카운트 리셋                  | 기존 commit 모듈 결정 유지 (KST 자정)                                | PR #6 |
+### Changed
+- `commit_graph` 는 분리 유지. 클라가 `GenerateResult` 받아 `/todos/commit` 별도 호출
+- `single_turn/{pipeline,graph,state}.py` 제거 (통합 그래프로 흡수)
+- 이전 multi-only 부산물 `openai_multi_turn`, `fake_multi_turn_llm` 어댑터 → `OpenAILLM`·`FakeLLM` 으로 흡수·폐기
 ```
 
-- [ ] **Step 2: 커밋**
-
-```bash
-git add docs/features/todo/CLAUDE.md
-git commit -m "docs(todo): §7 미결사항 → 결정 사항 표로 갱신"
-```
-
-### Task 16.3: CHANGELOG 갱신
-
-**Files:**
-- Modify: `CHANGELOG.md`
-
-- [ ] **Step 1: Unreleased/Added 항목 추가**
-
-`CHANGELOG.md` 의 `## [Unreleased]` 아래 `### Added` 섹션에 다음 추가:
-
-```markdown
-- **multi_turn TODO/플랜 챗봇** (`agents/todo_creation/multi_turn/`):
-  - Hybrid LangGraph (정보수집=결정론, 수정루프=tool-calling)
-  - SessionStorePort + InMemorySessionStore (Port 확정, MySQL 어댑터는 후속)
-  - 9 노드 + RetryPolicy + C3 재생성+truncate fallback
-  - FakeMultiTurnLLM (큐 기반) + 통합 시나리오 5개
-  - OpenAIMultiTurnLLM 어댑터 + gated contract test
-  - 설계서: `docs/superpowers/specs/2026-05-25-todo-multiturn-design.md`
-```
-
-- [ ] **Step 2: 커밋**
+- [ ] **Step 2: commit**
 
 ```bash
 git add CHANGELOG.md
-git commit -m "docs: CHANGELOG multi_turn 챗봇 추가 항목"
+git commit -m "docs(changelog): record unified todo generate_graph migration"
 ```
 
 ---
 
-## Phase 17: 최종 검증
+### Task F4: architecture.mmd as-built 갱신
 
-### Task 17.1: 전체 테스트 + 커버리지 + PR
-
-- [ ] **Step 1: 전체 테스트 + 커버리지**
-
-```bash
-cd /Users/jpaper/Documents/projects/mongle-village-todo
-uv run pytest --cov=agents/todo_creation/multi_turn --cov-report=term-missing 2>&1 | tail -40
-```
-
-Expected:
-- 모든 테스트 PASS
-- multi_turn 커버리지 ≥ 80%
-
-- [ ] **Step 2: 회귀 확인**
+- [ ] **Step 1: 다이어그램 교체** — `docs/features/todo/architecture.mmd` 의 SINGLE/MULTI 서브그래프를 spec §2.1 통합 그래프로 (entry → single_validate / multi_validate, multi 의 planner ↔ follow_up loop, plan_generator → tagger, date_router fan-in).
+- [ ] **Step 2: mermaid 렌더 확인** (VS Code preview 또는 mermaid live editor).
+- [ ] **Step 3: commit**
 
 ```bash
-uv run pytest tests/agents/todo_creation/single_turn tests/agents/todo_creation/commit -v 2>&1 | tail -15
+git add docs/features/todo/architecture.mmd
+git commit -m "docs(architecture): update todo MULTI subgraph to interrupt-based loop"
 ```
-
-Expected: 기존 single_turn / commit 테스트 모두 PASS
-
-- [ ] **Step 3: PR 푸시 (사용자 확정 시)**
-
-```bash
-git push -u origin feat/todo-multiturn
-gh pr create --base main --head feat/todo-multiturn \
-  --title "feat(todo): multi_turn 챗봇 (Hybrid 그래프 + tool-calling)" \
-  --body "$(cat <<'EOF'
-## Summary
-
-- Hybrid LangGraph 멀티턴 TODO/플랜 챗봇 구현
-- 정보수집(planner_judge → follow_up | plan_generator → tagger) 결정론적, 수정 루프(edit_agent) tool-calling
-- SessionStorePort + InMemorySessionStore (MySQL 어댑터는 후속 PR)
-- commit/pipeline.run() 위임 (자체 commit 노드 없음)
-- 설계서: docs/superpowers/specs/2026-05-25-todo-multiturn-design.md
-
-## Test plan
-
-- [x] 단위 테스트 (9 노드 + session_store)
-- [x] 통합 시나리오 (Turn1 부족/충분, Turn3a 확정, Turn3b 수정, commit 실패 보존)
-- [x] OpenAI contract test (RUN_REAL_OPENAI=1 시 통과)
-- [x] 회귀: single_turn / commit 영향 없음
-- [x] multi_turn 커버리지 ≥ 80%
-EOF
-)"
-```
-
-Expected: PR URL 출력
 
 ---
 
-## Self-Review Checklist (작성자 자체 검증 완료)
+### Task F5: docs/features/todo/CLAUDE.md §4 갱신
+
+- [ ] **Step 1: §4.5–§4.10 옆에 "구현 완료 — `agents/todo_creation/multi_turn/nodes/<...>.py`" 주석 추가**. §7 미결사항 표:
+  - §7.2(세션 저장소) → "checkpointer/MemorySaver 사용, prod 인프라는 별도 PR"
+  - 나머지는 그대로.
+- [ ] **Step 2: commit**
+
+```bash
+git add docs/features/todo/CLAUDE.md
+git commit -m "docs(todo): mark multi-turn nodes as implemented in feature guide"
+```
+
+---
+
+## Final Verification
+
+- [ ] **Step 1: 전체 pytest + cov**
+
+```bash
+uv run pytest --cov=agents/todo_creation --cov-report=term-missing 2>&1 | tail -50
+```
+Expected: agents/todo_creation 80%+, §6.2 12 시나리오 통과.
+
+- [ ] **Step 2: ruff**
+
+```bash
+ruff check agents/todo_creation tests/agents/todo_creation adapters/todo_creation
+```
+Expected: clean.
+
+- [ ] **Step 3: DoD 체크 (spec §9 17 항목)** — 모두 ✅.
+- [ ] **Step 4: push** (사용자 명시 시).
+
+---
+
+## Self-Review
 
 **Spec coverage:**
-- §1 핵심 결정 — Task 5.1 (한글 휴리스틱), Task 8.1 (C3), Task 10.1 (tool 집합) — ✅
-- §2 그래프 — Task 13.1 — ✅
-- §3 디렉토리 — File Structure 섹션 — ✅
-- §4 핵심 타입 — Task 1.1 — ✅
-- §5 포트 — Task 2.1, Task 14.2 — ✅
-- §6 시나리오 — Task 14.2 통합 테스트 — ✅
-- §7 에러 & 재시도 — Task 13.1 (RetryPolicy) + Task 8.1 (C3) + Task 10.1 (M9) — ✅
-- §8 테스트 — 모든 Task 의 Step 1 (테스트 우선) — ✅
-- §9 영향받는 기존 파일 — Task 14.1, Task 16.* — ✅
-- §10 범위 밖 — 플랜에서 의도적 deferred (MySQL, Streamlit, TTL)
+- §1 디렉토리 → Phase A·B·C·D 의 Create/Modify/Delete 일치
+- §2.1 그래프 도식 → Task C2 `build_generate_graph`
+- §2.2 follow_up 의사코드 → Task B3
+- §3 스키마/state/포트 → Task A1·A3·A4
+- §4 데이터 흐름 → Task C3 + Phase E 시나리오
+- §5 에러 처리 → Task A2 (`ThreadNotFoundError`), Phase B 노드별 raise/degrade, Task C3 의 thread 검사
+- §6.1 단위 / §6.2 통합 → Phase B / Phase E 매핑
+- §7 마이그레이션 → Phase D·F
+- §8 의도적 배제 → plan 다루지 않음 (의도적)
+- §9 DoD 17 항목 → Final Verification §3 체크
 
-**Placeholder scan:** "TBD" / "TODO" / "Similar to Task N" 없음. 모든 step 에 실제 코드/명령.
+**Placeholder scan:** "TBD"/"appropriate"/"similar to" 없음. D1·D2 의 "기존 본문 이식" 은 동명 메서드 시그니처 + 프롬프트 동일 명시.
 
 **Type consistency:**
-- `ChatMessage`, `ParsedGoal`, `PlannerJudgment`, `PlanDraft`, `TaggedPlan` 명명 일관
-- `route_after_phase_router` / `route_after_judge` / `route_after_edit_agent` 일관
-- 테스트 헬퍼 `_Ports` / `_config()` 패턴 일관
-- `MultiTurnLLMPort` 메서드 시그니처 (keyword-only) 일관
-
----
-
-## Execution Handoff
-
-Plan complete and saved to `docs/superpowers/plans/2026-05-25-todo-multiturn.md`. Two execution options:
-
-**1. Subagent-Driven (recommended)** — 각 Task 마다 fresh subagent 디스패치. Task 간 리뷰. Fast iteration + isolated context. Use `superpowers:subagent-driven-development`.
-
-**2. Inline Execution** — 현재 세션에서 batch 로 실행, 수동 체크포인트. Use `superpowers:executing-plans`.
-
-**Which approach?**
+- `judge_sufficiency` 반환 `tuple[bool, list[str], ParsedGoal]` — A4·B2·D1·D2·E 일치
+- `generate_plan` 반환 `tuple[str, list[PlanDay]]` — A4·B4·D1·D2·E 일치
+- `tag_plan` 반환 `list[PlanDay]` — A4·B5·D1·D2·E 일치
+- 노드 함수명: `entry_node`, `single_validate_node`, `task_splitter_node`, `date_router_node`, `multi_validate_node`, `planner_node`, `follow_up_node`, `plan_generator_node`, `tagger_node` — C2 graph 등록명과 일관.
