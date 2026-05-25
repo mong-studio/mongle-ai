@@ -4,42 +4,36 @@ config:
 ---
 flowchart TB
     A[/"Input
-    당일 TODO 목록
-    사용자 보유 캐릭터 목록
-    남은 일일 생성 가능 수"/]
+    QuestGenerationInput
+    (todos, characters, remaining_daily_quota, shuffle_seed?)"/]
 
-    A --> CAP["처리 대상 결정
-    TODO 수와 남은 생성 가능 수 중 작은 값만큼 처리"]
+    A --> CAP["pipeline.run
+    cap = min(len(todos), remaining_daily_quota)
+    cap<=0 또는 characters 비어있음 → 즉시 빈 결과 반환"]
 
-    CAP --> INIT["캐릭터 풀 초기화
-    보유 캐릭터 전체를 무작위 순서로 풀에 채움"]
+    CAP --> INIT["CharacterPool 생성
+    seed로 결정성, 풀 비면 자동 셔플 리셋"]
 
-    INIT --> LP["다음 TODO 처리 시작"]
+    INIT --> LOOP["for todo in todos[:cap]"]
 
-    LP --> PC{"풀이 비어있음?"}
-    PC -- yes (라운드 종료) --> REFILL["풀 리셋
-    보유 캐릭터 전체를 무작위 순서로 다시 채움"]
-    REFILL --> CS
-    PC -- no --> CS["캐릭터 선택
-    풀에서 한 명 꺼냄 (풀에서 제거)"]
+    LOOP --> SELECT["pool.next()
+    풀 비면 _refill() → pop"]
 
-    CS --> CTX["퀘스트 컨텍스트 조립
-    선택된 캐릭터 프로필만 포함
-    ※ TODO 내용은 포함하지 않음"]
+    SELECT --> RUNNER{{"LLMRunner.generate
+    LLMPort.generate_quest(character=...)
+    재시도 max_retries=2 (총 3시도)"}}
 
-    CTX --> LLM{{"LLM
-    캐릭터 페르소나 / 외형 기반
-    퀘스트 텍스트 생성"}}
+    RUNNER -- 성공 --> ACC["generated 누적
+    GeneratedQuest(character_id, todo_id, quest_text<=80자)"]
 
-    LLM -- 성공 --> APPEND["성공 결과에 누적"]
-    LLM -- 실패 (재시도 소진) --> SKIP["실패 결과에 누적
-    (사유: LLM 실패)"]
+    RUNNER -- 모두 실패 --> SKIP["skipped 누적
+    SkippedItem(todo_id, reason='llm_failure')"]
 
-    APPEND --> NEXT{"처리할 TODO가 더 있음?"}
+    ACC --> NEXT{"loop 끝?"}
     SKIP --> NEXT
-    NEXT -- yes --> LP
-    NEXT -- no --> OUT[/"Output
-    성공 퀘스트 목록 + 실패 항목 목록"/]
+    NEXT -- 아니오 --> LOOP
+    NEXT -- 예 --> OUT[/"Output
+    QuestDistributionResult(generated, skipped)"/]
 
     classDef input fill:#fef9c3,stroke:#ca8a04,color:#713f12
     classDef process fill:#ffffff,stroke:#6b7280,color:#111827
@@ -51,12 +45,9 @@ flowchart TB
     OUT:::input
     CAP:::process
     INIT:::process
-    LP:::process
-    PC:::gate
-    REFILL:::process
-    CS:::process
-    CTX:::process
-    LLM:::ai
-    APPEND:::process
+    LOOP:::process
+    SELECT:::process
+    RUNNER:::ai
+    ACC:::process
     SKIP:::skip
     NEXT:::gate
