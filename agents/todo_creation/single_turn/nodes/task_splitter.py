@@ -7,6 +7,7 @@ from typing import Any
 from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.single_turn.state import GenerateGraphState
+from agents.todo_creation.title_normalizer import normalize_title
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,16 @@ MAX_TITLE_LEN = 80
 
 
 def _correct(task: TaskCandidate, today: date) -> TaskCandidate:
-    title = task.title[:MAX_TITLE_LEN]
+    title = normalize_title(task.title, MAX_TITLE_LEN)
     due = task.due_date if task.due_date >= today else today
     if due != task.due_date:
         logger.info(
             "task_splitter: past due_date %s corrected to today %s (title=%r)",
             task.due_date, today, task.title,
+        )
+    if title != task.title:
+        logger.info(
+            "task_splitter: title normalized %r -> %r", task.title, title,
         )
     return task.model_copy(update={"title": title, "due_date": due})
 
