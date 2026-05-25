@@ -155,19 +155,29 @@ QuestDistributionResult
 
 ---
 
-## 7. 미결 사항
+## 7. 결정사항 (구현 spec 반영)
 
-본 에이전트 범위 내에서 결정이 필요한 항목:
+설계 spec(`docs/superpowers/specs/2026-05-25-quest-generation-design.md`) §10 에서 일괄 결정.
 
-1. **퀘스트 텍스트 길이 제약** — 메인화면 말풍선 표시를 고려한 max length 결정 필요
-2. **캐릭터 풀 셔플 시드** — 디버깅·재현성을 위한 시드 주입 옵션 여부
-3. **TODO 처리 순서** — 입력 리스트 순서대로 보존? 별도 정렬 정책?
-4. **LLM 호출 동시성** — 순차 처리 vs 병렬 처리 (병렬 시 LLM rate limit 고려 필요)
-5. **LLM 재시도 횟수** — 본 문서는 "최대 2회"로 잠정 명시했으나 조정 가능
+| # | 항목 | 결정 |
+|---|---|---|
+| 1 | 퀘스트 텍스트 길이 | **80자** (Pydantic `max_length=80` + 프롬프트 명시) |
+| 2 | 캐릭터 풀 셔플 시드 | `shuffle_seed: int \| None` 옵션 주입 (운영 None, 테스트 고정값) |
+| 3 | TODO 처리 순서 | 입력 리스트 순서 보존 |
+| 4 | LLM 호출 동시성 | 순차 (Haiku rate limit·일 5회 throttling 고려 시 충분) |
+| 5 | LLM 재시도 횟수 | 2회 (총 3시도, AI_RULES §3 기본값) |
+
+## 8. 알려진 한계 (out-of-scope, 후속 PR)
+
+| 한계 | 내용 | 추적 |
+|---|---|---|
+| Quota 슬롯 누수 | `quest_gate` 가 dispatch 시작 전 +1 → 1 dispatch = 1 slot 의미가 어긋남. 어댑터에서 `remaining_daily_quota = len(todos)` 로 per-quest cap 사실상 비활성화. | spec §11.1 |
+| 부분 실패 재처리 없음 | `skipped` 항목은 `logger.warning` 만. 백오프 큐 미구현. | spec §11.2 |
+| HUD 이벤트 미발행 | 어댑터 끝에서 HUD/알림 이벤트 미발행. | spec §11.3 |
 
 ---
 
-## 8. 참고
+## 9. 참고
 
 - 캐릭터 스키마 정의: `docs/features/character_generation/` 참조
 - 호출자 위치: `agents/todo_creation/commit/` 하위 (todo 파이프라인의 commit 단계)
