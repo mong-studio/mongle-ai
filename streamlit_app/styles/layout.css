@@ -1,0 +1,136 @@
+/* ───── Top bar ───── */
+.pixel-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #0a0a0a;
+  border-top: 4px solid var(--wood-dark);
+  border-bottom: 4px solid var(--wood-dark);
+  padding: 10px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--bone);
+  font-size: 10px;
+  letter-spacing: 2px;
+  margin-bottom: 0;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);
+}
+.pixel-topbar .menu span {
+  margin-right: 28px;
+  color: var(--bone);
+  opacity: 0.85;
+  cursor: pointer;
+}
+.pixel-topbar .menu span:hover { color: var(--gold); opacity: 1; }
+.pixel-topbar .brand {
+  font-size: 13px;
+  color: var(--gold);
+  text-shadow: 2px 2px 0 #000;
+}
+.pixel-topbar .session { color: var(--parchment-dark); font-size: 10px; }
+
+/* ───── Side panels ───── */
+.side-panel {
+  background: #1a1a1a;
+  border: 4px solid var(--wood-dark);
+  outline: 2px solid #000;
+  padding: 14px 16px;
+  color: var(--bone);
+  box-shadow:
+    inset 0 0 0 2px var(--wood-mid),
+    6px 6px 0 var(--shadow);
+}
+.side-panel .label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--parchment-dark);
+  margin-bottom: 4px;
+}
+
+/* ───── Timer panel ───── */
+.timer-display {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 40px;
+  color: var(--gold);
+  text-shadow: 3px 3px 0 #000;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 6px 0;
+}
+.timer-meta {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--bone);
+  text-align: center;
+  margin-bottom: 10px;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+.pixel-row { display: flex; gap: 8px; }
+.pixel-btn {
+  flex: 1;
+  background: var(--parchment);
+  color: var(--ink);
+  border: 3px solid var(--wood-dark);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 6px 10px;
+  text-align: center;
+  box-shadow: 3px 3px 0 var(--wood-mid);
+  user-select: none;
+}
+.pixel-btn.dark { background: var(--wood-dark); color: var(--gold); }
+
+/* ───── Date panel ───── */
+.date-display {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: var(--gold);
+  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 2px;
+  text-align: right;
+}
+.date-day {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 22px;
+  color: var(--bone);
+  text-shadow: 2px 2px 0 #000;
+  text-align: right;
+  margin: 4px 0 8px;
+}
+.date-hint {
+  border-top: 1px dashed var(--wood-mid);
+  padding-top: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--parchment-dark);
+  text-align: right;
+}
+.date-hint .key {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--bone);
+  letter-spacing: 1px;
+}
+
+/* ───── Fixed overlays ───── */
+.timer-overlay {
+  position: fixed;
+  top: 74px;
+  left: 16px;
+  z-index: 100;
+  width: 210px;
+}
+.date-overlay {
+  position: fixed;
+  top: 74px;
+  right: 16px;
+  z-index: 100;
+  width: 210px;
+}

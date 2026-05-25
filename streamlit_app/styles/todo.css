@@ -1,0 +1,72 @@
+/* ───── Step tag (multi-step modal header) ───── */
+.step-tag {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--wood-dark);
+  text-align: center;
+  margin-bottom: 4px;
+}
+.step-tag .step {
+  background: var(--wood-dark);
+  color: var(--gold);
+  padding: 3px 8px;
+  margin-right: 8px;
+}
+
+/* ───── Candidate task row ───── */
+.cand-card {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  padding: 8px 12px;
+  margin: 6px 0;
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+
+/* ───── Long-term plan chat ───── */
+.plan-chat-wrap {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  padding: 12px 14px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.1);
+}
+.plan-chat-row {
+  display: flex;
+  margin: 6px 0;
+}
+.plan-chat-row.user  { justify-content: flex-end; }
+.plan-chat-row.chief { justify-content: flex-start; }
+.plan-chat-bubble {
+  max-width: 78%;
+  padding: 8px 12px;
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 2px solid var(--wood-dark);
+}
+.plan-chat-row.user  .plan-chat-bubble {
+  background: var(--wood-dark);
+  color: var(--gold);
+}
+.plan-chat-row.chief .plan-chat-bubble {
+  background: var(--parchment);
+  color: var(--ink);
+}
+.plan-chat-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--wood-dark);
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.plan-empty {
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--wood-mid);
+  text-align: center;
+  padding: 24px 0;
+  opacity: 0.7;
+}

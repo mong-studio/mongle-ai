@@ -1,0 +1,155 @@
+/* ───── Map frame ───── */
+.map-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: #5e8a3e;
+  overflow: hidden;
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ───── Village grid ───── */
+.village-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+  background: #6CB33E;
+}
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ─── Grass ─── */
+.tile.grass   { background: #6CB33E; }
+.tile.grass-d { background: #589030; }
+
+/* ─── Dirt path ─── */
+.tile.path   { background: #C49A6A; box-shadow: inset 0 0 0 1px #A87E52; }
+.tile.path-d { background: #A87A4A; }
+
+/* ─── Water with shimmer ─── */
+.tile.water { background: #4E90C8; overflow: hidden; }
+.tile.water::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgba(255,255,255,0.22) 40%,
+    transparent 55%
+  );
+  background-size: 250% 100%;
+  animation: water-glint 2.8s linear infinite;
+}
+.tile.water::after {
+  content: "";
+  position: absolute;
+  top: 22%; left: 8%; width: 32%; height: 3px;
+  background: rgba(255,255,255,0.55);
+  border-radius: 2px;
+  animation: water-sparkle 2.2s ease-in-out infinite;
+}
+@keyframes water-glint {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 250% 0; }
+}
+@keyframes water-sparkle {
+  0%,100% { opacity: 0.55; width: 32%; left: 8%; }
+  50%     { opacity: 1;    width: 45%; left: 18%; }
+}
+
+/* ─── Tilled soil ─── */
+.tile.soil { background: #7B4F30; }
+.tile.soil::before {
+  content: "";
+  position: absolute;
+  top: 30%; left: 0; right: 0; height: 2px;
+  background: rgba(0,0,0,0.28);
+  box-shadow: 0 6px 0 rgba(0,0,0,0.22), 0 -6px 0 rgba(0,0,0,0.18);
+}
+
+/* ─── Trees ─── */
+.tile.tree { background: #5A9028; overflow: visible; z-index: 2; }
+.tile.tree::before {
+  content: "";
+  position: absolute;
+  top: -28%; left: -12%; right: -12%; height: 85%;
+  background: radial-gradient(ellipse 55% 60% at 48% 55%,
+    #78C040 0%, #52A025 55%, #3C7818 100%);
+  border-radius: 50%;
+  box-shadow: -2px -2px 0 #2E5A12, 1px 1px 0 #98E050;
+  z-index: 3;
+}
+.tile.tree::after {
+  content: "";
+  position: absolute;
+  bottom: 2%; left: 35%; width: 30%; height: 30%;
+  background: #7B4E28;
+  box-shadow: inset -1px 0 0 #5A3818;
+  z-index: 2;
+}
+
+/* ─── Small house ─── */
+.tile.roof {
+  background: #C84040;
+  box-shadow: inset 0 3px 0 #E06060, inset 0 -2px 0 #903028;
+}
+.tile.wall {
+  background: #EED090;
+  box-shadow: inset 1px 1px 0 #F8E8B0, inset -1px -1px 0 #C8A860;
+}
+.tile.wall::after {
+  content: "";
+  position: absolute;
+  bottom: 5%; left: 30%; width: 40%; height: 48%;
+  background: #7B4A28;
+  box-shadow: inset -1px 0 0 #5A3018;
+}
+
+/* ─── Chief / big building ─── */
+.tile.chief-roof {
+  background: #4860C8;
+  box-shadow: inset 0 3px 0 #6880E8, inset 0 -2px 0 #3040A0;
+}
+.tile.chief-wall {
+  background: #EED090;
+  box-shadow: inset 1px 1px 0 #F8E8B0, inset -1px -1px 0 #C8A860;
+}
+.tile.chief-wall::after {
+  content: "🏠";
+  font-size: 0.65em;
+  line-height: 1;
+}
+
+/* ─── Flowers ─── */
+.tile.flower { background: #6CB33E; }
+.tile.flower::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  background: radial-gradient(circle, #F8DC40 40%, #E8B820 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #E8F0A0, 0 0 4px rgba(240,200,20,0.4);
+}
+
+/* ─── Bush ─── */
+.tile.bush { background: #6CB33E; }
+.tile.bush::after {
+  content: "";
+  position: absolute;
+  inset: 15%;
+  background: radial-gradient(ellipse at 50% 60%, #52A025 0%, #3C7818 100%);
+  border-radius: 50% 50% 45% 45%;
+  box-shadow: -1px -1px 0 #2E5812, 1px 1px 0 #70C030;
+}

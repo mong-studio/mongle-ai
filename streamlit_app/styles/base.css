@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap');
+
+:root {
+  --forest-deep: #15200c;
+  --forest-mid:  #2d3a1f;
+  --forest-soft: #4a5d36;
+  --parchment:        #e8d4a8;
+  --parchment-light:  #f5e5c0;
+  --parchment-dark:   #c4a16e;
+  --wood-dark: #3d2818;
+  --wood-mid:  #5a3a1f;
+  --wood-light: #8b6f3a;
+  --gold: #f4d27a;
+  --ink:  #2d1810;
+  --bone: #f4ead6;
+  --shadow: rgba(0, 0, 0, 0.55);
+}
+
+* { image-rendering: pixelated; }
+
+/* inputs/textarea font is set in widgets.css with full specificity */
+html, body, [class*="st-"], .stMarkdown {
+  font-family: 'DotGothic16', monospace !important;
+}
+
+.stApp {
+  background:
+    radial-gradient(ellipse at 50% -10%, var(--forest-mid) 0%, var(--forest-deep) 60%, #0a1106 100%);
+}
+
+#MainMenu, footer { visibility: hidden; height: 0; }
+header[data-testid="stHeader"] { background: transparent; height: 0; }
+div[data-testid="stToolbar"], .stDeployButton { display: none !important; }
+
+.block-container {
+  position: relative !important;
+  z-index: 1 !important;
+  padding-top: 74px !important;
+  padding-bottom: 2rem !important;
+  max-width: 900px !important;
+  background: transparent !important;
+}

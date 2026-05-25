@@ -63,11 +63,22 @@ st.set_page_config(
 # ────────────────────────────────────────────────────────────────────────────
 # Styling — pixel-art village aesthetic
 # ────────────────────────────────────────────────────────────────────────────
-_CSS_PATH = Path(__file__).parent / "style.css"
+_STYLES_DIR = Path(__file__).parent / "styles"
+_CSS_FILES = [
+    "base.css",
+    "layout.css",
+    "village.css",
+    "chief.css",
+    "todo.css",
+    "widgets.css",
+    "sidebar.css",
+]
 
 
 def _inject_css() -> None:
-    css = _CSS_PATH.read_text(encoding="utf-8")
+    css = "\n".join(
+        (_STYLES_DIR / f).read_text(encoding="utf-8") for f in _CSS_FILES
+    )
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
