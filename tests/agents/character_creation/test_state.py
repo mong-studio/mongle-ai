@@ -11,7 +11,6 @@ def _input() -> CharacterCreationInput:
 def test_state_initial_has_only_required_fields() -> None:
     state: CharacterGraphState = {"input": _input()}
     assert state["input"].user_id == "u1"
-    assert state.get("route") is None
     assert state.get("llm_result") is None
     assert state.get("vlm_result") is None
     assert state.get("source_url") is None
@@ -24,6 +23,6 @@ def test_state_initial_has_only_required_fields() -> None:
 
 def test_state_partial_update_via_dict_merge() -> None:
     state: CharacterGraphState = {"input": _input()}
-    updated: CharacterGraphState = {**state, "route": "text_only"}
-    assert state.get("route") is None
-    assert updated["route"] == "text_only"
+    updated: CharacterGraphState = {**state, "source_url": "https://x/y"}
+    assert state.get("source_url") is None
+    assert updated["source_url"] == "https://x/y"

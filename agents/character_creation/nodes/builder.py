@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
+
+from langgraph.graph import END
+from langgraph.types import Command
 
 from agents.character_creation.schemas import (
     CharacterCreationInput,
@@ -11,6 +14,8 @@ from agents.character_creation.schemas import (
     VLMResult,
 )
 from agents.character_creation.state import CharacterGraphState
+
+_Target = Literal["__end__", "cleanup_source_image"]
 
 
 def build(
@@ -39,7 +44,7 @@ def build(
 
 async def builder_node(
     state: CharacterGraphState, config: dict[str, Any]
-) -> dict[str, Any]:
+) -> Command[_Target]:
     now = config["configurable"].get("now") or datetime.now(tz=UTC)
     try:
         llm_result = state.get("llm_result")
@@ -55,5 +60,5 @@ async def builder_node(
             now=now,
         )
     except Exception as err:
-        return {"error": err}
-    return {"entity": entity}
+        return Command(update={"error": err}, goto="cleanup_source_image")
+    return Command(update={"entity": entity}, goto=END)

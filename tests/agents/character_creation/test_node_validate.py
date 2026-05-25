@@ -27,14 +27,16 @@ def _state(*, with_image: bool, bad_mime: bool = False) -> CharacterGraphState:
 _CONFIG: dict = {"configurable": {}}
 
 
-async def test_validate_node_text_only_sets_route() -> None:
+async def test_validate_node_text_only_fans_out_to_llm_and_vlm() -> None:
     out = await validate_node(_state(with_image=False), _CONFIG)
-    assert out == {"route": "text_only"}
+    assert out.goto == ["llm_persona", "vlm_analyzer"]
+    assert out.update is None
 
 
-async def test_validate_node_image_present_sets_route() -> None:
+async def test_validate_node_image_present_fans_out_to_llm_and_source_upload() -> None:
     out = await validate_node(_state(with_image=True), _CONFIG)
-    assert out == {"route": "image_and_text"}
+    assert out.goto == ["llm_persona", "source_upload"]
+    assert out.update is None
 
 
 async def test_validate_node_propagates_validation_error() -> None:

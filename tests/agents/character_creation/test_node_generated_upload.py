@@ -26,21 +26,23 @@ def _config(s3: FakeS3) -> dict:
 async def test_generated_upload_returns_url() -> None:
     s3 = FakeS3()
     out = await generated_upload_node(_state(), _config(s3))
-    assert out["generated_url"].startswith("https://fake-s3.local/characters/u1/")
+    assert out.update["generated_url"].startswith("https://fake-s3.local/characters/u1/")
+    assert out.goto == "builder"
     assert s3.calls == 1
 
 
 async def test_generated_upload_retries_then_succeeds_within_attempts() -> None:
     s3 = FakeS3(fail_times=3)
     out = await generated_upload_node(_state(), _config(s3))
-    assert out["generated_url"].startswith("https://fake-s3.local/characters/u1/")
+    assert out.update["generated_url"].startswith("https://fake-s3.local/characters/u1/")
+    assert out.goto == "builder"
     assert s3.calls == 4
-    assert out.get("error") is None
 
 
 async def test_generated_upload_records_error_after_attempts_exhausted() -> None:
     s3 = FakeS3(fail_times=99)
     out = await generated_upload_node(_state(), _config(s3))
-    assert out.get("generated_url") is None
-    assert isinstance(out["error"], S3UploadFailedError)
+    assert isinstance(out.update["error"], S3UploadFailedError)
+    assert "generated_url" not in out.update
+    assert out.goto == "cleanup_source_image"
     assert s3.calls == 4
