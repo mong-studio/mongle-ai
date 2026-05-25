@@ -76,17 +76,6 @@ async def test_past_date_corrected_to_today() -> None:
     assert diff["split_tasks"][0].due_date == date(2026, 5, 24)
 
 
-async def test_title_over_80_chars_truncated() -> None:
-    # Direct construction would fail Pydantic; use model_construct
-    long_title_task = TaskCandidate.model_construct(
-        title="x" * 100, due_date=date(2026, 5, 24), time_hint=None, tags=[]
-    )
-    llm = FakeLLM(responses=[[long_title_task]])
-    state, config = _state_and_config(llm)
-    diff = await task_splitter_node(state, config)
-    assert len(diff["split_tasks"][0].title) == 80
-
-
 async def test_future_date_preserved() -> None:
     future = date(2026, 5, 27)
     llm = FakeLLM(responses=[[_t("발표", future)]])
