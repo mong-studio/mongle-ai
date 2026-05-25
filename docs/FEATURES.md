@@ -14,7 +14,7 @@
 | character_generation | 사용자 "캐릭터 만들기" 요청 | persona·name·키워드·(이미지) | 캐릭터 엔티티 + S3 이미지 | 설계됨 | §2, §6.3 | [docs](./features/character_generation/CLAUDE.md) |
 | todo (싱글턴) | 사용자 프롬프트 입력 | prompt (≤200자) | TODO/캘린더 후보 → 사용자 확정 | 설계됨 | §3 | [docs](./features/todo/CLAUDE.md) |
 | todo (멀티턴) | 사용자 챗봇 메시지 | message (≤600자) + session_id | 일자별 플랜 + 태그 | 설계됨 | §3 | [docs](./features/todo/CLAUDE.md) |
-| quest_generation | 당일 TODO 확정 이벤트 | TodoRef[] + Character[] + 남은 일일 한도 | 캐릭터-퀘스트 매핑 결과 | 설계됨 | §2, §3.2 | [docs](./features/quest_generation/CLAUDE.md) |
+| quest_generation | 당일 TODO 확정 이벤트 | TodoRef[] + Character[] + 남은 일일 한도 | 캐릭터-퀘스트 매핑 결과 | 구현중 | §2, §3.2 | [docs](./features/quest_generation/CLAUDE.md) |
 | feed_generation | 퀘스트 수행 완료 이벤트 | Quest + Character | 이미지 + 한글 140자 캡션 | 설계됨 | §2, §4 | [docs](./features/feed_generation/CLAUDE.md) |
 
 상태 정의: **설계됨** = 본 폴더 문서만 존재 / **구현중** = 코드 진행 중 / **완성** = DoD 필수 5항목 통과 (§4 참조)
