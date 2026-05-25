@@ -15,3 +15,10 @@ def decide(state: CharacterGraphState) -> list[str]:
     if state["input"].source_image is not None:
         return ["llm_persona", "source_upload"]
     return ["llm_persona", "vlm_analyzer"]
+
+
+def ok_or_cleanup(success_node: str):
+    """에러가 있으면 cleanup_source_image로, 아니면 success_node로 라우팅."""
+    def _route(state: CharacterGraphState) -> str:
+        return "cleanup_source_image" if state.get("error") is not None else success_node
+    return _route

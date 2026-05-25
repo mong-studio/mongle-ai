@@ -15,19 +15,8 @@ from agents.character_creation.nodes.llm_persona import llm_persona_node
 from agents.character_creation.nodes.source_upload import source_upload_node
 from agents.character_creation.nodes.validate import validate_node
 from agents.character_creation.nodes.vlm_analyzer import vlm_analyzer_node
-from agents.character_creation.router import decide
+from agents.character_creation.router import decide, ok_or_cleanup
 from agents.character_creation.state import CharacterGraphState
-
-# ---------------------------------------------------------------------------
-# Compensation routing helpers
-# ---------------------------------------------------------------------------
-
-def _ok_or_cleanup(next_ok: str):
-    """Return a conditional-edges router: go to next_ok on success, else cleanup."""
-    def _route(state: CharacterGraphState) -> str:
-        return "cleanup_source_image" if state.get("error") is not None else next_ok
-    return _route
-
 
 # ---------------------------------------------------------------------------
 # Graph factory
@@ -75,17 +64,17 @@ def build_graph():
     # downstream pipeline with compensation routing on error
     g.add_conditional_edges(
         "image_generator",
-        _ok_or_cleanup("generated_upload"),
+        ok_or_cleanup("generated_upload"),
         ["generated_upload", "cleanup_source_image"],
     )
     g.add_conditional_edges(
         "generated_upload",
-        _ok_or_cleanup("builder"),
+        ok_or_cleanup("builder"),
         ["builder", "cleanup_source_image"],
     )
     g.add_conditional_edges(
         "builder",
-        _ok_or_cleanup(END),
+        ok_or_cleanup(END),
         ["cleanup_source_image", END],
     )
     g.add_edge("cleanup_source_image", END)
