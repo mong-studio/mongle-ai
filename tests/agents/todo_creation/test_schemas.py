@@ -121,3 +121,65 @@ def test_commit_result_smoke() -> None:
     assert r.quest_distribution_triggered is False
 
 
+# ---- Unified single/multi I/O ----
+
+from pydantic import TypeAdapter
+
+from agents.todo_creation.schemas import (
+    FollowUpResult,
+    GenerateInput,
+    MultiGenerateInput,
+    SingleGenerateInput,
+    TurnResult,
+)
+
+
+def test_single_input_max_200() -> None:
+    assert (
+        SingleGenerateInput(user_id="u1", prompt="a" * 200, today=date(2026, 5, 25)).mode
+        == "single"
+    )
+
+
+def test_single_input_over_200_rejected() -> None:
+    with pytest.raises(PydanticValidationError):
+        SingleGenerateInput(user_id="u1", prompt="a" * 201, today=date(2026, 5, 25))
+
+
+def test_multi_input_max_600() -> None:
+    inp = MultiGenerateInput(user_id="u1", message="가" * 600, today=date(2026, 5, 25))
+    assert inp.mode == "multi"
+    assert inp.thread_id is None
+
+
+def test_multi_input_over_600_rejected() -> None:
+    with pytest.raises(PydanticValidationError):
+        MultiGenerateInput(user_id="u1", message="가" * 601, today=date(2026, 5, 25))
+
+
+def test_generate_input_discriminator_single() -> None:
+    parsed = TypeAdapter(GenerateInput).validate_python(
+        {"mode": "single", "user_id": "u1", "prompt": "x", "today": "2026-05-25"}
+    )
+    assert isinstance(parsed, SingleGenerateInput)
+
+
+def test_generate_input_discriminator_multi() -> None:
+    parsed = TypeAdapter(GenerateInput).validate_python(
+        {"mode": "multi", "user_id": "u1", "message": "안녕", "today": "2026-05-25"}
+    )
+    assert isinstance(parsed, MultiGenerateInput)
+
+
+def test_turn_result_discriminator() -> None:
+    a = TypeAdapter(TurnResult)
+    c = a.validate_python(
+        {"kind": "candidates", "thread_id": "t1", "todos": [], "calendar_events": []}
+    )
+    f = a.validate_python(
+        {"kind": "follow_up", "thread_id": "t1", "question": "?", "missing_aspects": []}
+    )
+    assert isinstance(c, GenerateResult)
+    assert isinstance(f, FollowUpResult)
+
+
