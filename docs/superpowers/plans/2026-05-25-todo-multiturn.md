@@ -55,13 +55,97 @@
 - `docs/features/todo/CLAUDE.md` — §4 갱신
 
 ### Delete
+
+**Phase 0 — 이전 multi-only spec 부산물(머지된 11 commit, PR #10) 통째 제거:**
+- `agents/todo_creation/multi_turn/` 전체 디렉토리 (pipeline / graph / state / session_store + 9 nodes)
+- `tests/agents/todo_creation/multi_turn/` 전체 디렉토리 (conftest + 11 tests)
+- `adapters/todo_creation/openai_multi_turn.py`
+- `adapters/todo_creation/fake_multi_turn_llm.py`
+- `tests/adapters/todo_creation/test_openai_multi_turn.py`
+- `agents/todo_creation/schemas.py` 부산물 모델 11종 제거 (`MultiTurnInput`, `TurnResult(kind=question/plan/committed)`, `SessionState`, `AgentDecision`, `PlannerJudgment`, `PlanDraft`, `TaggedPlan`, `Task`, `Day`, `ChatMessage`, `ParsedGoal`)
+- `agents/todo_creation/protocols.py` 부산물 (`MultiTurnLLMPort`, `SessionStorePort`, `MultiTurnPorts`) 제거
+- `agents/todo_creation/exceptions.py` / `debug.py` 의 부산물 정의 제거 (있다면)
+- `tests/agents/todo_creation/test_schemas.py` 의 `# === multi_turn schemas ===` 섹션 (line 124 이후) 제거
+- `tests/agents/todo_creation/test_debug.py` 의 multi_turn 관련 테스트 제거 (있다면)
+
+**Phase F2 — single_turn pipeline 잔재 제거:**
 - `agents/todo_creation/single_turn/pipeline.py`
 - `agents/todo_creation/single_turn/graph.py`
 - `agents/todo_creation/single_turn/state.py`
 - `tests/agents/todo_creation/single_turn/test_pipeline.py`
-- `adapters/todo_creation/openai_multi_turn.py`
-- `adapters/todo_creation/fake_multi_turn_llm.py`
-- `tests/adapters/todo_creation/test_openai_multi_turn.py`
+
+> Phase 0 이 어댑터·테스트까지 한 번에 제거하므로 본래 Plan §D3 의 폐기 단계는 **이미 처리됨**. Phase D3 는 "Phase 0 에서 처리 완료 확인" 만 수행.
+
+---
+
+## Phase 0 — Cleanup of Prior Multi-Only Spec Artifacts
+
+이전 multi-only spec(폐기됨)의 부산물 11 commit (PR #10, merge `df2483d`) 이 main 에 머지된 상태. 통합 그래프 작업 전에 통째 제거 후 Phase A 진행.
+
+### Task 0.1: plan 보완 (본 commit)
+
+본 plan 의 §File Structure → Delete 보완 + Phase 0 섹션 신설 + Phase B/D 의 관련 task 에 git history 참조 추가. **본 task = plan 문서 commit 1회**.
+
+### Task 0.2: 부산물 통째 제거 (1 large commit)
+
+**Pre-note — 호환 노드 코드 출처**: 다음 노드 코드는 Phase B 에서 흡수·리네임 대상이며, git history(`PR #10` 이전 commit) 에서 참조한다. 별도 백업 불필요.
+
+| 호환 노드(폐기됨)                      | 참조 commit (대략) | Phase B 의 대응 task                     |
+| -------------------------------------- | ------------------ | ---------------------------------------- |
+| `multi_turn/nodes/validate.py`         | PR #10             | B1 multi_validate (한국어 ratio 0.3 → 0.5)|
+| `multi_turn/nodes/planner_judge.py`    | `4ba5e42`          | B2 planner (sufficiency `Command(goto=…)`)|
+| `multi_turn/nodes/follow_up.py`        | `01fd781`          | B3 follow_up (`interrupt(question)` 추가) |
+| `multi_turn/nodes/plan_generator.py`   | `93ac295`          | B4 plan_generator (거의 그대로 흡수)      |
+| `multi_turn/nodes/tagger.py`           | `5e0e31f`          | B5 tagger (거의 그대로 흡수)              |
+
+**Steps:**
+
+- [ ] **Step 1: 외부 호출처 grep** (확인)
+
+```bash
+grep -rln "MultiTurnInput\|SessionState\|AgentDecision\|PlannerJudgment\|PlanDraft\|TaggedPlan\|MultiTurnLLMPort\|SessionStorePort\|OpenAIMultiTurnLLM\|FakeMultiTurnLLM\|from agents.todo_creation.multi_turn\|from adapters.todo_creation.openai_multi_turn\|from adapters.todo_creation.fake_multi_turn_llm" \
+  --include="*.py" agents/ adapters/ tests/ streamlit_app/ 2>/dev/null \
+  | grep -v "/multi_turn/\|openai_multi_turn\|fake_multi_turn_llm\|test_openai_multi_turn"
+```
+Expected: 결과 없음(외부 호출처 0). 있으면 별도 정리 필요 — 사용자 확인.
+
+- [ ] **Step 2: 디렉토리/파일 통째 삭제**
+
+```bash
+git rm -r agents/todo_creation/multi_turn/
+git rm adapters/todo_creation/openai_multi_turn.py adapters/todo_creation/fake_multi_turn_llm.py
+git rm -r tests/agents/todo_creation/multi_turn/
+git rm tests/adapters/todo_creation/test_openai_multi_turn.py
+```
+
+- [ ] **Step 3: 부산물 정의 제거 (Edit)** — schemas.py, protocols.py, exceptions.py, debug.py 에서 §File Structure 의 Phase 0 Delete 목록의 정의들만 제거. 보존 대상은 `SingleTurnInput`/`TaskCandidate`/기존 `GenerateResult(todos, calendar_events)`/`CommitInput`/`CommitResult`/기존 `LLMPort`.
+
+- [ ] **Step 4: test_schemas.py 의 부산물 테스트 제거** — `# === multi_turn schemas ===` 주석 이후 전부 삭제. test_debug.py 의 multi_turn 케이스 제거(있다면).
+
+- [ ] **Step 5: 전체 테스트 + ruff**
+
+```bash
+uv run pytest 2>&1 | tail -30
+ruff check agents/todo_creation tests/agents/todo_creation adapters/todo_creation
+```
+Expected: single_turn + commit + character_creation 등 잔여 테스트만 남아 통과. ruff clean.
+
+- [ ] **Step 6: commit**
+
+```bash
+git add -u
+git commit -m "refactor(todo): purge prior multi-only spec artifacts
+
+이전 multi-only spec(폐기됨)의 부산물 11 commit(PR #10 머지분) 통째 제거.
+호환 노드 5개(validate/planner_judge/follow_up/plan_generator/tagger)는
+git history 보존 후 Phase B 에서 흡수·리네임 예정.
+
+폐기: multi_turn/ 모듈, SessionStorePort, edit_agent, phase_router, commit_invoke,
+present, openai_multi_turn, fake_multi_turn_llm, multi schemas 11종,
+multi tests 11+ files.
+
+Spec: 640c876 / Plan: f4944f5 + Phase 0 보완"
+```
 
 ---
 
@@ -960,40 +1044,19 @@ git commit -m "feat(todo): absorb 4 multi-turn methods into FakeLLM queue patter
 
 ---
 
-### Task D3: multi-turn-only 어댑터 삭제 + 호출처 정리
+### Task D3: 부산물 어댑터 폐기 확인 (Phase 0 에서 처리됨)
 
-**Files to delete:** `adapters/todo_creation/openai_multi_turn.py`, `adapters/todo_creation/fake_multi_turn_llm.py`, `tests/adapters/todo_creation/test_openai_multi_turn.py`.
+원래 D3 는 `openai_multi_turn.py` / `fake_multi_turn_llm.py` / `test_openai_multi_turn.py` 폐기 + 호출처 정리였으나, **Phase 0.2 에서 한꺼번에 처리됨**. 본 task 는 사후 확인만:
 
-- [ ] **Step 1: 호출처 grep**
+- [ ] **Step 1: 잔여 import 0건 확인**
 
 ```bash
-grep -rn "openai_multi_turn\|fake_multi_turn_llm\|FakeMultiTurnLLM\|OpenAIMultiTurn" \
+grep -rn "openai_multi_turn\|fake_multi_turn_llm\|FakeMultiTurnLLM\|OpenAIMultiTurnLLM" \
   --include="*.py" agents/ adapters/ tests/ streamlit_app/
 ```
+Expected: 결과 없음.
 
-- [ ] **Step 2: 호출처 import 교체** — 모두 단일 `OpenAILLM` / `FakeLLM` 으로. 생성자 인자가 다르면 새 큐 패턴(`judge_sufficiency_queue=...`) 으로 변환.
-
-- [ ] **Step 3: 파일 삭제**
-
-```bash
-git rm adapters/todo_creation/openai_multi_turn.py \
-       adapters/todo_creation/fake_multi_turn_llm.py \
-       tests/adapters/todo_creation/test_openai_multi_turn.py
-```
-
-- [ ] **Step 4: 전체 테스트 확인**
-
-```bash
-uv run pytest --cov=agents/todo_creation --cov-report=term-missing 2>&1 | tail -50
-```
-Expected: 통과, multi-turn 어댑터 import 에러 없음.
-
-- [ ] **Step 5: commit**
-
-```bash
-git add -u
-git commit -m "refactor(todo): remove multi-turn-only adapters after absorption"
-```
+- [ ] **Step 2: 본 task 는 commit 없음**. (Phase 0 의 commit 으로 이미 폐기 완료)
 
 ---
 
