@@ -26,3 +26,7 @@ class LLMOutputError(TodoCreationError):
 
 class SaveFailedError(TodoCreationError):
     pass
+
+
+class ThreadNotFoundError(TodoCreationError):
+    """4xx — invalid or expired LangGraph thread_id."""
