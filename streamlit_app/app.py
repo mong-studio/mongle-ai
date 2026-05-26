@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import sys
 import traceback
 import warnings
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 
 # langgraph 가 import 시 langchain-core 의 Reviver 를 인자 없이 생성하여
@@ -141,61 +143,21 @@ def _date_panel(today: date) -> None:
     )
 
 
-# Pixel village layout — each character is one tile.
-# g=grass G=darker-grass t=tree p=path P=darker-path w=water
-# r=house-roof R=chief-roof W=house-wall C=chief-wall f=flower b=bush
-_VILLAGE_MAP = """\
-ttttttttttttttttttttttttttttttttt
-tGgGggGgGgGgGgGgGgGgGgGgGgGgGGgt
-tgwwwwGgGgGrrrGgGgGgGgGgGgGgGgGt
-tGwwwwgGgGgWWWGgGgpppppppGgGGGGt
-tgwwwwGgGggGgggGgppGGGGGGGGGppGt
-tGwwwwgGgbgGgfGgppGGRRRRRRGGppgt
-tgwwwwGgGgGgGgGppPGGGGGGGGGGGGpp
-tGwwwwgGgGgGgGppGGGGCCCCCCGGGGpp
-tgwwwwgGgGrrrGgppGGGGGGGGGGGGGpp
-tGwwwwgGgGWWWgGGpppppppppppppGgt
-tggGggGgGgGgGgGgGgGgGgGgGgGgGGGt
-tGggGgbGgGgGgGgGgGgGgGgGgGbgGGGt
-tgGgfgGgGgsssssGgGgGgGgsssssGGGt
-ttttttttttttttttttttttttttttttttt
-"""
-
-
-# Map character → CSS class for the village grid.
-_TILE_CLASSES = {
-    "g": "grass",
-    "G": "grass-d",
-    "t": "tree",
-    "p": "path",
-    "P": "path-d",
-    "w": "water",
-    "r": "roof",
-    "R": "chief-roof",
-    "W": "wall",
-    "C": "chief-wall",
-    "f": "flower",
-    "b": "bush",
-    "s": "soil",
-}
+@lru_cache(maxsize=1)
+def _background_data_uri() -> str:
+    img_path = _PROJECT_ROOT / "assets" / "background.jpeg"
+    data = base64.b64encode(img_path.read_bytes()).decode("ascii")
+    return f"data:image/jpeg;base64,{data}"
 
 
 def _village_map() -> None:
-    rows = _VILLAGE_MAP.strip().split("\n")
-    cols = max(len(r) for r in rows)
-    cells: list[str] = []
-    for row in rows:
-        for ch in row:
-            css = _TILE_CLASSES.get(ch, "grass")
-            cells.append(f'<div class="tile {css}"></div>')
     st.markdown(
         f"""
-        <div class="map-wrap">
-          <div class="village-grid"
-               style="grid-template-columns: repeat({cols}, 1fr);
-                      grid-template-rows: repeat({len(rows)}, 1fr);">
-            {"".join(cells)}
-          </div>
+        <div class="map-wrap"
+             style="background-image: url('{_background_data_uri()}');
+                    background-size: cover;
+                    background-position: center;
+                    background-repeat: no-repeat;">
         </div>
         """,
         unsafe_allow_html=True,
