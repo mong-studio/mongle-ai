@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from langchain_openai import ChatOpenAI
@@ -12,8 +13,18 @@ from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.openai_image import OpenAIImageGenerator
 from adapters.character_creation.openai_llm import OpenAILLM
 from adapters.character_creation.openai_vlm import OpenAIVLM
+from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
+from adapters.quest_generation.memory_repo import (
+    MemoryCharacterQueryRepo,
+    MemoryQuestPersistenceRepo,
+    MemoryTodoQueryRepo,
+)
+from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
+from adapters.todo_creation.memory_repo import MemoryTodoRepository
+from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
 from agents.character_creation.schemas import LLMPersonaResult, VLMResult
+from agents.todo_creation.commit.pipeline import CommitPorts
 
 
 class MissingEnvError(RuntimeError):
@@ -130,4 +141,27 @@ def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
             client=openai_client, model="gpt-image-1", size="1024x1024"
         ),
         repository=repo,
+    )
+
+
+def build_commit_ports() -> CommitPorts:
+    """Build commit pipeline ports (dev mode: in-memory repos + fake quest LLM).
+
+    The `quest_dispatch` slot wires the real `QuestDispatchAdapter` so the
+    commit pipeline's fire-and-forget dispatch flows through the
+    quest_generation agent. In production, swap the four constructor args
+    (todo_repo / character_repo / quest_repo / llm) for DB-backed repos +
+    `OpenAILLM` built from `ChatOpenAI(...).with_structured_output(...)`.
+    """
+    quest_dispatch = QuestDispatchAdapter(
+        todo_repo=MemoryTodoQueryRepo(),
+        character_repo=MemoryCharacterQueryRepo(),
+        quest_repo=MemoryQuestPersistenceRepo(),
+        llm=FakeQuestLLM(),
+        today_fn=date.today,
+    )
+    return CommitPorts(
+        repository=MemoryTodoRepository(),
+        quest_counter=MemoryQuestCounter(),
+        quest_dispatch=quest_dispatch,
     )

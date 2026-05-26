@@ -8,6 +8,8 @@
 
 ## [Unreleased]
 ### Added
+- `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.
+- `adapters/todo_creation/quest_dispatch_adapter`: 위 에이전트를 commit 파이프라인의 `QuestDispatchPort` 에 연결 (오늘 TODO·활성 캐릭터 fetch → 에이전트 호출 → quests 영속화).
 - **multi_turn TODO/플랜 챗봇** (`agents/todo_creation/multi_turn/`):
   - Hybrid LangGraph (정보수집=결정론, 수정루프=tool-calling)
   - SessionStorePort + InMemorySessionStore (Port 확정, MySQL 어댑터는 후속)
