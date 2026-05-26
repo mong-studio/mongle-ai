@@ -1,37 +1,74 @@
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
+
 import pytest
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.nodes.validate import HANGUL_RATIO_MIN, validate_node
+from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
+
+
+def _state(message: str, history: list | None = None) -> dict:
+    return {
+        "mode": "multi",
+        "user_id": "u1",
+        "message": message,
+        "today": date(2026, 5, 25),
+        "now": datetime(2026, 5, 25, tzinfo=timezone.utc),
+        "history": history if history is not None else [],
+    }
 
 
 @pytest.mark.asyncio
-async def test_validate_passes_normal_korean(base_input):
-    assert await validate_node({"input": base_input}, {}) == {}
+async def test_600_ok() -> None:
+    out = await multi_validate_node(_state("가" * 600), {})
+    assert out["history"][-1] == {"role": "user", "content": "가" * 600}
 
 
 @pytest.mark.asyncio
-async def test_m2_whitespace_only(base_input):
-    state = {"input": base_input.model_copy(update={"message": "   "})}
-    with pytest.raises(ValidationError) as ei:
-        await validate_node(state, {})
-    assert ei.value.code == "M2"
+async def test_601_rejected() -> None:
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("가" * 601), {})
 
 
 @pytest.mark.asyncio
-async def test_m3_hangul_ratio_too_low(base_input):
-    state = {"input": base_input.model_copy(update={"message": "abcdefghij"})}
-    with pytest.raises(ValidationError) as ei:
-        await validate_node(state, {})
-    assert ei.value.code == "M3"
+async def test_empty_rejected() -> None:
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state(""), {})
 
 
 @pytest.mark.asyncio
-async def test_m3_passes_mixed_korean_above_threshold(base_input):
-    state = {"input": base_input.model_copy(update={"message": "한국어 a"})}
-    assert await validate_node(state, {}) == {}
+async def test_whitespace_rejected() -> None:
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("   "), {})
 
 
-def test_hangul_ratio_constant():
-    assert HANGUL_RATIO_MIN == 0.3
+@pytest.mark.asyncio
+async def test_korean_ratio_threshold_ok() -> None:
+    # 한글 5 / 영문 5 = 0.5 — 통과
+    out = await multi_validate_node(_state("안녕하세요hello"), {})
+    assert "history" in out
+
+
+@pytest.mark.asyncio
+async def test_no_korean_rejected() -> None:
+    with pytest.raises(ValidationError):
+        await multi_validate_node(_state("hello world only english"), {})
+
+
+@pytest.mark.asyncio
+async def test_history_appended_to_prior() -> None:
+    prior = [
+        {"role": "user", "content": "첫번째"},
+        {"role": "assistant", "content": "추가 질문"},
+    ]
+    out = await multi_validate_node(_state("두번째 메시지", history=prior), {})
+    assert len(out["history"]) == 3
+    assert out["history"][-1] == {"role": "user", "content": "두번째 메시지"}
+
+
+@pytest.mark.asyncio
+async def test_whitespace_and_digits_excluded_from_ratio() -> None:
+    # 공백/숫자 제외하고 한글 5 / 영문 5 = 0.5 — 통과
+    out = await multi_validate_node(_state("안녕하세요 hello 123"), {})
+    assert "history" in out

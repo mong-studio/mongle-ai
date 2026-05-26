@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-Kind = Literal["generate", "commit", "multi_turn"]
+Kind = Literal["generate", "commit"]
 
 
 def _enabled() -> bool:
@@ -88,12 +88,8 @@ def log_start(input: Any, kind: Kind) -> None:
         return
 
     user_id = getattr(input, "user_id", "anon")
-    session_id = getattr(input, "session_id", None)
-    if kind == "multi_turn" and session_id:
-        prefix = f"{_safe(session_id)}_todo_multi_turn"
-    else:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        prefix = f"{ts}_{_safe(user_id)}_todo_{kind}"
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    prefix = f"{ts}_{_safe(user_id)}_todo_{kind}"
 
     _current_log_path = log_dir / f"{prefix}.log"
     _current_jsonl_path = log_dir / f"{prefix}.jsonl"
@@ -109,34 +105,15 @@ def log_start(input: Any, kind: Kind) -> None:
 
     _emit("")
     _emit("=" * 72)
-    header = f"[todo_creation] start  kind={kind}  user={user_id}"
-    if session_id:
-        header += f"  session={session_id}"
-    _emit(header)
+    _emit(f"[todo_creation] start  kind={kind}  user={user_id}")
     _emit(f"  input         : {_format(str(summary))}")
     _emit("=" * 72)
     _jsonl(
         "start",
         kind=kind,
         user_id=user_id,
-        session_id=session_id,
         input=_jsonable(input),
     )
-
-
-def log_turn_input(message: str) -> None:
-    if not _enabled():
-        return
-    _emit(f"[USER] {_format(message)}")
-    _jsonl("turn_input", message=message)
-
-
-def log_turn_output(turn_result: Any) -> None:
-    if not _enabled():
-        return
-    kind_value = getattr(turn_result, "kind", "?")
-    _emit(f"[BOT ] kind={kind_value}  {_format(str(turn_result))}")
-    _jsonl("turn_output", turn_result=_jsonable(turn_result))
 
 
 def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
@@ -155,13 +132,6 @@ def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
         "todo_ids",
         "event_ids",
         "quest_triggered",
-        "phase",
-        "judgment",
-        "follow_up_question",
-        "plan_draft",
-        "current_plan",
-        "edit_instructions",
-        "confirmed",
     ):
         if key in update:
             val = update[key]

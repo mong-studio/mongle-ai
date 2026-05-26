@@ -5,22 +5,34 @@ from typing import Protocol
 from uuid import UUID
 
 from agents.todo_creation.schemas import (
-    AgentDecision,
-    ChatMessage,
     CommitResult,
-    ParsedGoal,
-    PlanDraft,
-    PlannerJudgment,
-    SessionState,
-    TaggedPlan,
     TaskCandidate,
 )
+from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 
 
 class LLMPort(Protocol):
+    # single
     async def split_tasks(
         self, *, prompt: str, today: date
     ) -> list[TaskCandidate]: ...
+
+    # multi
+    async def judge_sufficiency(
+        self, *, history: list[Turn], message: str, today: date
+    ) -> tuple[bool, list[str], ParsedGoal]: ...
+
+    async def generate_follow_up_question(
+        self, *, missing_aspects: list[str], history: list[Turn]
+    ) -> str: ...
+
+    async def generate_plan(
+        self, *, parsed_goal: ParsedGoal, today: date
+    ) -> tuple[str, list[PlanDay]]: ...
+
+    async def tag_plan(
+        self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
+    ) -> list[PlanDay]: ...
 
 
 class TodoRepositoryPort(Protocol):
@@ -46,37 +58,3 @@ class QuestCounterPort(Protocol):
 
 class QuestDispatchPort(Protocol):
     async def dispatch(self, *, user_id: str) -> None: ...
-
-
-class MultiTurnLLMPort(Protocol):
-    async def judge_planner(
-        self, *, history: list[ChatMessage], previous_goal: ParsedGoal | None, today: date
-    ) -> PlannerJudgment: ...
-
-    async def generate_follow_up(
-        self, *, missing_aspects: list[str], history: list[ChatMessage]
-    ) -> str: ...
-
-    async def generate_plan(
-        self,
-        *,
-        parsed_goal: ParsedGoal,
-        today: date,
-        edit_instructions: str | None,
-    ) -> PlanDraft: ...
-
-    async def tag_plan(
-        self, *, plan_draft: PlanDraft, parsed_goal: ParsedGoal
-    ) -> TaggedPlan: ...
-
-    async def edit_agent_step(
-        self, *, history: list[ChatMessage], current_plan: TaggedPlan
-    ) -> AgentDecision: ...
-
-
-class SessionStorePort(Protocol):
-    async def load(self, *, session_id: str) -> SessionState | None: ...
-
-    async def save(self, *, state: SessionState) -> None: ...
-
-    async def delete(self, *, session_id: str) -> None: ...

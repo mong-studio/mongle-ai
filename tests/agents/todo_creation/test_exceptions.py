@@ -5,6 +5,7 @@ from agents.todo_creation.exceptions import (
     LLMFailedError,
     LLMOutputError,
     SaveFailedError,
+    ThreadNotFoundError,
     TodoCreationError,
     ValidationError,
 )
@@ -29,3 +30,9 @@ def test_llm_errors_subclass() -> None:
 
 def test_save_failed_error_subclass() -> None:
     assert issubclass(SaveFailedError, TodoCreationError)
+
+
+def test_thread_not_found_subclass() -> None:
+    assert issubclass(ThreadNotFoundError, TodoCreationError)
+    e = ThreadNotFoundError("thread t1 not found")
+    assert "t1" in str(e)
