@@ -249,12 +249,31 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
             )
     name = st.text_input("이름 *", max_chars=50, placeholder="예) 다온, 몽글이", key="char_name")
     keyword_labels = [k.value for k in PersonalityKeyword]
-    chosen = st.multiselect(
-        "성격 키워드 (최대 3개)",
-        keyword_labels,
-        max_selections=3,
-        key="char_keywords",
+    if "char_keyword_list" not in st.session_state:
+        st.session_state["char_keyword_list"] = []
+    chosen: list[str] = st.session_state["char_keyword_list"]
+
+    st.markdown(
+        f'<div class="kw-label">성격 키워드'
+        f'<span class="kw-count"> ({len(chosen)}/3)</span></div>',
+        unsafe_allow_html=True,
     )
+    kw_cols = st.columns(4)
+    for i, label in enumerate(keyword_labels):
+        is_selected = label in chosen
+        with kw_cols[i % 4]:
+            if st.button(
+                f"✓ {label}" if is_selected else label,
+                key=f"kw_{label}",
+                type="primary" if is_selected else "secondary",
+                width="stretch",
+            ):
+                if is_selected:
+                    chosen.remove(label)
+                elif len(chosen) < 3:
+                    chosen.append(label)
+                st.session_state["char_keyword_list"] = chosen
+                st.rerun()
     persona = st.text_area(
         "캐릭터 설명 *",
         height=130,
@@ -265,9 +284,19 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 
     cancel_col, ok_col = st.columns([1, 1])
     if cancel_col.button("취소", key="char_cancel", width="stretch"):
+        st.session_state.pop("char_keyword_list", None)
         st.session_state["modal"] = None
         st.rerun()
     if ok_col.button("생성하기 →", key="char_submit", type="primary", width="stretch"):
+        missing = []
+        if not name.strip():
+            missing.append("이름")
+        if not persona.strip():
+            missing.append("캐릭터 설명")
+        if missing:
+            st.info(f"{'과 '.join(missing)}을 입력해주세요 ✏️")
+            return
+
         try:
             source_image: SourceImage | None = None
             if uploaded is not None:
@@ -298,6 +327,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
                 return
         asyncio.run(repo.save(entity))
         st.session_state["last_created"] = entity
+        st.session_state.pop("char_keyword_list", None)
         st.session_state["modal"] = None
         st.rerun()
 
@@ -305,7 +335,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
 def _todo_modal() -> None:
     st.markdown(
-        '<div class="modal-sub">잎새마을 주민들이 너의 할 일을 정리해줄게</div>',
+        '<div class="modal-sub">몽글마을 주민들이 너의 할 일을 정리해줄게</div>',
         unsafe_allow_html=True,
     )
     text = st.text_area(
@@ -313,7 +343,7 @@ def _todo_modal() -> None:
         value=st.session_state.get("todo_text", ""),
         height=180,
         max_chars=200,
-        placeholder="예) 정자 1단계 끝내고, 청소도 하고, 강아지 산책 두 번 시켜야 함.",
+        placeholder="예) 수학문제 1단계 끝내고, 청소도 하고, 강아지 산책 두 번 시켜야 함.",
         key="todo_text_input",
     )
     st.caption(f"{len(text)} / 200")
