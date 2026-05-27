@@ -116,6 +116,16 @@ def log_start(input: Any, kind: Kind) -> None:
     )
 
 
+def _emit_task_list(key: str, tasks: list[Any]) -> None:
+    _emit(f"  {key:18s}: {len(tasks)} items")
+    for i, t in enumerate(tasks, 1):
+        title = getattr(t, "title", "?")
+        due = getattr(t, "due_date", "?")
+        hint = getattr(t, "time_hint", None)
+        hint_str = f" | {hint}" if hint else ""
+        _emit(f"    [{i}] {title} | {due}{hint_str}")
+
+
 def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
     if not _enabled():
         return
@@ -135,7 +145,9 @@ def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
     ):
         if key in update:
             val = update[key]
-            if isinstance(val, list):
+            if key == "split_tasks" and isinstance(val, list):
+                _emit_task_list(key, val)
+            elif isinstance(val, list):
                 _emit(f"  {key:18s}: {len(val)} items")
             else:
                 _emit(f"  {key:18s}: {val}")

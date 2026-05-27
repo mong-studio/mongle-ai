@@ -333,7 +333,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 
 
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
-def _todo_modal() -> None:
+def _todo_modal(user_id: str) -> None:
     st.markdown(
         '<div class="modal-sub">몽글마을 주민들이 너의 할 일을 정리해줄게</div>',
         unsafe_allow_html=True,
@@ -364,7 +364,12 @@ def _todo_modal() -> None:
         disabled=not text.strip(),
     ):
         st.session_state["todo_text"] = text
-        st.session_state["todo_candidates"] = _stub_split_tasks(text)
+        with st.spinner("정리하는 중..."):
+            try:
+                st.session_state["todo_candidates"] = _run_todo_pipeline(text, user_id)
+            except Exception as err:
+                st.error(f"TODO 정리 실패: {err}")
+                return
         st.rerun()
 
     candidates = st.session_state.get("todo_candidates", [])
@@ -404,16 +409,20 @@ def _todo_modal() -> None:
         st.rerun()
 
 
-def _stub_split_tasks(text: str) -> list[dict]:
-    """Placeholder for `agents.todo_creation.single_turn.task_splitter`.
+def _run_todo_pipeline(text: str, user_id: str) -> list[dict]:
+    from datetime import datetime as _dt
 
-    Replace with real LLM split + date routing once the pipeline lands.
-    """
-    today = date.today()
-    parts = [p.strip(" .,") for p in text.replace("\n", ",").split(",") if p.strip()]
+    from adapters.todo_creation.openai_llm import OpenAILLM as TodoLLM
+    from agents.todo_creation.schemas import SingleTurnInput
+    from agents.todo_creation.single_turn.pipeline import GeneratePorts
+    from agents.todo_creation.single_turn.pipeline import run as todo_run
+
+    inp = SingleTurnInput(user_id=user_id, prompt=text, today=date.today())
+    ports = GeneratePorts(llm=TodoLLM())
+    result = asyncio.run(todo_run(inp, ports=ports, now=_dt.now()))
     return [
-        {"title": p, "due_date": today.isoformat(), "checked": True, "tags": []}
-        for p in parts
+        {"title": t.title, "due_date": t.due_date.isoformat(), "checked": True, "tags": t.tags}
+        for t in result.todos + result.calendar_events
     ]
 
 
@@ -593,7 +602,7 @@ def main() -> None:
     if modal == "character":
         _character_modal(user_id, is_regen, repo, cfg)
     elif modal == "todo":
-        _todo_modal()
+        _todo_modal(user_id)
     elif modal == "plan":
         _plan_modal()
 
