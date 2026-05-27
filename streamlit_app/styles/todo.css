@@ -175,3 +175,25 @@
   padding: 24px 0;
   opacity: 0.7;
 }
+
+/* ───── Dark side-panel context overrides ───── */
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .todo-list-header {
+  color: var(--parchment-dark) !important;
+  border-top-color: var(--wood-mid) !important;
+  margin: 0 0 8px !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .todo-item {
+  background: transparent !important;
+  color: var(--bone) !important;
+  border-left-color: var(--wood-mid) !important;
+  font-size: 12px !important;
+  padding: 2px 4px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .todo-item.done {
+  color: var(--parchment-dark) !important;
+  border-left-color: var(--shadow) !important;
+  background: transparent !important;
+}

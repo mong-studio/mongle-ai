@@ -306,18 +306,13 @@ def _date_panel(today: date, todo_entries: list[tuple[str, bool]] | None = None)
     if todo_entries:
         done_count = sum(1 for _, done in todo_entries if done)
         total = len(todo_entries)
-        items_html = "".join(
-            f'<div class="date-todo-item{"  done" if done else ""}">'
-            f'{"✓" if done else "·"} {title}'
-            f"</div>"
-            for title, done in todo_entries
-        )
-        todo_block = (
-            f'<div class="date-todo-list">{items_html}</div>'
-            f'<div class="date-todo-count">{done_count} / {total} DONE</div>'
+        hint_html = (
+            f'<div class="date-hint">'
+            f'<span class="key">{done_count} / {total} DONE</span>'
+            f'</div>'
         )
     else:
-        todo_block = (
+        hint_html = (
             '<div class="date-hint">'
             "오늘의 할 일을 추가해보세요<br/>"
             '<span class="key">PRESS &lt;+&gt; TO ADD</span>'
@@ -330,7 +325,7 @@ def _date_panel(today: date, todo_entries: list[tuple[str, bool]] | None = None)
           <div class="side-panel">
             <div class="date-display">{date_str}</div>
             <div class="date-day">{day_short}</div>
-            {todo_block}
+            {hint_html}
           </div>
         </div>
         """,
@@ -1040,6 +1035,54 @@ def _todo_list_section() -> None:
         st.session_state["quest_completed_msg"] = quest_completed
         st.rerun()
 
+    # ── JS: 이 섹션의 가장 가까운 stVerticalBlock 조상을 우측 고정 패널로 이동 ──
+    # 타이머와 동일한 패턴: window.parent.document 접근 + setInterval 유지
+    components.html(
+        """
+        <script>
+        (function() {
+          if (window.__mg_todo_started) return;   // 중복 방지
+          window.__mg_todo_started = true;
+
+          function applyPanel(el) {
+            el.style.setProperty('position',   'fixed',                                          'important');
+            el.style.setProperty('top',        '210px',                                          'important');
+            el.style.setProperty('right',      '16px',                                           'important');
+            el.style.setProperty('width',      '210px',                                          'important');
+            el.style.setProperty('z-index',    '100',                                            'important');
+            el.style.setProperty('box-sizing', 'border-box',                                     'important');
+            el.style.setProperty('background', '#1a1a1a',                                        'important');
+            el.style.setProperty('border',     '4px solid #3d2818',                              'important');
+            el.style.setProperty('outline',    '2px solid #000',                                 'important');
+            el.style.setProperty('padding',    '14px 16px',                                      'important');
+            el.style.setProperty('box-shadow', 'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
+            el.style.setProperty('max-height', '340px',                                          'important');
+            el.style.setProperty('overflow-y', 'auto',                                           'important');
+          }
+
+          function run() {
+            try {
+              var doc = window.parent.document;
+              var header = doc.querySelector('.todo-list-header');
+              if (!header) return;
+              // .todo-list-header 에서 위로 올라가 첫 번째 stVerticalBlock 을 찾는다
+              var el = header.parentElement;
+              while (el) {
+                if (el.getAttribute('data-testid') === 'stVerticalBlock') break;
+                el = el.parentElement;
+              }
+              if (el) applyPanel(el);
+            } catch(e) {}
+          }
+
+          run();
+          setInterval(run, 300);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
 
 
 @st.dialog("< LONG-TERM PLAN >  장기 플랜 짜기", width="large")
@@ -1346,7 +1389,8 @@ def main() -> None:
     _chief_dialog()
 
     _quest_section()
-    _todo_list_section()
+    with st.container():
+        _todo_list_section()
 
     # TODO 전체 완료 시 회고 트리거
     if todo_list and not st.session_state.get("reflection_done"):
