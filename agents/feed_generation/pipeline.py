@@ -5,9 +5,9 @@ from agents.feed_generation.schemas import FeedGenerationInput, GeneratedFeed
 _graph = build_graph()
 
 
-async def run(input: FeedGenerationInput, *, ports: Ports) -> GeneratedFeed:
+async def run(feed_input: FeedGenerationInput, *, ports: Ports) -> GeneratedFeed:
     initial_state = {
-        "input": input,
+        "input": feed_input,
         "image_prompt": None,
         "raw_image": None,
         "image_url": None,
