@@ -10,6 +10,9 @@
 ### Added
 - `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.
 - `adapters/todo_creation/quest_dispatch_adapter`: 위 에이전트를 commit 파이프라인의 `QuestDispatchPort` 에 연결 (오늘 TODO·활성 캐릭터 fetch → 에이전트 호출 → quests 영속화).
+- `adapters/quest_generation/midm_llm`: Mi:dm-mini-Instruct 어댑터 (`LLMPort.generate_quest`). OpenAI 호환 endpoint(vLLM 등) 대상, `with_structured_output` 미지원 모델용 JSON 강제 + Pydantic 파싱 + 1회 재시도 (AI_RULES §3 정렬). 기존 `OpenAILLM` 과 동일한 `quest_text_v1` 시스템 프롬프트·user message 포맷 공유.
+- `adapters/_shared/openai_compat`: AsyncOpenAI 클라이언트 빌더(캐시) — Mi:dm 어댑터 및 향후 OpenAI-호환 어댑터들이 공유.
+- `streamlit_app/ports_factory`: `QUEST_LLM_PROVIDER=midm` 토글 + `MIDM_BASE_URL`/`MIDM_MODEL`/`MIDM_API_KEY` 환경변수 wiring. `build_commit_ports(cfg)` 가 cfg 의 provider 에 따라 `MidmLLM` 또는 `FakeLLM` 을 선택. 기존 no-arg 호출자 호환.
 - **multi_turn TODO/플랜 챗봇** (`agents/todo_creation/multi_turn/`):
   - Hybrid LangGraph (정보수집=결정론, 수정루프=tool-calling)
   - SessionStorePort + InMemorySessionStore (Port 확정, MySQL 어댑터는 후속)
