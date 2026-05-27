@@ -54,6 +54,7 @@ from streamlit_app.ports_factory import (  # noqa: E402
     AppConfig,
     MissingEnvError,
     build_ports,
+    build_todo_generate_ports,
 )
 
 st.set_page_config(
@@ -333,7 +334,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 
 
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
-def _todo_modal(user_id: str) -> None:
+def _todo_modal(user_id: str, cfg: AppConfig) -> None:
     st.markdown(
         '<div class="modal-sub">몽글마을 주민들이 너의 할 일을 정리해줄게</div>',
         unsafe_allow_html=True,
@@ -366,7 +367,7 @@ def _todo_modal(user_id: str) -> None:
         st.session_state["todo_text"] = text
         with st.spinner("정리하는 중..."):
             try:
-                st.session_state["todo_candidates"] = _run_todo_pipeline(text, user_id)
+                st.session_state["todo_candidates"] = _run_todo_pipeline(text, user_id, cfg)
             except Exception as err:
                 st.error(f"TODO 정리 실패: {err}")
                 return
@@ -409,16 +410,14 @@ def _todo_modal(user_id: str) -> None:
         st.rerun()
 
 
-def _run_todo_pipeline(text: str, user_id: str) -> list[dict]:
+def _run_todo_pipeline(text: str, user_id: str, cfg: AppConfig) -> list[dict]:
     from datetime import datetime as _dt
 
-    from adapters.todo_creation.openai_llm import OpenAILLM as TodoLLM
     from agents.todo_creation.schemas import SingleTurnInput
-    from agents.todo_creation.single_turn.pipeline import GeneratePorts
     from agents.todo_creation.single_turn.pipeline import run as todo_run
 
     inp = SingleTurnInput(user_id=user_id, prompt=text, today=date.today())
-    ports = GeneratePorts(llm=TodoLLM())
+    ports = build_todo_generate_ports(cfg)
     result = asyncio.run(todo_run(inp, ports=ports, now=_dt.now()))
     return [
         {"title": t.title, "due_date": t.due_date.isoformat(), "checked": True, "tags": t.tags}
@@ -602,7 +601,7 @@ def main() -> None:
     if modal == "character":
         _character_modal(user_id, is_regen, repo, cfg)
     elif modal == "todo":
-        _todo_modal(user_id)
+        _todo_modal(user_id, cfg)
     elif modal == "plan":
         _plan_modal()
 

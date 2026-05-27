@@ -10,8 +10,9 @@ from openai import OpenAI
 
 from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
+from adapters.character_creation.midm_llm import MidmLLM as MidmCharacterLLM
 from adapters.character_creation.openai_image import OpenAIImageGenerator
-from adapters.character_creation.openai_llm import OpenAILLM
+from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.openai_vlm import OpenAIVLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.memory_repo import (
@@ -22,13 +23,17 @@ from adapters.quest_generation.memory_repo import (
 from adapters.quest_generation.midm_llm import MidmLLM as MidmQuestLLM
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
+from adapters.todo_creation.midm_llm import MidmLLM as MidmTodoLLM
+from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
 from agents.character_creation.schemas import LLMPersonaResult, VLMResult
 from agents.quest_generation.protocols import LLMPort as QuestLLMPort
 from agents.todo_creation.commit.pipeline import CommitPorts
+from agents.todo_creation.single_turn.pipeline import GeneratePorts as TodoGeneratePorts
 
 _VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
+_VALID_LLM_PROVIDERS = ("openai", "midm")
 
 
 class MissingEnvError(RuntimeError):
@@ -61,7 +66,8 @@ class AppConfig:
     # Quest LLM provider 토글. character_creation / commit pipeline 의
     # 일반 OpenAI 경로는 영향 없음.
     quest_llm_provider: str       # "fake" | "midm"
-    midm_base_url: str | None     # quest_llm_provider == "midm" 일 때만 필수
+    llm_provider: str             # "openai" | "midm" — todo + character 공통
+    midm_base_url: str | None     # llm_provider/quest_llm_provider == "midm" 일 때 필수
     midm_model: str | None        # 동일
     midm_api_key: str             # vLLM 등은 더미 키 허용 → 기본 "EMPTY"
 
@@ -89,15 +95,25 @@ class AppConfig:
                 f"{'|'.join(_VALID_QUEST_LLM_PROVIDERS)} 중 하나여야 합니다 "
                 f"(현재: {quest_llm_provider!r})"
             )
+        llm_provider = (
+            os.environ.get("LLM_PROVIDER", "openai").strip().lower() or "openai"
+        )
+        if llm_provider not in _VALID_LLM_PROVIDERS:
+            raise MissingEnvError(
+                f"LLM_PROVIDER 는 "
+                f"{'|'.join(_VALID_LLM_PROVIDERS)} 중 하나여야 합니다 "
+                f"(현재: {llm_provider!r})"
+            )
         midm_base_url: str | None = None
         midm_model: str | None = None
         midm_api_key = os.environ.get("MIDM_API_KEY", "").strip() or "EMPTY"
-        if quest_llm_provider == "midm":
+        if quest_llm_provider == "midm" or llm_provider == "midm":
             midm_base_url = need("MIDM_BASE_URL")
             midm_model = need("MIDM_MODEL")
 
         common_midm = dict(
             quest_llm_provider=quest_llm_provider,
+            llm_provider=llm_provider,
             midm_base_url=midm_base_url,
             midm_model=midm_model,
             midm_api_key=midm_api_key,
@@ -139,13 +155,36 @@ class AppConfig:
         return cfg
 
 
+def _build_character_llm(cfg: AppConfig) -> OpenAICharacterLLM | MidmCharacterLLM:
+    if cfg.llm_provider == "midm":
+        assert cfg.midm_base_url and cfg.midm_model
+        return MidmCharacterLLM(
+            model=cfg.midm_model,
+            base_url=cfg.midm_base_url,
+            api_key=cfg.midm_api_key,
+        )
+    chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
+    runnable = chat.with_structured_output(LLMPersonaResult, method="json_schema", strict=True)
+    return OpenAICharacterLLM(runnable=runnable)
+
+
+def build_todo_generate_ports(cfg: AppConfig) -> TodoGeneratePorts:
+    if cfg.llm_provider == "midm":
+        assert cfg.midm_base_url and cfg.midm_model
+        llm = MidmTodoLLM(
+            model=cfg.midm_model,
+            base_url=cfg.midm_base_url,
+            api_key=cfg.midm_api_key,
+        )
+    else:
+        llm = OpenAITodoLLM()
+    return TodoGeneratePorts(llm=llm)
+
+
 def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
     openai_client = OpenAI(api_key=cfg.openai_api_key)
 
     chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
-    llm_runnable = chat.with_structured_output(
-        LLMPersonaResult, method="json_schema", strict=True
-    )
     vlm_runnable = chat.with_structured_output(
         VLMResult, method="json_schema", strict=True
     )
@@ -169,7 +208,7 @@ def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
         )
 
     return Ports(
-        llm=OpenAILLM(runnable=llm_runnable),
+        llm=_build_character_llm(cfg),
         vlm=OpenAIVLM(runnable=vlm_runnable),
         s3=storage,
         image_generator=OpenAIImageGenerator(
