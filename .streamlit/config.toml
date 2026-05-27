@@ -1,0 +1,5 @@
+[server]
+maxUploadSize = 5        # MB — 참고 이미지 업로드 상한
+
+[browser]
+gatherUsageStats = false

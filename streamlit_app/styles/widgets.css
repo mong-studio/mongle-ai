@@ -24,12 +24,14 @@
   box-shadow: none !important;
 }
 .stButton > button[kind="primary"] {
-  background: var(--wood-dark) !important;
-  color: var(--gold) !important;
+  background: var(--gold) !important;
+  color: var(--ink) !important;
+  border-color: var(--wood-dark) !important;
+  font-weight: bold !important;
 }
 .stButton > button[kind="primary"]:hover {
-  background: var(--wood-mid) !important;
-  color: var(--bone) !important;
+  background: var(--parchment-dark) !important;
+  color: var(--ink) !important;
 }
 
 /* ───── Text inputs & textareas ───── */
@@ -112,22 +114,35 @@
   margin-top: 6px;
 }
 
-/* ───── Personality keyword pills ───── */
+/* ───── Personality keyword label ───── */
 .kw-label {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 9px;
-  color: var(--wood-dark);
-  letter-spacing: 1px;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 9px !important;
+  color: var(--wood-dark) !important;
+  letter-spacing: 1px !important;
   margin-bottom: 6px;
   margin-top: 4px;
 }
-.kw-count {
-  color: var(--wood-mid);
-  font-size: 8px;
+/* 다이얼로그 내에서는 위젯 레이블과 동일하게 보이도록 크기 맞춤 */
+div[role="dialog"] .kw-label {
+  font-family: 'DotGothic16', monospace !important;
+  font-size: 14px !important;
+  font-weight: normal !important;
+  letter-spacing: 0 !important;
 }
+.kw-count {
+  color: var(--wood-mid) !important;
+  font-size: 0.85em !important;
+  font-weight: normal !important;
+}
+
+/* ───── Dialog buttons — 필(pill) 형태 ───── */
 div[role="dialog"] .stButton > button {
-  font-size: 11px !important;
-  padding: 6px 8px !important;
+  border-radius: 999px !important;
+  font-family: 'DotGothic16', monospace !important;
+  font-size: 13px !important;
+  font-weight: normal !important;
+  padding: 6px 14px !important;
   letter-spacing: 0 !important;
 }
 
@@ -168,4 +183,38 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
   border-radius: 0 !important;
   border: 3px solid var(--wood-dark) !important;
   font-family: 'DotGothic16', monospace !important;
+}
+
+/* ───── Reflection (Daily Retro) modal ───── */
+.retro-section-label {
+  font-family: 'DotGothic16', monospace;
+  font-size: 15px;
+  color: var(--wood-dark);
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin: 8px 0 6px;
+}
+.retro-char-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--wood-dark);
+  text-align: center;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.retro-empty {
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--wood-mid);
+  padding: 12px 0;
+  opacity: 0.7;
+}
+.retro-token-info {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--wood-mid);
+  border: 2px dashed var(--wood-mid);
+  padding: 8px 12px;
+  margin: 10px 0;
+  background: var(--parchment-light);
 }
