@@ -335,6 +335,72 @@ def _date_panel(today: date, todo_entries: list[tuple[str, bool]] | None = None)
 
 
 
+def _diary_icon_panel() -> None:
+    """회고 아이콘 버튼 — 타이머/투두 패널과 동일한 JS 패턴으로 날짜 패널 왼쪽에 고정."""
+    with st.container():
+        st.markdown('<span class="mg-diary-marker"></span>', unsafe_allow_html=True)
+        if st.button("📓", key="open_reflection_diary"):
+            st.session_state["modal"] = "reflection"
+            st.rerun()
+
+    components.html(
+        """
+        <script>
+        (function() {
+          if (window.__mg_diary_pos) return;
+          window.__mg_diary_pos = true;
+
+          function run() {
+            try {
+              var doc = window.parent.document;
+              var marker = doc.querySelector('.mg-diary-marker');
+              if (!marker) return;
+              var el = marker;
+              while (el) {
+                if (el.getAttribute && el.getAttribute('data-testid') === 'stVerticalBlock') break;
+                el = el.parentElement;
+              }
+              if (!el) return;
+
+              /* 날짜 패널(right:16px, width:210px) 바로 왼쪽에 고정 */
+              el.style.setProperty('position',    'fixed',                                   'important');
+              el.style.setProperty('top',         '74px',                                    'important');
+              el.style.setProperty('right',       '234px',                                   'important');
+              el.style.setProperty('z-index',     '100',                                     'important');
+              el.style.setProperty('width',       'auto',                                    'important');
+              el.style.setProperty('background',  '#1a1a1a',                                 'important');
+              el.style.setProperty('border',      '4px solid #3d2818',                       'important');
+              el.style.setProperty('outline',     '2px solid #000',                          'important');
+              el.style.setProperty('padding',     '8px 10px',                                'important');
+              el.style.setProperty('box-shadow',  'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
+
+              /* 버튼 자체를 투명 아이콘처럼 */
+              var btn = el.querySelector('button');
+              if (btn) {
+                btn.style.setProperty('background',  'transparent', 'important');
+                btn.style.setProperty('border',      'none',        'important');
+                btn.style.setProperty('box-shadow',  'none',        'important');
+                btn.style.setProperty('padding',     '0',           'important');
+                btn.style.setProperty('font-size',   '22px',        'important');
+                btn.style.setProperty('min-height',  'auto',        'important');
+                btn.style.setProperty('line-height', '1',           'important');
+                btn.style.setProperty('cursor',      'pointer',     'important');
+                btn.style.setProperty('color',       '#f4ead6',     'important');
+                btn.style.setProperty('width',       '28px',        'important');
+                btn.style.setProperty('height',      '28px',        'important');
+              }
+            } catch(e) {}
+          }
+
+          run();
+          setInterval(run, 300);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 @lru_cache(maxsize=1)
 def _background_data_uri() -> str:
     img_path = _PROJECT_ROOT / "assets" / "background.jpeg"
@@ -420,7 +486,7 @@ def _chief_dialog() -> None:
         """,
         unsafe_allow_html=True,
     )
-    cols = st.columns(4)
+    cols = st.columns(3)
     if cols[0].button("📝  오늘의 TODO 만들기", key="open_todo", width="stretch"):
         st.session_state["modal"] = "todo"
         st.rerun()
@@ -429,9 +495,6 @@ def _chief_dialog() -> None:
         st.rerun()
     if cols[2].button("👋  새 주민 맞이하기", key="open_character", width="stretch"):
         st.session_state["modal"] = "character"
-        st.rerun()
-    if cols[3].button("📖  오늘 회고하기", key="open_reflection", width="stretch"):
-        st.session_state["modal"] = "reflection"
         st.rerun()
 
 
@@ -595,79 +658,14 @@ def _todo_modal(characters: list) -> None:
         )
         st.caption(f"{len(text)} / 200")
 
-        # ── 태그 선택 ────────────────────────────────────
-        st.markdown('<div class="todo-section-label">태그 선택 (복수 선택 가능)</div>', unsafe_allow_html=True)
-        selected_tags: list[str] = st.session_state.get("todo_tags", [])
-        tag_cols = st.columns(6)
-        for i, tag in enumerate(_PRESET_TAGS):
-            is_sel = tag in selected_tags
-            with tag_cols[i]:
-                if st.button(
-                    f"✓ {tag}" if is_sel else tag,
-                    key=f"todo_tag_{tag}",
-                    type="primary" if is_sel else "secondary",
-                    width="stretch",
-                ):
-                    if is_sel:
-                        selected_tags.remove(tag)
-                    else:
-                        selected_tags.append(tag)
-                    st.session_state["todo_tags"] = selected_tags
-                    st.rerun()
-        # 직접 입력 태그 토글
-        custom_open = st.session_state.get("tag_custom_open", False)
-        with tag_cols[5]:
-            if st.button(
-                "✏️ 직접입력",
-                key="tag_custom_toggle",
-                type="secondary",
-                width="stretch",
-            ):
-                st.session_state["tag_custom_open"] = not custom_open
-                st.rerun()
-
-        # 직접입력 텍스트 필드
-        if custom_open:
-            c_col, a_col = st.columns([8, 2])
-            with c_col:
-                custom_tag = st.text_input(
-                    "직접 입력",
-                    max_chars=15,
-                    placeholder="태그명 입력 후 추가 +",
-                    key="tag_custom_input",
-                    label_visibility="collapsed",
-                )
-            with a_col:
-                if st.button("추가 +", key="tag_custom_add", width="stretch"):
-                    t = custom_tag.strip()
-                    if t and t not in selected_tags:
-                        selected_tags.append(t)
-                        st.session_state["todo_tags"] = selected_tags
-                    st.session_state["tag_custom_open"] = False
-                    st.rerun()
-
-        # 추가된 커스텀 태그를 pill로 표시 — 프리셋과 동일한 6열 그리드
-        custom_tags = [t for t in selected_tags if t not in _PRESET_TAGS]
-        if custom_tags:
-            remove_tag: str | None = None
-            for row_start in range(0, len(custom_tags), 6):
-                chunk = custom_tags[row_start:row_start + 6]
-                ct_cols = st.columns(6)
-                for ci, ctag in enumerate(chunk):
-                    with ct_cols[ci]:
-                        if st.button(f"✕ {ctag}", key=f"custom_tag_rm_{ctag}",
-                                     type="primary", width="stretch"):
-                            remove_tag = ctag
-            if remove_tag is not None:
-                selected_tags.remove(remove_tag)
-                st.session_state["todo_tags"] = selected_tags
-                st.rerun()
-
         # ── 직접 추가 ─────────────────────────────────────
         st.markdown("---")
         st.markdown('<div class="todo-section-label">✏️ 바로 추가하기</div>', unsafe_allow_html=True)
         direct_items: list[dict] = st.session_state.get("todo_direct", [])
         input_ver = st.session_state.get("todo_direct_input_ver", 0)
+        direct_tags: list[str] = st.session_state.get("todo_direct_tags", [])
+
+        # 1) 할 일 입력 + 추가 버튼
         add_col, btn_col = st.columns([8, 2])
         with add_col:
             new_item = st.text_input(
@@ -683,11 +681,41 @@ def _todo_modal(characters: list) -> None:
                         "title": new_item.strip(),
                         "due_date": date.today().isoformat(),
                         "checked": False,
-                        "tags": list(selected_tags),
+                        "tags": list(direct_tags),
                         "todo_id": str(uuid4()),
                     })
                     st.session_state["todo_direct"] = direct_items
                     st.session_state["todo_direct_input_ver"] = input_ver + 1
+                    st.session_state["todo_direct_tags"] = []  # 추가 후 태그 초기화
+                    st.rerun()
+
+        # 2) 키워드 선택 레이블 + 태그 버튼
+        tag_label_parts = "".join(
+            f'<span class="todo-tag-pill" style="opacity:0.9">{t}</span>'
+            for t in direct_tags
+        )
+        st.markdown(
+            f'<div class="direct-tag-label">'
+            f'# 키워드 선택 <span style="font-size:11px;opacity:0.6">(선택사항)</span>'
+            f'{"&nbsp;" + tag_label_parts if direct_tags else ""}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        dt_cols = st.columns(len(_PRESET_TAGS))
+        for _ti, _tag in enumerate(_PRESET_TAGS):
+            _sel = _tag in direct_tags
+            with dt_cols[_ti]:
+                if st.button(
+                    f"✓ {_tag}" if _sel else _tag,
+                    key=f"dtag_{_tag}",
+                    type="primary" if _sel else "secondary",
+                    use_container_width=True,
+                ):
+                    if _sel:
+                        direct_tags.remove(_tag)
+                    else:
+                        direct_tags.append(_tag)
+                    st.session_state["todo_direct_tags"] = direct_tags
                     st.rerun()
 
         if direct_items:
@@ -734,7 +762,7 @@ def _todo_modal(characters: list) -> None:
                                 "title": c.title,
                                 "due_date": c.due_date.isoformat(),
                                 "checked": False,
-                                "tags": list(selected_tags) + list(c.tags or []),
+                                "tags": list(c.tags or []),  # LLM 자동 태그만 사용
                                 "todo_id": str(uuid4()),
                             }
                             for c in llm_candidates
@@ -742,7 +770,7 @@ def _todo_modal(characters: list) -> None:
                     except Exception:  # noqa: BLE001
                         candidates = _stub_split_tasks(text)
                         for c in candidates:
-                            c["tags"] = list(selected_tags)
+                            c["tags"] = []  # 폴백: 태그 없음
                 else:
                     candidates = []
                 st.session_state["todo_candidates"] = candidates
@@ -853,7 +881,7 @@ def _run_todo_pipeline(text: str, user_id: str, cfg: AppConfig) -> list[dict]:
 
 def _reset_todo_state() -> None:
     for key in ("todo_text", "todo_candidates", "todo_direct", "todo_direct_input_ver",
-                "todo_tags", "todo_step", "tag_custom_open"):
+                "todo_tags", "todo_direct_tags", "todo_step", "tag_custom_open"):
         st.session_state.pop(key, None)
 
 
@@ -949,6 +977,62 @@ def _assign_quests(new_todos: list[dict], characters: list, cfg: AppConfig | Non
     st.session_state["quest_assignments"] = quests
 
 
+@st.dialog("< QUEST >  오늘의 퀘스트", width="small")
+def _char_quest_popup() -> None:
+    """캐릭터 카드 클릭 시 해당 캐릭터의 퀘스트를 팝업으로 표시한다."""
+    char_name: str = st.session_state.get("selected_quest_char", "")
+    quests: dict[str, dict] = st.session_state.get("quest_assignments", {})
+    char_quest = next(
+        (q for q in quests.values() if q["character_name"] == char_name),
+        None,
+    )
+
+    if not char_quest:
+        st.markdown(
+            f'<div class="modal-sub">{char_name}에게 배정된 퀘스트가 없어요</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("닫기", key="char_quest_close"):
+            st.session_state["modal"] = None
+            st.rerun()
+        return
+
+    done = char_quest.get("done", False)
+    img_src = _img_to_data_uri(char_quest.get("character_image", ""))
+    img_tag = (
+        f'<img src="{img_src}" width="96" height="96"'
+        f' style="object-fit:cover;image-rendering:pixelated;'
+        f'border:3px solid var(--wood-dark);display:block;margin:0 auto 8px;">'
+        if img_src else ""
+    )
+    card_class = "quest-card done" if done else "quest-card"
+    status_badge = (
+        '<div style="font-family:\'Press Start 2P\',monospace;font-size:8px;'
+        'color:var(--wood-mid);margin-top:6px;">✓ 완료</div>'
+        if done else
+        '<div style="font-family:\'Press Start 2P\',monospace;font-size:8px;'
+        'color:var(--gold);margin-top:6px;">▶ 진행 중</div>'
+    )
+    st.markdown(
+        f'<div class="{card_class}" style="max-width:260px;margin:0 auto;">'
+        f'{img_tag}'
+        f'<div class="quest-char-name">{char_name}</div>'
+        f'<div class="quest-bubble">{"✓ " if done else ""}{char_quest["quest_text"]}</div>'
+        f'{status_badge}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div style="font-family:\'DotGothic16\',monospace;font-size:12px;'
+        f'color:var(--wood-mid);text-align:center;margin-top:8px;">'
+        f'연결된 할 일: {char_quest.get("todo_title", "")}</div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("닫기", key="char_quest_close", use_container_width=True):
+        st.session_state["modal"] = None
+        st.rerun()
+
+
 def _quest_section() -> None:
     """메인 화면에 캐릭터 퀘스트 카드를 표시한다."""
     quests: dict[str, dict] = st.session_state.get("quest_assignments", {})
@@ -1030,58 +1114,19 @@ def _todo_list_section() -> None:
 
     # 변경사항 저장
     st.session_state["todo_prev_states"] = prev_states
+    # @st.dialog 닫힐 때 Streamlit이 위젯 상태를 리셋하는 quirk에 대한 방어:
+    # 현재 체크 상태를 별도 dict에 명시적으로 저장
+    st.session_state["todo_done_items"] = {
+        str(i): bool(st.session_state.get(f"todo_item_{i}", False))
+        for i in range(total)
+    }
     if quest_completed is not None:
         st.session_state["quest_assignments"] = quests
         st.session_state["quest_completed_msg"] = quest_completed
         st.rerun()
 
-    # ── JS: 이 섹션의 가장 가까운 stVerticalBlock 조상을 우측 고정 패널로 이동 ──
-    # 타이머와 동일한 패턴: window.parent.document 접근 + setInterval 유지
-    components.html(
-        """
-        <script>
-        (function() {
-          if (window.__mg_todo_started) return;   // 중복 방지
-          window.__mg_todo_started = true;
-
-          function applyPanel(el) {
-            el.style.setProperty('position',   'fixed',                                          'important');
-            el.style.setProperty('top',        '210px',                                          'important');
-            el.style.setProperty('right',      '16px',                                           'important');
-            el.style.setProperty('width',      '210px',                                          'important');
-            el.style.setProperty('z-index',    '100',                                            'important');
-            el.style.setProperty('box-sizing', 'border-box',                                     'important');
-            el.style.setProperty('background', '#1a1a1a',                                        'important');
-            el.style.setProperty('border',     '4px solid #3d2818',                              'important');
-            el.style.setProperty('outline',    '2px solid #000',                                 'important');
-            el.style.setProperty('padding',    '14px 16px',                                      'important');
-            el.style.setProperty('box-shadow', 'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
-            el.style.setProperty('max-height', '340px',                                          'important');
-            el.style.setProperty('overflow-y', 'auto',                                           'important');
-          }
-
-          function run() {
-            try {
-              var doc = window.parent.document;
-              var header = doc.querySelector('.todo-list-header');
-              if (!header) return;
-              // .todo-list-header 에서 위로 올라가 첫 번째 stVerticalBlock 을 찾는다
-              var el = header.parentElement;
-              while (el) {
-                if (el.getAttribute('data-testid') === 'stVerticalBlock') break;
-                el = el.parentElement;
-              }
-              if (el) applyPanel(el);
-            } catch(e) {}
-          }
-
-          run();
-          setInterval(run, 300);
-        })();
-        </script>
-        """,
-        height=0,
-    )
+    # CSS :has() 선택자가 이 컨테이너를 position:fixed 패널로 만든다.
+    # layout.css 의 .mg-todo-anchor 규칙 참조 — JS iframe 불필요.
 
 
 
@@ -1169,11 +1214,18 @@ def _reflection_modal() -> None:
         char_cols = st.columns(min(len(done_quests), 4))
         for idx, q in enumerate(done_quests):
             with char_cols[idx % min(len(done_quests), 4)]:
-                img_url = q.get("character_image", "")
-                if img_url:
-                    st.image(img_url, width="stretch")
+                img_src = _img_to_data_uri(q.get("character_image", ""))
+                img_tag = (
+                    f'<img src="{img_src}" width="64" height="64"'
+                    f' style="object-fit:cover;image-rendering:pixelated;'
+                    f'border:2px solid var(--wood-dark);display:block;margin:0 auto 4px;">'
+                    if img_src else ""
+                )
                 st.markdown(
-                    f'<div class="retro-char-name">{q["character_name"]}</div>',
+                    f'<div style="text-align:center">'
+                    f'{img_tag}'
+                    f'<div class="retro-char-name">{q["character_name"]}</div>'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
     else:
@@ -1315,6 +1367,7 @@ def _gallery(repo: InMemoryRepo, user_id: str) -> None:
     chars = repo.list_characters(user_id)
     if not chars:
         return
+    quests: dict[str, dict] = st.session_state.get("quest_assignments", {})
     st.markdown(
         f'<div class="gallery-title">&lt; RESIDENTS · {len(chars)} &gt;</div>',
         unsafe_allow_html=True,
@@ -1322,12 +1375,34 @@ def _gallery(repo: InMemoryRepo, user_id: str) -> None:
     cols = st.columns(4)
     for idx, char in enumerate(chars):
         with cols[idx % 4]:
-            st.image(char.image_url, width="stretch")
+            img_src = _img_to_data_uri(char.image_url)
+            char_quest = next(
+                (q for q in quests.values() if q["character_name"] == char.name),
+                None,
+            )
+            # 이미지 — parchment 배경으로 투명 PNG 보호
+            img_tag = f'<img src="{img_src}" class="char-gallery-img">' if img_src else ""
             st.markdown(
-                f'<div class="char-card">'
-                f'<div class="char-name">{char.name}</div>'
-                f'<div class="char-meta">{(char.personality or "")[:40]}…</div>'
-                f'</div>',
+                f'<div class="char-img-wrap">{img_tag}</div>',
+                unsafe_allow_html=True,
+            )
+            # 이름 — 퀘스트 있으면 클릭 가능 버튼, 없으면 텍스트
+            if char_quest:
+                if st.button(
+                    char.name,
+                    key=f"gallery_char_{idx}",
+                    use_container_width=True,
+                ):
+                    st.session_state["modal"] = "char_quest"
+                    st.session_state["selected_quest_char"] = char.name
+                    st.rerun()
+            else:
+                st.markdown(
+                    f'<div class="char-name">{char.name}</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f'<div class="char-meta">{(char.personality or "")[:40]}…</div>',
                 unsafe_allow_html=True,
             )
 
@@ -1376,6 +1451,11 @@ def main() -> None:
 
     # TODO 진행 상황 계산 → 날짜 패널에 전달
     todo_list: list[dict] = st.session_state.get("todo_list", [])
+    # @st.dialog 종료 시 위젯 상태가 리셋될 수 있으므로, persistent dict에서 복원
+    _todo_done: dict = st.session_state.get("todo_done_items", {})
+    for _i in range(len(todo_list)):
+        if _todo_done.get(str(_i), False):
+            st.session_state[f"todo_item_{_i}"] = True
     todo_entries: list[tuple[str, bool]] = [
         (item["title"], bool(st.session_state.get(f"todo_item_{i}", False)))
         for i, item in enumerate(todo_list)
@@ -1384,25 +1464,16 @@ def main() -> None:
     _village_map()
     _timer_panel()
     _date_panel(date.today(), todo_entries or None)
+    _diary_icon_panel()
 
     _chief_house_cta()
     _chief_dialog()
 
-    _quest_section()
     with st.container():
+        # CSS :has(.mg-todo-anchor) 가 이 컨테이너를 position:fixed 패널로 만든다
+        # layout.css 의 mg-todo-anchor 규칙 참조
+        st.markdown('<span class="mg-todo-anchor" style="display:none"></span>', unsafe_allow_html=True)
         _todo_list_section()
-
-    # TODO 전체 완료 시 회고 트리거
-    if todo_list and not st.session_state.get("reflection_done"):
-        all_done = all(
-            bool(st.session_state.get(f"todo_item_{i}", False))
-            for i in range(len(todo_list))
-        )
-        if all_done:
-            st.success("🎉 오늘의 할 일을 모두 완료했어요!")
-            if st.button("📖 회고 작성하기", key="trigger_reflection", type="primary"):
-                st.session_state["modal"] = "reflection"
-                st.rerun()
 
     modal = st.session_state.get("modal")
     characters = repo.list_characters(user_id)
@@ -1414,6 +1485,8 @@ def main() -> None:
         _plan_modal()
     elif modal == "reflection":
         _reflection_modal()
+    elif modal == "char_quest":
+        _char_quest_popup()
 
     _gallery(repo, user_id)
 

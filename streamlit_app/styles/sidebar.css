@@ -45,3 +45,48 @@ section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
   margin-top: 6px;
 }
 .char-meta { font-size: 13px; color: var(--ink); }
+
+/* ───── Gallery character image wrapper (parchment bg for transparent PNGs) ───── */
+.char-img-wrap {
+  background: var(--parchment);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 4px 4px 0 var(--shadow);
+  overflow: hidden;
+  line-height: 0;
+}
+.char-gallery-img {
+  width: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* ───── Gallery character name button — pixel name-tag style ───── */
+[data-testid="stVerticalBlock"]:has(.gallery-title) .stButton > button {
+  background: var(--parchment) !important;
+  border: 3px solid var(--wood-dark) !important;
+  border-top: none !important;
+  box-shadow: 4px 4px 0 var(--shadow) !important;
+  padding: 5px 8px !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 8px !important;
+  color: var(--wood-dark) !important;
+  letter-spacing: 1px !important;
+  margin-top: 0 !important;
+  min-height: unset !important;
+  line-height: 1.5 !important;
+  width: 100% !important;
+}
+[data-testid="stVerticalBlock"]:has(.gallery-title) .stButton > button:hover {
+  background: var(--gold) !important;
+  color: var(--wood-dark) !important;
+  transform: translate(2px, 2px) !important;
+  box-shadow: 2px 2px 0 var(--shadow) !important;
+}
+
+/* ───── Gallery char-meta — readable on dark page background ───── */
+[data-testid="stVerticalBlock"]:has(.gallery-title) .char-meta {
+  color: var(--parchment-dark) !important;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+}

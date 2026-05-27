@@ -197,3 +197,27 @@
   border-left-color: var(--shadow) !important;
   background: transparent !important;
 }
+
+/* ───── Compact row spacing inside fixed todo panel ───── */
+[data-testid="stVerticalBlock"]:has(.todo-list-header) [data-testid="stHorizontalBlock"] {
+  gap: 2px !important;
+  margin-bottom: 0 !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) [data-testid="column"] {
+  padding: 0 2px !important;
+  min-height: unset !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .stCheckbox {
+  min-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .stCheckbox > label {
+  padding: 1px 0 !important;
+  min-height: unset !important;
+  gap: 0 !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header) .stMarkdownContainer p {
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
