@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from agents.feed_generation.exceptions import InputValidationError
 from agents.feed_generation.nodes.validate import validate_node
@@ -34,7 +35,7 @@ async def test_validate_empty_image_url_raises():
 
 
 async def test_validate_empty_quest_text_is_caught_by_pydantic():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         FeedGenerationInput(
             quest=QuestRef(quest_id=uuid4(), quest_text=""),
             character=CharacterRef(

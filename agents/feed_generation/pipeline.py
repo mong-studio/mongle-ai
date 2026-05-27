@@ -1,3 +1,4 @@
+from agents.feed_generation.exceptions import FeedGenerationError
 from agents.feed_generation.graph import build_graph
 from agents.feed_generation.protocols import Ports
 from agents.feed_generation.schemas import FeedGenerationInput, GeneratedFeed
@@ -16,9 +17,8 @@ async def run(feed_input: FeedGenerationInput, *, ports: Ports) -> GeneratedFeed
         "result": None,
     }
     config = {"configurable": {"ports": ports}}
-
-    final_state = initial_state
-    async for event in _graph.astream(initial_state, config=config, stream_mode="values"):
-        final_state = event
-
-    return final_state["result"]
+    final_state = await _graph.ainvoke(initial_state, config=config)
+    result = final_state.get("result")
+    if result is None:
+        raise FeedGenerationError("Pipeline completed without producing a result")
+    return result
