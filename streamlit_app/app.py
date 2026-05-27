@@ -567,6 +567,10 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
         st.rerun()
 
 
+# ── TODO 프리셋 태그 ──────────────────────────────────────────────────────────
+_PRESET_TAGS: list[str] = ["건강", "학습", "업무/프로젝트", "일상", "취미"]
+
+
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
 def _todo_modal(characters: list) -> None:
     todo_step = st.session_state.get("todo_step", 1)
@@ -596,12 +600,11 @@ def _todo_modal(characters: list) -> None:
         )
         st.caption(f"{len(text)} / 200")
 
-        # ── 태그 선택 pills ────────────────────────────────
+        # ── 태그 선택 ────────────────────────────────────
         st.markdown('<div class="todo-section-label">태그 선택 (복수 선택 가능)</div>', unsafe_allow_html=True)
-        tag_options = ["급해요", "중요해요", "취미", "기타"]
         selected_tags: list[str] = st.session_state.get("todo_tags", [])
-        tag_cols = st.columns(len(tag_options))
-        for i, tag in enumerate(tag_options):
+        tag_cols = st.columns(6)
+        for i, tag in enumerate(_PRESET_TAGS):
             is_sel = tag in selected_tags
             with tag_cols[i]:
                 if st.button(
@@ -616,6 +619,54 @@ def _todo_modal(characters: list) -> None:
                         selected_tags.append(tag)
                     st.session_state["todo_tags"] = selected_tags
                     st.rerun()
+        # 직접 입력 태그 토글
+        custom_open = st.session_state.get("tag_custom_open", False)
+        with tag_cols[5]:
+            if st.button(
+                "✏️ 직접입력",
+                key="tag_custom_toggle",
+                type="secondary",
+                width="stretch",
+            ):
+                st.session_state["tag_custom_open"] = not custom_open
+                st.rerun()
+
+        # 직접입력 텍스트 필드
+        if custom_open:
+            c_col, a_col = st.columns([8, 2])
+            with c_col:
+                custom_tag = st.text_input(
+                    "직접 입력",
+                    max_chars=15,
+                    placeholder="태그명 입력 후 추가 +",
+                    key="tag_custom_input",
+                    label_visibility="collapsed",
+                )
+            with a_col:
+                if st.button("추가 +", key="tag_custom_add", width="stretch"):
+                    t = custom_tag.strip()
+                    if t and t not in selected_tags:
+                        selected_tags.append(t)
+                        st.session_state["todo_tags"] = selected_tags
+                    st.session_state["tag_custom_open"] = False
+                    st.rerun()
+
+        # 추가된 커스텀 태그를 pill로 표시 — 프리셋과 동일한 6열 그리드
+        custom_tags = [t for t in selected_tags if t not in _PRESET_TAGS]
+        if custom_tags:
+            remove_tag: str | None = None
+            for row_start in range(0, len(custom_tags), 6):
+                chunk = custom_tags[row_start:row_start + 6]
+                ct_cols = st.columns(6)
+                for ci, ctag in enumerate(chunk):
+                    with ct_cols[ci]:
+                        if st.button(f"✕ {ctag}", key=f"custom_tag_rm_{ctag}",
+                                     type="primary", width="stretch"):
+                            remove_tag = ctag
+            if remove_tag is not None:
+                selected_tags.remove(remove_tag)
+                st.session_state["todo_tags"] = selected_tags
+                st.rerun()
 
         # ── 직접 추가 ─────────────────────────────────────
         st.markdown("---")
@@ -741,7 +792,7 @@ def _todo_modal(characters: list) -> None:
             )
             row_cols = st.columns([1, 1, 8, 1])
             with row_cols[0]:
-                st.checkbox("", key=f"step2_check_{i}", disabled=True, label_visibility="collapsed")
+                st.checkbox("항목", key=f"step2_check_{i}", disabled=True, label_visibility="collapsed")
             with row_cols[1]:
                 st.markdown(char_img, unsafe_allow_html=True)
             with row_cols[2]:
@@ -807,7 +858,7 @@ def _run_todo_pipeline(text: str, user_id: str, cfg: AppConfig) -> list[dict]:
 
 def _reset_todo_state() -> None:
     for key in ("todo_text", "todo_candidates", "todo_direct", "todo_direct_input_ver",
-                "todo_tags", "todo_step"):
+                "todo_tags", "todo_step", "tag_custom_open"):
         st.session_state.pop(key, None)
 
 
@@ -909,6 +960,7 @@ def _quest_section() -> None:
     if not quests:
         return
 
+
     st.markdown(
         '<div class="quest-header">&lt; 오늘의 퀘스트 &gt;</div>',
         unsafe_allow_html=True,
@@ -925,8 +977,8 @@ def _quest_section() -> None:
             st.markdown(
                 f'<div class="{card_class}">'
                 f'{img_tag}'
+                f'<div class="quest-char-name">{q["character_name"]}</div>'
                 f'<div class="quest-bubble">{"✓ " if done else ""}{q["quest_text"]}</div>'
-                f'<div class="quest-todo-label">{q["todo_title"]}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
