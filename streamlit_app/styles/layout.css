@@ -55,12 +55,13 @@
 /* ───── Timer panel ───── */
 .timer-display {
   font-family: 'Press Start 2P', monospace;
-  font-size: 40px;
+  font-size: 26px;
   color: var(--gold);
-  text-shadow: 3px 3px 0 #000;
-  letter-spacing: 2px;
+  text-shadow: 2px 2px 0 #000;
+  letter-spacing: 0;
   text-align: center;
   padding: 6px 0;
+  white-space: nowrap;
 }
 .timer-meta {
   font-family: 'Press Start 2P', monospace;
@@ -84,7 +85,11 @@
   text-align: center;
   box-shadow: 3px 3px 0 var(--wood-mid);
   user-select: none;
+  cursor: pointer;
+  transition: box-shadow 0.05s, transform 0.05s;
 }
+.pixel-btn:hover  { filter: brightness(1.12); }
+.pixel-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--wood-mid); }
 .pixel-btn.dark { background: var(--wood-dark); color: var(--gold); }
 
 /* ───── Date panel ───── */
@@ -118,6 +123,38 @@
   color: var(--bone);
   letter-spacing: 1px;
 }
+
+/* ───── Date panel TODO list ───── */
+.date-todo-list {
+  border-top: 1px dashed var(--wood-mid);
+  margin-top: 8px;
+  padding-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.date-todo-item {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--bone);
+  padding: 3px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.date-todo-item.done {
+  color: var(--parchment-dark);
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.date-todo-count {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--gold);
+  text-align: right;
+  margin-top: 6px;
+  letter-spacing: 1px;
+}
+
 
 /* ───── Fixed overlays ───── */
 .timer-overlay {
