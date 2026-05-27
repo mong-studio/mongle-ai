@@ -19,12 +19,16 @@ from adapters.quest_generation.memory_repo import (
     MemoryQuestPersistenceRepo,
     MemoryTodoQueryRepo,
 )
+from adapters.quest_generation.midm_llm import MidmLLM as MidmQuestLLM
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
 from agents.character_creation.schemas import LLMPersonaResult, VLMResult
+from agents.quest_generation.protocols import LLMPort as QuestLLMPort
 from agents.todo_creation.commit.pipeline import CommitPorts
+
+_VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
 
 
 class MissingEnvError(RuntimeError):
@@ -54,6 +58,12 @@ class AppConfig:
     local_storage_root: Path
     aws_region: str | None
     aws_s3_bucket: str | None
+    # Quest LLM provider 토글. character_creation / commit pipeline 의
+    # 일반 OpenAI 경로는 영향 없음.
+    quest_llm_provider: str       # "fake" | "midm"
+    midm_base_url: str | None     # quest_llm_provider == "midm" 일 때만 필수
+    midm_model: str | None        # 동일
+    midm_api_key: str             # vLLM 등은 더미 키 허용 → 기본 "EMPTY"
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -70,6 +80,29 @@ class AppConfig:
         )
         openai_api_key = need("OPENAI_API_KEY")
 
+        quest_llm_provider = (
+            os.environ.get("QUEST_LLM_PROVIDER", "fake").strip().lower() or "fake"
+        )
+        if quest_llm_provider not in _VALID_QUEST_LLM_PROVIDERS:
+            raise MissingEnvError(
+                f"QUEST_LLM_PROVIDER 는 "
+                f"{'|'.join(_VALID_QUEST_LLM_PROVIDERS)} 중 하나여야 합니다 "
+                f"(현재: {quest_llm_provider!r})"
+            )
+        midm_base_url: str | None = None
+        midm_model: str | None = None
+        midm_api_key = os.environ.get("MIDM_API_KEY", "").strip() or "EMPTY"
+        if quest_llm_provider == "midm":
+            midm_base_url = need("MIDM_BASE_URL")
+            midm_model = need("MIDM_MODEL")
+
+        common_midm = dict(
+            quest_llm_provider=quest_llm_provider,
+            midm_base_url=midm_base_url,
+            midm_model=midm_model,
+            midm_api_key=midm_api_key,
+        )
+
         if backend == "s3":
             raw_bucket = need("AWS_S3_BUCKET")
             bucket, embedded_prefix = _split_s3_uri(raw_bucket)
@@ -82,6 +115,7 @@ class AppConfig:
                 local_storage_root=_default_local_root(),
                 aws_region=need("AWS_REGION"),
                 aws_s3_bucket=bucket,
+                **common_midm,
             )
         else:
             env_prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
@@ -95,6 +129,7 @@ class AppConfig:
                 local_storage_root=root,
                 aws_region=None,
                 aws_s3_bucket=None,
+                **common_midm,
             )
 
         if missing:
@@ -144,20 +179,46 @@ def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
     )
 
 
-def build_commit_ports() -> CommitPorts:
-    """Build commit pipeline ports (dev mode: in-memory repos + fake quest LLM).
+def _build_quest_llm(cfg: AppConfig | None) -> QuestLLMPort:
+    """Pick the quest_generation LLMPort implementation based on config.
+
+    - `cfg is None` → FakeQuestLLM (preserves the prior no-arg dev default).
+    - `cfg.quest_llm_provider == "midm"` → MidmQuestLLM with vLLM-style endpoint.
+    - otherwise → FakeQuestLLM.
+
+    OpenAI quest LLM wiring is intentionally omitted from this PR; add it
+    here later when an `OPENAI_QUEST_*` env scheme is defined.
+    """
+    if cfg is not None and cfg.quest_llm_provider == "midm":
+        assert cfg.midm_base_url and cfg.midm_model, (
+            "midm provider requires MIDM_BASE_URL and MIDM_MODEL"
+        )
+        return MidmQuestLLM(
+            model=cfg.midm_model,
+            base_url=cfg.midm_base_url,
+            api_key=cfg.midm_api_key,
+        )
+    return FakeQuestLLM()
+
+
+def build_commit_ports(cfg: AppConfig | None = None) -> CommitPorts:
+    """Build commit pipeline ports (dev mode: in-memory repos + quest LLM).
 
     The `quest_dispatch` slot wires the real `QuestDispatchAdapter` so the
     commit pipeline's fire-and-forget dispatch flows through the
     quest_generation agent. In production, swap the four constructor args
     (todo_repo / character_repo / quest_repo / llm) for DB-backed repos +
     `OpenAILLM` built from `ChatOpenAI(...).with_structured_output(...)`.
+
+    `cfg` is optional for backward compatibility with no-arg call sites.
+    Pass an `AppConfig` to opt into the Mi:dm provider switch via
+    `QUEST_LLM_PROVIDER=midm` + `MIDM_BASE_URL` + `MIDM_MODEL` env vars.
     """
     quest_dispatch = QuestDispatchAdapter(
         todo_repo=MemoryTodoQueryRepo(),
         character_repo=MemoryCharacterQueryRepo(),
         quest_repo=MemoryQuestPersistenceRepo(),
-        llm=FakeQuestLLM(),
+        llm=_build_quest_llm(cfg),
         today_fn=date.today,
     )
     return CommitPorts(
