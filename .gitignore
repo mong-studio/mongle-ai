@@ -37,3 +37,9 @@ data/interim/
 
 # Local storage outputs (LocalStorage adapter & character-creation debug logs)
 data/local_storage/
+
+# SFT training data (large files, managed separately)
+data/sft/
+
+# IDE extensions list
+vscode-extensions.txt
