@@ -171,3 +171,6 @@
   z-index: 100;
   width: 210px;
 }
+
+/* ───── TODO list panel — JS(_todo_panel_js)로 position:fixed 적용 ───── */
+/* 스타일은 app.py _todo_panel_js() 함수의 JS에서 inline style로 주입 */
