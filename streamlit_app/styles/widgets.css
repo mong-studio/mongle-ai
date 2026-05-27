@@ -112,6 +112,25 @@
   margin-top: 6px;
 }
 
+/* ───── Personality keyword pills ───── */
+.kw-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--wood-dark);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  margin-top: 4px;
+}
+.kw-count {
+  color: var(--wood-mid);
+  font-size: 8px;
+}
+div[role="dialog"] .stButton > button {
+  font-size: 11px !important;
+  padding: 6px 8px !important;
+  letter-spacing: 0 !important;
+}
+
 /* ───── Streamlit dialog (modal) ───── */
 div[role="dialog"] {
   background: var(--parchment) !important;
