@@ -88,13 +88,13 @@
 /* ───── Tag pill (todo step 1 & 2) ───── */
 .todo-tag-pill {
   display: inline-block;
-  background: var(--wood-dark);
-  color: var(--gold);
+  background: var(--parchment-light);
+  color: var(--wood-dark);
   font-family: 'DotGothic16', monospace;
   font-size: 11px;
   padding: 2px 8px;
   margin: 2px 2px;
-  border: 2px solid var(--ink);
+  border: 2px solid var(--wood-dark);
 }
 
 /* ───── TODO Step 2 row ───── */

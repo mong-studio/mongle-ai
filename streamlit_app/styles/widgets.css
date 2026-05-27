@@ -145,6 +145,11 @@ div[role="dialog"] .stButton > button {
   padding: 6px 14px !important;
   letter-spacing: 0 !important;
 }
+div[role="dialog"] .stButton > button[kind="primary"] {
+  background: var(--gold) !important;
+  color: var(--ink) !important;
+  border-color: var(--wood-dark) !important;
+}
 
 /* ───── Streamlit dialog (modal) ───── */
 div[role="dialog"] {
