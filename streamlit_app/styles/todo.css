@@ -75,6 +75,14 @@
   opacity: 0.5;
 }
 
+.todo-item.failed {
+  color: #c0392b;
+  text-decoration: line-through;
+  border-left-color: #c0392b;
+  background: rgba(192, 57, 43, 0.06);
+  opacity: 0.7;
+}
+
 /* ───── TODO modal title ───── */
 .todo-modal-title {
   font-family: 'Press Start 2P', monospace;
