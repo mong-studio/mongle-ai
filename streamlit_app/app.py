@@ -1182,14 +1182,17 @@ def _todo_list_section() -> None:
     if not todo_list:
         return
 
-    total = len(todo_list)
-    done_count = sum(
+    active_items = [(i, item) for i, item in enumerate(todo_list) if not item.get("failed", False)]
+    failed_count = len(todo_list) - len(active_items)
+    total        = len(active_items)
+    done_count   = sum(
         bool(st.session_state.get(f"todo_item_{i}", False))
-        for i in range(total)
+        for i, _ in active_items
     )
 
+    header_extra = f" · ✕{failed_count}" if failed_count else ""
     st.markdown(
-        f'<div class="todo-list-header">< 오늘의 할 일 &nbsp; {done_count} / {total} ></div>',
+        f'<div class="todo-list-header">< 오늘의 할 일 &nbsp; {done_count} / {total}{header_extra} ></div>',
         unsafe_allow_html=True,
     )
 
@@ -1200,6 +1203,15 @@ def _todo_list_section() -> None:
 
     for i, item in enumerate(todo_list):
         prev_done = prev_states.get(str(i), False)
+
+        # 실패 항목 — 체크박스 없이 빨간 취소선으로 표시
+        if item.get("failed", False):
+            st.markdown(
+                f'<div class="todo-item failed">✕ {item["title"]}</div>',
+                unsafe_allow_html=True,
+            )
+            prev_states[str(i)] = False
+            continue
 
         col_check, col_text = st.columns([1, 10])
         with col_check:
@@ -1306,7 +1318,6 @@ def _generate_and_store_feed_post(quest_data: dict, cfg: AppConfig | None) -> No
         todo_title  = quest_data.get("todo_title") or quest_data.get("quest_text", "")
         personality = quest_data.get("personality") or "밝고 활기참"
         speech_style = quest_data.get("speech_style") or "친근한 말투"
-        char_name   = quest_data["character_name"]
 
         quest_text_inner = quest_data.get("quest_text", todo_title)
         prompt = (
@@ -2149,10 +2160,47 @@ def main() -> None:
         existing: list[dict] = st.session_state.get("todo_list", [])
         existing.extend(committed)
         st.session_state["todo_list"] = existing
+        st.session_state["todo_list_date"] = date.today().isoformat()
         characters = repo.list_characters(user_id)
         _assign_quests(committed, characters, cfg)
         titles = ", ".join(c["title"] for c in committed)
         st.success(f"오늘의 할 일 {len(committed)}개가 등록되었어요 — {titles}")
+
+    # ── 자정 미완료 실패 처리 ────────────────────────────────────────────────
+    _today_str    = date.today().isoformat()
+    _todo_list    = st.session_state.get("todo_list", [])
+    _todo_list_dt = st.session_state.get("todo_list_date", _today_str)
+    _done_map     = st.session_state.get("todo_done_items", {})
+
+    if _todo_list and _todo_list_dt < _today_str:
+        _uncompleted = [
+            i for i, item in enumerate(_todo_list)
+            if not _done_map.get(str(i), False) and not item.get("failed", False)
+        ]
+        if _uncompleted:
+            _tokens     = st.session_state.get("tokens", 0)
+            _can_extend = (
+                _tokens >= 4
+                and st.session_state.get("todo_extended_date") != _today_str
+            )
+            _warn_col, _btn_col = st.columns([3, 1])
+            with _warn_col:
+                st.warning(f"🔴 어제 미완료 **{len(_uncompleted)}개** 항목이 실패했어요.")
+            with _btn_col:
+                if _can_extend and st.button(
+                    "🔄 연장 (토큰 -4)", key="midnight_extend", use_container_width=True
+                ):
+                    st.session_state["tokens"]            = _tokens - 4
+                    st.session_state["todo_list_date"]    = _today_str
+                    st.session_state["todo_extended_date"] = _today_str
+                    st.toast("🔄 TODO가 오늘까지 연장됐어요! 토큰 4개 소모")
+                    st.rerun()
+                if st.button("실패 확인", key="midnight_dismiss", use_container_width=True):
+                    for _i in _uncompleted:
+                        _todo_list[_i]["failed"] = True
+                    st.session_state["todo_list"]      = _todo_list
+                    st.session_state["todo_list_date"] = _today_str
+                    st.rerun()
 
     if "last_created" in st.session_state:
         entity: CharacterEntity = st.session_state.pop("last_created")
