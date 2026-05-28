@@ -1693,15 +1693,84 @@ def _calendar_modal(characters: list, cfg: AppConfig | None) -> None:
                     st.rerun()
 
 
+def _extract_plan(text: str) -> tuple[list[dict], str] | None:
+    """응답에서 ===PLAN=== ... ===END=== 블록을 파싱 → (events, summary) 반환."""
+    import re  # noqa: PLC0415
+
+    match = re.search(r"===PLAN===\s*(.*?)\s*===END===", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        data      = json.loads(match.group(1))
+        summary   = data.get("summary", "")
+        raw_evs   = data.get("events", [])
+        events: list[dict] = []
+        for ev in raw_evs:
+            start = ev.get("start_date", date.today().isoformat())
+            end   = ev.get("end_date", start)
+            tag   = ev.get("tag", "일반")
+            if tag not in _CAL_TAG_COLOR:
+                tag = "일반"
+            events.append({
+                "event_id":    str(uuid4()),
+                "title":       str(ev.get("title", ""))[:20],
+                "description": "",
+                "start_date":  start,
+                "end_date":    end,
+                "tag":         tag,
+                "created_at":  datetime.now().strftime("%-m월 %-d일 %H:%M"),
+            })
+        return events, summary
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def _call_plan_llm(history: list[dict], today: date, api_key: str) -> str:
+    """이장님 LLM 멀티턴 호출 — 정보 충분 시 ===PLAN=== 블록 포함 응답 반환."""
+    from langchain_openai import ChatOpenAI  # noqa: PLC0415
+
+    system = (
+        "당신은 몽글마을의 다정하고 지혜로운 이장님입니다. "
+        "사용자가 목표나 장기 일정을 이야기하면 함께 플랜을 만들어드려요.\n\n"
+        "대화 규칙:\n"
+        "- 목표·기한·하루 가용 시간 등 정보가 부족하면 자연스럽게 추가 질문을 하세요.\n"
+        "- 충분한 정보가 모이면 구체적인 일자별 플랜을 만들고 아래 포맷으로 답변하세요.\n"
+        "- 평소에는 친근하고 따뜻한 이장님 말투로 대화하세요.\n"
+        "- 답변은 1500자를 넘지 않게 하세요.\n\n"
+        "플랜 생성 포맷 (정보가 충분할 때만):\n"
+        "===PLAN===\n"
+        "{\n"
+        '  "summary": "플랜 요약 (200자 이내)",\n'
+        '  "events": [\n'
+        '    {"title": "일정 제목 (20자 이내)", "start_date": "YYYY-MM-DD", '
+        '"end_date": "YYYY-MM-DD", "tag": "학습"},\n'
+        "    ...\n"
+        "  ]\n"
+        "}\n"
+        "===END===\n\n"
+        f"tag 가능 값: 일반·업무·건강·학습·취미\n"
+        f"오늘 날짜: {today.isoformat()}"
+    )
+    llm  = ChatOpenAI(model="gpt-4o-mini", api_key=api_key, max_tokens=1000)
+    msgs = [{"role": "system", "content": system}] + [
+        {"role": m["role"], "content": m["content"]} for m in history
+    ]
+    resp = llm.invoke(msgs)
+    return str(resp.content).strip()[:1500]
+
+
 @st.dialog("< LONG-TERM PLAN >  장기 플랜 짜기", width="large")
-def _plan_modal() -> None:
+def _plan_modal(cfg: AppConfig | None) -> None:
     st.markdown(
         '<div class="modal-sub">이장님과 대화하며 일자별 플랜을 만들어요</div>',
         unsafe_allow_html=True,
     )
 
-    history: list[dict] = st.session_state.get("plan_history", [])
+    history: list[dict]    = st.session_state.get("plan_history", [])
+    pending: list[dict] | None = st.session_state.get("plan_pending_events")
+    summary: str           = st.session_state.get("plan_summary", "")
 
+    # ── 채팅 말풍선 ───────────────────────────────────────────────────────────
     if not history:
         st.markdown(
             '<div class="plan-chat-wrap"><div class="plan-empty">'
@@ -1711,14 +1780,14 @@ def _plan_modal() -> None:
         )
     else:
         bubbles = []
-        for msg in history:
-            role = msg["role"]
-            label = "나" if role == "user" else "이장"
+        for m in history:
+            role  = m["role"]                       # "user" | "assistant"
+            label = "나" if role == "user" else "이장님"
             bubbles.append(
                 f'<div class="plan-chat-row {role}">'
                 f'<div>'
                 f'<div class="plan-chat-label">{label}</div>'
-                f'<div class="plan-chat-bubble">{msg["text"]}</div>'
+                f'<div class="plan-chat-bubble">{m["content"]}</div>'
                 f"</div></div>"
             )
         st.markdown(
@@ -1726,40 +1795,98 @@ def _plan_modal() -> None:
             unsafe_allow_html=True,
         )
 
+    # ── 플랜 확정 대기 UI ─────────────────────────────────────────────────────
+    if pending is not None:
+        st.markdown(
+            f'<div class="plan-pending-card">'
+            f'<div class="plan-pending-title">📅 캘린더에 추가할 일정</div>'
+            f'<div class="plan-pending-summary">{summary}</div>'
+            + "".join(
+                f'<div class="plan-pending-event">'
+                f'<span class="plan-pending-dot" style="background:{_CAL_TAG_COLOR.get(ev["tag"], "#b5934a")}"></span>'
+                f'{ev["title"]}'
+                f'<span class="plan-pending-date">{ev["start_date"]}'
+                + (f' ~ {ev["end_date"]}' if ev["end_date"] != ev["start_date"] else "")
+                + f'</span></div>'
+                for ev in pending
+            )
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        confirm_col, reject_col = st.columns(2)
+        with confirm_col:
+            if st.button("📅 캘린더에 추가 →", key="plan_confirm", type="primary", use_container_width=True):
+                cal_events: list[dict] = st.session_state.get("calendar_events", [])
+                cal_events.extend(pending)
+                st.session_state["calendar_events"] = cal_events
+                st.session_state.pop("plan_pending_events", None)
+                st.session_state.pop("plan_summary", None)
+                st.session_state["modal"] = None
+                st.toast("📅 플랜이 캘린더에 추가됐어요!")
+                st.rerun()
+        with reject_col:
+            if st.button("↩ 다시 작성", key="plan_reject", use_container_width=True):
+                st.session_state.pop("plan_pending_events", None)
+                st.session_state.pop("plan_summary", None)
+                st.rerun()
+
+    # ── 입력 영역 ─────────────────────────────────────────────────────────────
+    _plan_msg_key = f"plan_msg_{st.session_state.get('plan_msg_counter', 0)}"
     msg = st.text_area(
         "메시지",
-        height=120,
+        height=100,
         max_chars=600,
         placeholder="목표, 기한, 하루 가용 시간 등을 알려주세요.",
-        key="plan_msg",
+        key=_plan_msg_key,
     )
     st.caption(f"{len(msg)} / 600")
 
-    cols = st.columns([1, 1, 1])
-    if cols[0].button("닫기", key="plan_close", width="stretch"):
-        st.session_state["modal"] = None
-        st.rerun()
-    if cols[1].button("대화 초기화", key="plan_reset", width="stretch"):
-        st.session_state["plan_history"] = []
-        st.rerun()
-    if cols[2].button(
-        "보내기 →",
-        key="plan_send",
-        type="primary",
-        width="stretch",
-        disabled=not msg.strip(),
-    ):
-        history.append({"role": "user", "text": msg.strip()})
-        # TODO: hook up agents/todo_creation/multi_turn/pipeline.py
-        # For now, stub a follow-up question so the UX shape is visible.
-        history.append(
-            {
-                "role": "chief",
-                "text": "좋아요. 목표 점수나 결과는 어떻게 되나요? 하루에 얼마나 시간을 낼 수 있어요?",
-            }
-        )
-        st.session_state["plan_history"] = history
-        st.rerun()
+    close_col, reset_col, send_col = st.columns([1, 1, 1])
+    with close_col:
+        if st.button("닫기", key="plan_close", use_container_width=True):
+            st.session_state["modal"] = None
+            st.rerun()
+    with reset_col:
+        if st.button("대화 초기화", key="plan_reset", use_container_width=True):
+            st.session_state["plan_history"] = []
+            st.session_state.pop("plan_pending_events", None)
+            st.session_state.pop("plan_summary", None)
+            st.rerun()
+    with send_col:
+        if st.button(
+            "보내기 →",
+            key="plan_send",
+            type="primary",
+            use_container_width=True,
+            disabled=not msg.strip(),
+        ):
+            new_history = history + [{"role": "user", "content": msg.strip()}]
+
+            if cfg:
+                with st.spinner("이장님이 생각 중이에요..."):
+                    try:
+                        response = _call_plan_llm(new_history, date.today(), cfg.openai_api_key)
+                    except Exception:  # noqa: BLE001
+                        response = "죄송해요, 잠시 연결이 어렵네요. 다시 시도해볼까요? 🏡"
+            else:
+                response = "AI 설정이 필요해요. 환경변수를 확인해주세요."
+
+            # 플랜 블록 추출
+            plan_result = _extract_plan(response)
+            if plan_result:
+                events, plan_summary = plan_result
+                clean_text = response[:response.find("===PLAN===")].strip()
+                if not clean_text:
+                    clean_text = "플랜을 완성했어요! 아래 일정을 캘린더에 추가해볼까요? 📅"
+                new_history.append({"role": "assistant", "content": clean_text})
+                st.session_state["plan_pending_events"] = events
+                st.session_state["plan_summary"]        = plan_summary
+            else:
+                new_history.append({"role": "assistant", "content": response})
+
+            st.session_state["plan_history"] = new_history
+            st.session_state["plan_msg_counter"] = st.session_state.get("plan_msg_counter", 0) + 1
+            st.rerun()
 
 
 @st.dialog("< DAILY RETRO >  오늘 하루는 어땠어?", width="large")
@@ -2094,7 +2221,7 @@ def main() -> None:
     elif modal == "todo":
         _todo_modal(characters)
     elif modal == "plan":
-        _plan_modal()
+        _plan_modal(cfg)
     elif modal == "reflection":
         _reflection_modal()
     elif modal == "feed":
