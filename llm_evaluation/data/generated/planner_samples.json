@@ -1,0 +1,1527 @@
+[
+  {
+    "planner_sample_id": "PLAN-SAMPLE-001",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-002",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-003",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-004",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-005",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-006",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-007",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-008",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-009",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-010",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-011",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-012",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-013",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-014",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-015",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-016",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-017",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-018",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-019",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-020",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-021",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-022",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-023",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-024",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-025",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-026",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-027",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-028",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-029",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-030",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-031",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-032",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-033",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-034",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-035",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-036",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-037",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-038",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-039",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-040",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-041",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-042",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-043",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-044",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "자격증 공부 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "핵심 이론 1회독",
+          "tag": "자격증",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "오답 노트 정리",
+          "tag": "자격증",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "자격증 공부 1차 진행",
+          "description": "핵심 이론 1회독",
+          "tag": "자격증"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "자격증 공부 2차 진행",
+          "description": "오답 노트 정리",
+          "tag": "자격증"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-045",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-046",
+    "user_message": "나 3일 후 정처기 필기 시험인데 3단원까지만 완료했어. 일정 나눠줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "정처기 필기 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-20",
+          "title": "4과목 핵심 개념 정리",
+          "tag": "정처기",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-21",
+          "title": "기출 1회 풀이",
+          "tag": "정처기",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-20",
+          "title": "정처기 필기 1차 진행",
+          "description": "4과목 핵심 개념 정리",
+          "tag": "정처기"
+        },
+        {
+          "date": "2026-05-21",
+          "title": "정처기 필기 2차 진행",
+          "description": "기출 1회 풀이",
+          "tag": "정처기"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-047",
+    "user_message": "다음 주 프로젝트 발표까지 하루 2시간 가능해. 준비 계획 짜줘.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "프로젝트 발표 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "발표 흐름 정리",
+          "tag": "프로젝트",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "슬라이드 다듬기",
+          "tag": "프로젝트",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "프로젝트 발표 1차 진행",
+          "description": "발표 흐름 정리",
+          "tag": "프로젝트"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "프로젝트 발표 2차 진행",
+          "description": "슬라이드 다듬기",
+          "tag": "프로젝트"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-048",
+    "user_message": "이번 달부터 주 3회 운동 루틴을 만들고 싶어. 하루 40분 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "운동 루틴 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-22",
+          "title": "가벼운 전신 운동",
+          "tag": "운동",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-23",
+          "title": "스트레칭 기록",
+          "tag": "운동",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-22",
+          "title": "운동 루틴 1차 진행",
+          "description": "가벼운 전신 운동",
+          "tag": "운동"
+        },
+        {
+          "date": "2026-05-23",
+          "title": "운동 루틴 2차 진행",
+          "description": "스트레칭 기록",
+          "tag": "운동"
+        }
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-049",
+    "user_message": "자격증 시험까지 2주 남았고 평일 1시간, 주말 3시간 공부할 수 있어.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "clarifying_question",
+      "message": "하루에 어느 정도 시간을 쓸 수 있어?",
+      "missing_fields": [
+        "available_hours_per_day"
+      ]
+    }
+  },
+  {
+    "planner_sample_id": "PLAN-SAMPLE-050",
+    "user_message": "주말 전에 집안일을 나눠서 끝내고 싶어. 오늘 1시간 가능해.",
+    "current_date": "2026-05-20",
+    "output": {
+      "response_type": "plan",
+      "summary": "집안일 정리 목표를 무리하지 않게 나누어 핵심 작업부터 진행합니다.",
+      "todos": [
+        {
+          "date": "2026-05-21",
+          "title": "공간별 정리",
+          "tag": "집안일",
+          "estimated_minutes": 90
+        },
+        {
+          "date": "2026-05-22",
+          "title": "분리수거 준비",
+          "tag": "집안일",
+          "estimated_minutes": 60
+        }
+      ],
+      "calendar_events": [
+        {
+          "date": "2026-05-21",
+          "title": "집안일 정리 1차 진행",
+          "description": "공간별 정리",
+          "tag": "집안일"
+        },
+        {
+          "date": "2026-05-22",
+          "title": "집안일 정리 2차 진행",
+          "description": "분리수거 준비",
+          "tag": "집안일"
+        }
+      ]
+    }
+  }
+]
