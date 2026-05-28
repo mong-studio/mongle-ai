@@ -1,0 +1,180 @@
+/* ───── Calendar modal — month header ───── */
+.cal-month-header {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: var(--wood-dark);
+  letter-spacing: 3px;
+  padding: 6px 0 14px;
+}
+
+/* ───── Calendar grid ───── */
+.cal-grid {
+  border: 3px solid var(--wood-dark);
+  overflow: hidden;
+  margin-bottom: 8px;
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.cal-day-headers {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: var(--wood-dark);
+}
+.cal-day-header {
+  text-align: center;
+  padding: 8px 2px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: var(--parchment-light);
+}
+.cal-day {
+  text-align: center;
+  padding: 8px 2px 4px;
+  min-height: 52px;
+  border-right: 1px solid var(--parchment-dark);
+  border-bottom: 1px solid var(--parchment-dark);
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--ink);
+}
+.cal-day.empty {
+  background: var(--parchment);
+  opacity: 0.4;
+}
+.cal-day.today {
+  background: var(--gold);
+  font-weight: bold;
+  color: var(--ink);
+}
+
+/* 이벤트 도트 묶음 */
+.cal-dots {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 4px;
+  min-height: 7px;
+}
+.cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cal-dot.todo-dot {
+  background: var(--wood-mid) !important;
+  border-radius: 0;   /* TODO는 네모 도트로 구분 */
+}
+
+/* ───── 태그 범례 ───── */
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 14px;
+  font-family: 'DotGothic16', monospace;
+  font-size: 12px;
+  color: var(--wood-mid);
+}
+.cal-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cal-legend-dot.todo-dot {
+  border-radius: 0;
+  background: var(--wood-mid) !important;
+}
+.cal-legend-label {
+  margin-right: 8px;
+}
+
+/* ───── 날짜 레이블 ───── */
+.cal-date-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--wood-dark);
+  margin: 14px 0 6px;
+  letter-spacing: 1px;
+  border-left: 4px solid var(--gold);
+  padding-left: 10px;
+}
+
+/* ───── 이벤트 아이템 ───── */
+.cal-event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--parchment-light);
+  border: 2px solid var(--wood-dark);
+  padding: 7px 10px;
+  margin: 3px 0;
+}
+.cal-event-tag-bar {
+  display: inline-block;
+  width: 4px;
+  min-height: 18px;
+  align-self: stretch;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.cal-event-title {
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--ink);
+  flex: 1;
+}
+.cal-event-desc {
+  display: block;
+  font-family: 'DotGothic16', monospace;
+  font-size: 12px;
+  color: var(--wood-mid);
+  margin-top: 2px;
+}
+
+/* ───── Add form header ───── */
+.cal-add-card-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--wood-dark);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px dashed var(--wood-mid);
+}
+
+/* ───── TODO 아이템 (읽기 전용) ───── */
+.cal-todo-item {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--ink);
+  padding: 4px 10px;
+  border-left: 3px solid var(--wood-mid);
+  background: var(--parchment);
+  margin: 2px 0;
+  opacity: 0.8;
+}
+.cal-todo-item.done {
+  color: var(--wood-mid);
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* ───── Empty state ───── */
+.cal-empty {
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--wood-mid);
+  text-align: center;
+  padding: 28px 0;
+  opacity: 0.7;
+}

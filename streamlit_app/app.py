@@ -7,7 +7,7 @@ import random
 import sys
 import traceback
 import warnings
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
@@ -82,6 +82,8 @@ _CSS_FILES = [
     "chief.css",
     "todo.css",
     "quest.css",
+    "feed.css",
+    "calendar.css",
     "widgets.css",
     "sidebar.css",
 ]
@@ -335,48 +337,40 @@ def _date_panel(today: date, todo_entries: list[tuple[str, bool]] | None = None)
 
 
 
-def _diary_icon_panel() -> None:
-    """회고 아이콘 버튼 — 타이머/투두 패널과 동일한 JS 패턴으로 날짜 패널 왼쪽에 고정."""
-    with st.container():
-        st.markdown('<span class="mg-diary-marker"></span>', unsafe_allow_html=True)
-        if st.button("📓", key="open_reflection_diary"):
-            st.session_state["modal"] = "reflection"
-            st.rerun()
-
+def _icon_button_js(marker_class: str, right_px: int, run_id_key: str) -> None:
+    """마커 클래스 기반으로 아이콘 버튼 컨테이너를 position:fixed 로 배치하는 JS.
+    run ID 패턴으로 구 iframe 자동 종료 — todo 패널과 동일한 방식."""
     components.html(
-        """
+        f"""
         <script>
-        (function() {
-          if (window.__mg_diary_pos) return;
-          window.__mg_diary_pos = true;
-
-          function run() {
-            try {
+        (function() {{
+          var myId = (window.parent.{run_id_key} || 0) + 1;
+          window.parent.{run_id_key} = myId;
+          var iv;
+          function applyIcon() {{
+            if (window.parent.{run_id_key} !== myId) {{ clearInterval(iv); return; }}
+            try {{
               var doc = window.parent.document;
-              var marker = doc.querySelector('.mg-diary-marker');
+              var marker = doc.querySelector('{marker_class}');
               if (!marker) return;
               var el = marker;
-              while (el) {
+              while (el) {{
                 if (el.getAttribute && el.getAttribute('data-testid') === 'stVerticalBlock') break;
                 el = el.parentElement;
-              }
+              }}
               if (!el) return;
-
-              /* 날짜 패널(right:16px, width:210px) 바로 왼쪽에 고정 */
-              el.style.setProperty('position',    'fixed',                                   'important');
-              el.style.setProperty('top',         '74px',                                    'important');
-              el.style.setProperty('right',       '234px',                                   'important');
-              el.style.setProperty('z-index',     '100',                                     'important');
-              el.style.setProperty('width',       'auto',                                    'important');
-              el.style.setProperty('background',  '#1a1a1a',                                 'important');
-              el.style.setProperty('border',      '4px solid #3d2818',                       'important');
-              el.style.setProperty('outline',     '2px solid #000',                          'important');
-              el.style.setProperty('padding',     '8px 10px',                                'important');
-              el.style.setProperty('box-shadow',  'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
-
-              /* 버튼 자체를 투명 아이콘처럼 */
+              el.style.setProperty('position',   'fixed',   'important');
+              el.style.setProperty('top',        '74px',    'important');
+              el.style.setProperty('right',      '{right_px}px', 'important');
+              el.style.setProperty('z-index',    '100',     'important');
+              el.style.setProperty('width',      'auto',    'important');
+              el.style.setProperty('background', '#1a1a1a', 'important');
+              el.style.setProperty('border',     '4px solid #3d2818', 'important');
+              el.style.setProperty('outline',    '2px solid #000',    'important');
+              el.style.setProperty('padding',    '8px 10px','important');
+              el.style.setProperty('box-shadow', 'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
               var btn = el.querySelector('button');
-              if (btn) {
+              if (btn) {{
                 btn.style.setProperty('background',  'transparent', 'important');
                 btn.style.setProperty('border',      'none',        'important');
                 btn.style.setProperty('box-shadow',  'none',        'important');
@@ -388,17 +382,36 @@ def _diary_icon_panel() -> None:
                 btn.style.setProperty('color',       '#f4ead6',     'important');
                 btn.style.setProperty('width',       '28px',        'important');
                 btn.style.setProperty('height',      '28px',        'important');
-              }
-            } catch(e) {}
-          }
-
-          run();
-          setInterval(run, 300);
-        })();
+              }}
+            }} catch(e) {{}}
+          }}
+          applyIcon();
+          iv = setInterval(applyIcon, 300);
+        }})();
         </script>
         """,
         height=0,
     )
+
+
+def _diary_icon_panel() -> None:
+    """회고 아이콘 버튼 — 날짜 패널 바로 왼쪽에 고정."""
+    with st.container():
+        st.markdown('<span class="mg-diary-marker" style="display:none"></span>', unsafe_allow_html=True)
+        if st.button("📓", key="open_reflection_diary"):
+            st.session_state["modal"] = "reflection"
+            st.rerun()
+    _icon_button_js('.mg-diary-marker', 234, '__mg_diary_run_id')
+
+
+def _feed_icon_panel() -> None:
+    """피드 아이콘 버튼 — 회고 버튼 바로 왼쪽에 고정."""
+    with st.container():
+        st.markdown('<span class="mg-feed-marker" style="display:none"></span>', unsafe_allow_html=True)
+        if st.button("📱", key="open_feed"):
+            st.session_state["modal"] = "feed"
+            st.rerun()
+    _icon_button_js('.mg-feed-marker', 298, '__mg_feed_run_id')
 
 
 @lru_cache(maxsize=1)
@@ -459,11 +472,16 @@ def _chief_house_cta() -> None:
         )
         label = "🏠  이장님 집 두드리기"
 
-    cols = st.columns([2, 2, 2])
-    with cols[1]:
+    _, chief_col, cal_col, _ = st.columns([2, 3, 1, 2])
+    with chief_col:
         if st.button(label, key="knock_chief", type="primary", width="stretch"):
             st.session_state["chief_open"] = not is_open
             st.session_state["modal"] = None
+            st.rerun()
+    with cal_col:
+        if st.button("📅", key="open_calendar", width="stretch"):
+            st.session_state["modal"] = "calendar"
+            st.session_state["chief_open"] = False
             st.rerun()
 
 
@@ -566,7 +584,7 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
         "캐릭터 설명 *",
         height=130,
         placeholder="어떤 친구인가요?",
-        max_chars=500,
+        max_chars=200,
         key="char_persona",
     )
 
@@ -664,32 +682,19 @@ def _todo_modal(characters: list) -> None:
         direct_items: list[dict] = st.session_state.get("todo_direct", [])
         input_ver = st.session_state.get("todo_direct_input_ver", 0)
         direct_tags: list[str] = st.session_state.get("todo_direct_tags", [])
+        direct_custom_tags: list[str] = st.session_state.get("todo_direct_custom_tags", [])
+        custom_input_open: bool = st.session_state.get("todo_custom_input_open", False)
 
-        # 1) 할 일 입력 + 추가 버튼
-        add_col, btn_col = st.columns([8, 2])
-        with add_col:
-            new_item = st.text_input(
-                "직접 추가",
-                placeholder="예) 세탁기 돌리기",
-                key=f"todo_direct_input_{input_ver}",
-                label_visibility="collapsed",
-            )
-        with btn_col:
-            if st.button("추가 +", key="todo_direct_add", width="stretch"):
-                if new_item.strip():
-                    direct_items.append({
-                        "title": new_item.strip(),
-                        "due_date": date.today().isoformat(),
-                        "checked": False,
-                        "tags": list(direct_tags),
-                        "todo_id": str(uuid4()),
-                    })
-                    st.session_state["todo_direct"] = direct_items
-                    st.session_state["todo_direct_input_ver"] = input_ver + 1
-                    st.session_state["todo_direct_tags"] = []  # 추가 후 태그 초기화
-                    st.rerun()
+        # 1) 할 일 입력 (단독 한 줄)
+        new_item = st.text_input(
+            "직접 추가",
+            placeholder="예) 세탁기 돌리기 (최대 20자)",
+            max_chars=20,
+            key=f"todo_direct_input_{input_ver}",
+            label_visibility="collapsed",
+        )
 
-        # 2) 키워드 선택 레이블 + 태그 버튼
+        # 2) 키워드 선택 레이블 + 선택된 태그 pills
         tag_label_parts = "".join(
             f'<span class="todo-tag-pill" style="opacity:0.9">{t}</span>'
             for t in direct_tags
@@ -701,6 +706,8 @@ def _todo_modal(characters: list) -> None:
             f'</div>',
             unsafe_allow_html=True,
         )
+
+        # 3) 프리셋 태그 버튼 (토글)
         dt_cols = st.columns(len(_PRESET_TAGS))
         for _ti, _tag in enumerate(_PRESET_TAGS):
             _sel = _tag in direct_tags
@@ -716,6 +723,82 @@ def _todo_modal(characters: list) -> None:
                     else:
                         direct_tags.append(_tag)
                     st.session_state["todo_direct_tags"] = direct_tags
+                    st.rerun()
+
+        # 4) 커스텀 태그 pill (프리셋과 동일한 5컬럼 기준, 누르면 삭제)
+        removed_tag: str | None = None
+        if direct_custom_tags:
+            # 5개씩 한 줄에 (프리셋과 동일한 너비)
+            for _row_start in range(0, len(direct_custom_tags), len(_PRESET_TAGS)):
+                _row = direct_custom_tags[_row_start: _row_start + len(_PRESET_TAGS)]
+                _padded = _row + [None] * (len(_PRESET_TAGS) - len(_row))
+                _cust_cols = st.columns(len(_PRESET_TAGS))
+                for _ci, _ctag in enumerate(_padded):
+                    if _ctag is not None:
+                        with _cust_cols[_ci]:
+                            if st.button(
+                                f"{_ctag}  ✕",
+                                key=f"custom_pill_{_row_start + _ci}",
+                                type="primary",
+                                use_container_width=True,
+                            ):
+                                removed_tag = _ctag
+        if removed_tag:
+            direct_custom_tags = [t for t in direct_custom_tags if t != removed_tag]
+            direct_tags = [t for t in direct_tags if t != removed_tag]
+            st.session_state["todo_direct_custom_tags"] = direct_custom_tags
+            st.session_state["todo_direct_tags"] = direct_tags
+            st.rerun()
+
+        # 5) 커스텀 태그 입력 or "+ 직접 추가" 버튼
+        if custom_input_open:
+            custom_tag_ver = st.session_state.get("todo_custom_tag_ver", 0)
+            ci_col, ci_ok_col, ci_cancel_col = st.columns([5, 1, 1])
+            with ci_col:
+                custom_val = st.text_input(
+                    "새 키워드",
+                    placeholder="새 키워드 입력 (최대 10자)",
+                    key=f"todo_custom_tag_{custom_tag_ver}",
+                    max_chars=10,
+                    label_visibility="collapsed",
+                )
+            with ci_ok_col:
+                if st.button("확인", key="custom_tag_ok", use_container_width=True):
+                    stripped = custom_val.strip()
+                    if stripped and stripped not in direct_tags:
+                        direct_tags.append(stripped)
+                        direct_custom_tags.append(stripped)
+                        st.session_state["todo_direct_tags"] = direct_tags
+                        st.session_state["todo_direct_custom_tags"] = direct_custom_tags
+                        st.session_state["todo_custom_tag_ver"] = custom_tag_ver + 1
+                    st.session_state["todo_custom_input_open"] = False
+                    st.rerun()
+            with ci_cancel_col:
+                if st.button("취소", key="custom_tag_cancel", use_container_width=True):
+                    st.session_state["todo_custom_input_open"] = False
+                    st.rerun()
+        else:
+            if st.button("+ 직접 추가", key="open_custom_tag_input"):
+                st.session_state["todo_custom_input_open"] = True
+                st.rerun()
+
+        # 6) 추가 버튼 — 키워드 선택 후 맨 마지막
+        _, add_btn_col = st.columns([6, 2])
+        with add_btn_col:
+            if st.button("추가 →", key="todo_direct_add", use_container_width=True, type="primary"):
+                if new_item.strip():
+                    direct_items.append({
+                        "title": new_item.strip(),
+                        "due_date": date.today().isoformat(),
+                        "checked": False,
+                        "tags": list(direct_tags),
+                        "todo_id": str(uuid4()),
+                    })
+                    st.session_state["todo_direct"] = direct_items
+                    st.session_state["todo_direct_input_ver"] = input_ver + 1
+                    st.session_state["todo_direct_tags"] = []
+                    st.session_state["todo_direct_custom_tags"] = []
+                    st.session_state["todo_custom_input_open"] = False
                     st.rerun()
 
         if direct_items:
@@ -881,7 +964,8 @@ def _run_todo_pipeline(text: str, user_id: str, cfg: AppConfig) -> list[dict]:
 
 def _reset_todo_state() -> None:
     for key in ("todo_text", "todo_candidates", "todo_direct", "todo_direct_input_ver",
-                "todo_tags", "todo_direct_tags", "todo_step", "tag_custom_open"):
+                "todo_tags", "todo_direct_tags", "todo_step", "tag_custom_open",
+                "todo_custom_tag_ver", "todo_direct_custom_tags", "todo_custom_input_open"):
         st.session_state.pop(key, None)
 
 
@@ -934,11 +1018,21 @@ def _assign_quests(new_todos: list[dict], characters: list, cfg: AppConfig | Non
     quests: dict[str, dict] = st.session_state.get("quest_assignments", {})
     llm = _build_quest_llm(cfg)
 
+    # 하루 5개 제한
+    today_str   = date.today().isoformat()
+    quest_date  = st.session_state.get("quest_date", "")
+    if quest_date != today_str:
+        st.session_state["quest_date"]  = today_str
+        st.session_state["quests_today"] = 0
+    quests_today: int = st.session_state.get("quests_today", 0)
+
     char_pool = list(characters)  # 라운드로빈 풀
     random.shuffle(char_pool)
     pool_cycle = char_pool.copy()
 
     for item in new_todos:
+        if quests_today >= 5:
+            break
         todo_id = item.get("todo_id")
         if not todo_id or todo_id in quests:
             continue
@@ -971,8 +1065,12 @@ def _assign_quests(new_todos: list[dict], characters: list, cfg: AppConfig | Non
             "character_image": char.image_url,
             "quest_text": quest_text,
             "todo_title": item["title"],
+            "personality": getattr(char, "personality", "") or "",
+            "speech_style": getattr(char, "speech_style", "") or "",
             "done": False,
         }
+        quests_today += 1
+        st.session_state["quests_today"] = quests_today
 
     st.session_state["quest_assignments"] = quests
 
@@ -1102,13 +1200,24 @@ def _todo_list_section() -> None:
                 unsafe_allow_html=True,
             )
 
-        # 새로 완료된 항목 → 연결된 퀘스트 완료 처리 + 토큰 +1
+        # 새로 완료된 항목 → 연결된 퀘스트 완료 처리 + 토큰 +1 (일일 상한 10개)
         if is_done and not prev_done:
-            st.session_state["tokens"] = st.session_state.get("tokens", 5) + 1
+            today_str   = date.today().isoformat()
+            token_date  = st.session_state.get("todo_token_date", "")
+            if token_date != today_str:
+                st.session_state["todo_token_date"]  = today_str
+                st.session_state["todo_tokens_today"] = 0
+            if st.session_state.get("todo_tokens_today", 0) < 10:
+                st.session_state["tokens"] = st.session_state.get("tokens", 5) + 1
+                st.session_state["todo_tokens_today"] = st.session_state.get("todo_tokens_today", 0) + 1
             todo_id = item.get("todo_id")
             if todo_id and todo_id in quests and not quests[todo_id].get("done"):
                 quests[todo_id]["done"] = True
                 quest_completed = quests[todo_id]["character_name"]
+                # 피드 게시물 생성 대기 목록에 추가
+                pending = st.session_state.get("pending_feed_quests", [])
+                pending.append(todo_id)
+                st.session_state["pending_feed_quests"] = pending
 
         prev_states[str(i)] = is_done
 
@@ -1125,9 +1234,448 @@ def _todo_list_section() -> None:
         st.session_state["quest_completed_msg"] = quest_completed
         st.rerun()
 
-    # CSS :has() 선택자가 이 컨테이너를 position:fixed 패널로 만든다.
-    # layout.css 의 .mg-todo-anchor 규칙 참조 — JS iframe 불필요.
+    # JS: mg-todo-anchor 에서 walk-up → 올바른 stVerticalBlock에 position:fixed 적용
+    # 갤러리 오염 방지: .gallery-title 포함 시 스킵 / run ID로 구 iframe 자기 종료
+    components.html(
+        """
+        <script>
+        (function() {
+          var myId = (window.parent.__mg_todo_run_id || 0) + 1;
+          window.parent.__mg_todo_run_id = myId;
+          var iv;
+          function run() {
+            if (window.parent.__mg_todo_run_id !== myId) { clearInterval(iv); return; }
+            try {
+              var doc = window.parent.document;
+              var anchor = doc.querySelector('.mg-todo-anchor');
+              if (!anchor) return;
+              var el = anchor;
+              while (el) {
+                if (el.getAttribute && el.getAttribute('data-testid') === 'stVerticalBlock') break;
+                el = el.parentElement;
+              }
+              if (!el) return;
+              if (el.querySelector('.gallery-title')) return;  // 갤러리 블록이면 스킵
+              el.style.setProperty('position',   'fixed',   'important');
+              el.style.setProperty('top',        '210px',   'important');
+              el.style.setProperty('right',      '16px',    'important');
+              el.style.setProperty('width',      '210px',   'important');
+              el.style.setProperty('z-index',    '100',     'important');
+              el.style.setProperty('box-sizing', 'border-box', 'important');
+              el.style.setProperty('background', '#1a1a1a', 'important');
+              el.style.setProperty('border',     '4px solid #3d2818', 'important');
+              el.style.setProperty('outline',    '2px solid #000',    'important');
+              el.style.setProperty('padding',    '14px 16px', 'important');
+              el.style.setProperty('box-shadow', 'inset 0 0 0 2px #5a3a1f, 6px 6px 0 rgba(0,0,0,0.55)', 'important');
+              el.style.setProperty('max-height', '340px',  'important');
+              el.style.setProperty('overflow-y', 'auto',   'important');
+            } catch(e) {}
+          }
+          run();
+          iv = setInterval(run, 300);
+        })();
+        </script>
+        """,
+        height=0,
+    )
 
+
+
+def _generate_and_store_feed_post(quest_data: dict, cfg: AppConfig | None) -> None:
+    """퀘스트 완료 데이터로 피드 게시물을 생성해 session_state 에 저장한다."""
+
+    async def _llm_caption() -> str:
+        from langchain_openai import ChatOpenAI  # noqa: PLC0415
+
+        llm = ChatOpenAI(model=cfg.model, api_key=cfg.openai_api_key, max_tokens=300)
+        todo_title  = quest_data.get("todo_title") or quest_data.get("quest_text", "")
+        personality = quest_data.get("personality") or "밝고 활기참"
+        speech_style = quest_data.get("speech_style") or "친근한 말투"
+        char_name   = quest_data["character_name"]
+
+        quest_text_inner = quest_data.get("quest_text", todo_title)
+        prompt = (
+            f"퀘스트: {quest_text_inner}\n"
+            f"말투: {speech_style} / 성격: {personality}\n\n"
+            "이 퀘스트를 직접 수행한 1인칭 SNS 게시글을 써주세요.\n"
+            "조건:\n"
+            "- 퀘스트 내용을 상상해서 무슨 일이 있었는지 구체적으로\n"
+            "  (예: '북쪽 언덕에서 놀이공원 찾기' → '오늘은 놀이공원을 찾으러 북쪽 언덕을 샅샅이 뒤졌어. 찾았을 때 너무 기뻐서 소리질렀다!!! 🎡')\n"
+            "- 이름 언급 없이, 감정과 현장감이 생생하게\n"
+            "- 한국어, 140자 이내, 이모지 1~2개, 해시태그 없이"
+        )
+        resp = await llm.ainvoke(prompt)
+        return str(resp.content).strip()[:140]
+
+    quest_text = quest_data.get("quest_text", "")
+    todo_title = quest_data.get("todo_title") or quest_text
+    char_name  = quest_data["character_name"]
+    caption    = f"{quest_text}... 드디어 해냈어!! ✨"
+    if cfg:
+        try:
+            caption = asyncio.run(_llm_caption())
+        except Exception:  # noqa: BLE001
+            pass  # 폴백 캡션 사용
+
+    post = {
+        "character_id":    quest_data.get("character_id", ""),
+        "character_name":  char_name,
+        "character_image": quest_data.get("character_image", ""),
+        "caption":         caption,
+        "quest_text":      quest_data.get("quest_text", ""),
+        "todo_title":      todo_title,
+        "created_at":      datetime.now().strftime("%-m월 %-d일 %H:%M"),
+        "likes":           0,
+        "comments":        [],
+    }
+    posts: list[dict] = st.session_state.get("feed_posts", [])
+    posts.insert(0, post)
+    st.session_state["feed_posts"] = posts
+
+
+@st.dialog("< 📱 FEED >  캐릭터 이야기", width="large")
+def _feed_modal() -> None:
+    posts: list[dict] = st.session_state.get("feed_posts", [])
+
+    if not posts:
+        st.markdown(
+            '<div class="feed-empty">아직 게시물이 없어요.<br>'
+            "할 일을 완료하면 캐릭터들이 이야기를 올려요! 🌱</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        for i, post in enumerate(posts):
+            avatar_src  = _img_to_data_uri(post.get("character_image", ""))
+            avatar_tag  = (
+                f'<img src="{avatar_src}" class="feed-post-avatar">'
+                if avatar_src
+                else '<div class="feed-post-avatar-placeholder"></div>'
+            )
+            char_name   = post.get("character_name", "")
+            created_at  = post.get("created_at", "")
+            caption     = post.get("caption", "")
+            todo_title  = post.get("todo_title") or post.get("quest_text", "")
+            likes       = post.get("likes", 0)
+            comments: list[dict] = post.get("comments", [])
+            is_liked    = st.session_state.get(f"feed_liked_{i}", False)
+
+            # 캐릭터 이미지 (작은 고정 크기)
+            img_tag = (
+                f'<div class="feed-post-image-wrap">'
+                f'<img src="{avatar_src}" class="feed-post-image"></div>'
+                if avatar_src else ""
+            )
+
+            # 댓글 HTML
+            comments_html = "".join(
+                f'<div class="feed-comment-item">'
+                f'<span class="feed-comment-author">나</span>&nbsp;{c["text"]}'
+                f'</div>'
+                for c in comments
+            )
+            comments_block = (
+                f'<div class="feed-comments-wrap">{comments_html}</div>'
+                if comments else ""
+            )
+
+            st.markdown(
+                f'<div class="feed-post-card">'
+                f'  <div class="feed-post-header">'
+                f'    {avatar_tag}'
+                f'    <span class="feed-post-char-name">{char_name}</span>'
+                f'    <span class="feed-post-time">{created_at}</span>'
+                f'  </div>'
+                f'  {img_tag}'
+                f'  <div class="feed-post-caption">{caption}</div>'
+                f'  <div class="feed-quest-ref">🗺 {todo_title}</div>'
+                f'  {comments_block}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            # ── 좋아요 / 댓글 수 액션바 ─────────────────────────────────
+            like_col, cnt_col = st.columns([2, 4])
+            with like_col:
+                heart = "❤️" if is_liked else "🤍"
+                if st.button(
+                    f"{heart} {likes}",
+                    key=f"feed_like_{i}",
+                    use_container_width=True,
+                ):
+                    if is_liked:
+                        posts[i]["likes"] = max(0, likes - 1)
+                        st.session_state[f"feed_liked_{i}"] = False
+                    else:
+                        posts[i]["likes"] = likes + 1
+                        st.session_state[f"feed_liked_{i}"] = True
+                    st.session_state["feed_posts"] = posts
+                    st.rerun()
+            with cnt_col:
+                st.markdown(
+                    f'<div class="feed-comment-count">💬 댓글 {len(comments)}개</div>',
+                    unsafe_allow_html=True,
+                )
+
+            # ── 댓글 입력 ────────────────────────────────────────────────
+            ci_col, ci_btn_col = st.columns([5, 1])
+            with ci_col:
+                comment_val = st.text_input(
+                    "댓글",
+                    placeholder="댓글 달기...",
+                    key=f"feed_comment_{i}",
+                    label_visibility="collapsed",
+                )
+            with ci_btn_col:
+                if st.button("게시", key=f"feed_comment_btn_{i}", use_container_width=True):
+                    if comment_val.strip():
+                        posts[i].setdefault("comments", []).append({
+                            "text": comment_val.strip(),
+                            "created_at": datetime.now().strftime("%-m월 %-d일 %H:%M"),
+                        })
+                        st.session_state["feed_posts"] = posts
+                        st.rerun()
+
+            st.markdown(
+                '<div class="feed-divider"></div>',
+                unsafe_allow_html=True,
+            )
+
+    if st.button("닫기", key="feed_close", use_container_width=True):
+        st.session_state["modal"] = None
+        st.rerun()
+
+
+_CAL_TAGS: list[tuple[str, str]] = [
+    ("일반", "#b5934a"),
+    ("업무", "#4a7fb5"),
+    ("건강", "#4ab57a"),
+    ("학습", "#7a4ab5"),
+    ("취미", "#b54a7a"),
+]
+_CAL_TAG_COLOR: dict[str, str] = {name: color for name, color in _CAL_TAGS}
+
+
+@st.dialog("< 📅 CALENDAR >  일정 관리", width="large")
+def _calendar_modal(characters: list, cfg: AppConfig | None) -> None:
+    from calendar import monthcalendar  # noqa: PLC0415
+
+    today    = date.today()
+    events: list[dict]  = st.session_state.get("calendar_events", [])
+    todo_list: list[dict] = st.session_state.get("todo_list", [])
+    todo_done: dict       = st.session_state.get("todo_done_items", {})
+    mode: str = st.session_state.get("cal_mode", "view")   # view | add | edit
+    edit_id: str | None = st.session_state.get("cal_edit_id")
+
+    # ── 날짜 → 이벤트 맵 ──────────────────────────────────────────────────────
+    def _events_on(day_str: str) -> list[dict]:
+        out = []
+        for ev in events:
+            s = ev.get("start_date", "")
+            e = ev.get("end_date", s)
+            if s <= day_str <= e:
+                out.append(ev)
+        return out
+
+    # ── 날짜 → TODO 맵 ────────────────────────────────────────────────────────
+    todos_by_date: dict[str, list[dict]] = {}
+    for idx, it in enumerate(todo_list):
+        due = it.get("due_date", today.isoformat())
+        todos_by_date.setdefault(due, []).append(
+            {**it, "done": bool(todo_done.get(str(idx), False))}
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # VIEW 모드
+    # ══════════════════════════════════════════════════════════════════════════
+    if mode == "view":
+        # ── 헤더 ──────────────────────────────────────────────────────────────
+        month_kr = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"]
+        hdr_col, add_btn_col = st.columns([5, 1])
+        with hdr_col:
+            st.markdown(
+                f'<div class="cal-month-header">{today.year}년 {month_kr[today.month-1]}</div>',
+                unsafe_allow_html=True,
+            )
+        with add_btn_col:
+            if st.button("＋ 일정", key="cal_go_add", use_container_width=True, type="primary"):
+                st.session_state["cal_mode"] = "add"
+                st.rerun()
+
+        # ── 달력 그리드 ───────────────────────────────────────────────────────
+        day_names   = ["월", "화", "수", "목", "금", "토", "일"]
+        header_html = "".join(f'<div class="cal-day-header">{d}</div>' for d in day_names)
+        weeks_html  = ""
+        for week in monthcalendar(today.year, today.month):
+            for day in week:
+                if day == 0:
+                    weeks_html += '<div class="cal-day empty"></div>'
+                    continue
+                day_str   = date(today.year, today.month, day).isoformat()
+                day_evs   = _events_on(day_str)
+                has_todo  = day_str in todos_by_date
+                cls       = "cal-day"
+                if day == today.day: cls += " today"
+                # 이벤트 컬러 도트
+                dots_html = ""
+                for ev in day_evs[:3]:
+                    color = _CAL_TAG_COLOR.get(ev.get("tag", "일반"), "#b5934a")
+                    dots_html += f'<div class="cal-dot" style="background:{color}"></div>'
+                if has_todo:
+                    dots_html += '<div class="cal-dot todo-dot"></div>'
+                weeks_html += f'<div class="{cls}">{day}<div class="cal-dots">{dots_html}</div></div>'
+
+        st.markdown(
+            f'<div class="cal-grid">'
+            f'<div class="cal-day-headers">{header_html}</div>'
+            f'<div class="cal-days">{weeks_html}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── 태그 범례 ─────────────────────────────────────────────────────────
+        legend_html = " ".join(
+            f'<span class="cal-legend-dot" style="background:{c}"></span>'
+            f'<span class="cal-legend-label">{n}</span>'
+            for n, c in _CAL_TAGS
+        ) + ' <span class="cal-legend-dot todo-dot"></span><span class="cal-legend-label">TODO</span>'
+        st.markdown(f'<div class="cal-legend">{legend_html}</div>', unsafe_allow_html=True)
+
+        # ── 이달 일정 + TODO 목록 ─────────────────────────────────────────────
+        month_prefix = today.strftime("%Y-%m")
+        month_events = [ev for ev in events if ev.get("start_date", "").startswith(month_prefix)]
+        month_todos  = {k: v for k, v in todos_by_date.items() if k.startswith(month_prefix)}
+        all_dates    = sorted(set([ev["start_date"] for ev in month_events] + list(month_todos)))
+
+        if not all_dates:
+            st.markdown('<div class="cal-empty">이달 일정이 없어요 📭</div>', unsafe_allow_html=True)
+        else:
+            for date_str in all_dates:
+                d     = date.fromisoformat(date_str)
+                label = f"{d.month}월 {d.day}일" + (" (오늘)" if d == today else "")
+                st.markdown(f'<div class="cal-date-label">{label}</div>', unsafe_allow_html=True)
+
+                # 이벤트
+                for ev in [e for e in month_events if e["start_date"] == date_str]:
+                    color = _CAL_TAG_COLOR.get(ev.get("tag", "일반"), "#b5934a")
+                    end_str = (f' ~ {ev["end_date"][5:].replace("-","/")}' if ev["end_date"] != ev["start_date"] else "")
+                    ev_col, edit_col, del_col = st.columns([9, 1, 1])
+                    with ev_col:
+                        st.markdown(
+                            f'<div class="cal-event-item">'
+                            f'<span class="cal-event-tag-bar" style="background:{color}"></span>'
+                            f'<span class="cal-event-title">{ev["title"]}{end_str}</span>'
+                            + (f'<span class="cal-event-desc">{ev["description"]}</span>' if ev.get("description") else "")
+                            + f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                    with edit_col:
+                        if st.button("✎", key=f'cal_edit_{ev["event_id"]}', use_container_width=True):
+                            st.session_state["cal_mode"]    = "edit"
+                            st.session_state["cal_edit_id"] = ev["event_id"]
+                            st.rerun()
+                    with del_col:
+                        if st.button("✕", key=f'cal_del_{ev["event_id"]}', use_container_width=True):
+                            st.session_state["calendar_events"] = [e for e in events if e["event_id"] != ev["event_id"]]
+                            st.rerun()
+
+                # TODO (읽기 전용)
+                for it in month_todos.get(date_str, []):
+                    done = it["done"]
+                    cls  = "cal-todo-item done" if done else "cal-todo-item"
+                    st.markdown(
+                        f'<div class="{cls}">{"✓" if done else "·"}&nbsp;{it["title"]}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("닫기", key="cal_close", use_container_width=True):
+            st.session_state["cal_mode"] = "view"
+            st.session_state["modal"] = None
+            st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # ADD 모드
+    # ══════════════════════════════════════════════════════════════════════════
+    else:
+        editing = mode == "edit"
+        base = next((e for e in events if e.get("event_id") == edit_id), {}) if editing else {}
+
+        st.markdown(
+            f'<div class="cal-add-card-title">{"✏️  일정 수정" if editing else "＋  새 일정"}</div>',
+            unsafe_allow_html=True,
+        )
+
+        new_title = st.text_input(
+            "제목 *",
+            value=base.get("title", ""),
+            max_chars=20,
+            placeholder="일정 제목 (최대 20자)",
+            key="cal_ev_title",
+        )
+        date_col, end_col = st.columns(2)
+        with date_col:
+            new_start = st.date_input("시작일 *", value=date.fromisoformat(base["start_date"]) if base.get("start_date") else today, key="cal_ev_start", format="YYYY/MM/DD")
+        with end_col:
+            new_end = st.date_input("종료일", value=date.fromisoformat(base["end_date"]) if base.get("end_date") else today, key="cal_ev_end", format="YYYY/MM/DD")
+
+        new_desc = st.text_area(
+            "메모",
+            value=base.get("description", ""),
+            max_chars=200,
+            placeholder="일정 설명 (선택사항, 최대 200자)",
+            height=90,
+            key="cal_ev_desc",
+        )
+
+        # 태그 선택
+        st.markdown('<div class="kw-label">태그</div>', unsafe_allow_html=True)
+        cur_tag = st.session_state.get("cal_ev_tag", base.get("tag", "일반"))
+        tag_cols = st.columns(len(_CAL_TAGS))
+        for ti, (tname, tcolor) in enumerate(_CAL_TAGS):
+            with tag_cols[ti]:
+                selected = cur_tag == tname
+                if st.button(
+                    f"✓ {tname}" if selected else tname,
+                    key=f"cal_tag_{tname}",
+                    type="primary" if selected else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["cal_ev_tag"] = tname
+                    st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        cancel_col, save_col = st.columns(2)
+        with cancel_col:
+            if st.button("← 취소", key="cal_form_cancel", use_container_width=True):
+                st.session_state["cal_mode"] = "view"
+                st.session_state.pop("cal_ev_tag", None)
+                st.rerun()
+        with save_col:
+            if st.button("저장하기 →", key="cal_form_save", type="primary", use_container_width=True):
+                if not new_title.strip():
+                    st.toast("제목을 입력해주세요 ✏️")
+                elif new_end < new_start:
+                    st.toast("종료일이 시작일보다 앞설 수 없어요 📅")
+                else:
+                    ev_tag = st.session_state.pop("cal_ev_tag", "일반")
+                    new_ev = {
+                        "event_id":    edit_id if editing else str(uuid4()),
+                        "title":       new_title.strip(),
+                        "description": new_desc.strip(),
+                        "start_date":  new_start.isoformat(),
+                        "end_date":    new_end.isoformat(),
+                        "tag":         ev_tag,
+                        "created_at":  datetime.now().strftime("%-m월 %-d일 %H:%M"),
+                    }
+                    if editing:
+                        st.session_state["calendar_events"] = [
+                            new_ev if e["event_id"] == edit_id else e for e in events
+                        ]
+                    else:
+                        events.insert(0, new_ev)
+                        st.session_state["calendar_events"] = events
+                    st.session_state["cal_mode"] = "view"
+                    st.rerun()
 
 
 @st.dialog("< LONG-TERM PLAN >  장기 플랜 짜기", width="large")
@@ -1439,10 +1987,19 @@ def main() -> None:
         entity: CharacterEntity = st.session_state.pop("last_created")
         st.success(f"'{entity.name}' 님이 마을에 도착했어요!")
 
-    # 퀘스트 완료 알림
+    # 퀘스트 완료 알림 + 피드 게시물 생성
     if "quest_completed_msg" in st.session_state:
         char_name = st.session_state.pop("quest_completed_msg")
         st.success(f"🎉 {char_name}의 퀘스트 달성! 수고했어요!")
+
+    # 대기 중인 피드 게시물 생성 처리
+    pending_feed: list[str] = st.session_state.pop("pending_feed_quests", [])
+    if pending_feed:
+        quests_all: dict[str, dict] = st.session_state.get("quest_assignments", {})
+        for _tid in pending_feed:
+            _qdata = quests_all.get(_tid)
+            if _qdata:
+                _generate_and_store_feed_post(_qdata, cfg)
 
     # 회고 토큰 지급 알림
     if "reflection_token_msg" in st.session_state:
@@ -1465,6 +2022,7 @@ def main() -> None:
     _timer_panel()
     _date_panel(date.today(), todo_entries or None)
     _diary_icon_panel()
+    _feed_icon_panel()
 
     _chief_house_cta()
     _chief_dialog()
@@ -1485,6 +2043,10 @@ def main() -> None:
         _plan_modal()
     elif modal == "reflection":
         _reflection_modal()
+    elif modal == "feed":
+        _feed_modal()
+    elif modal == "calendar":
+        _calendar_modal(characters, cfg)
     elif modal == "char_quest":
         _char_quest_popup()
 
