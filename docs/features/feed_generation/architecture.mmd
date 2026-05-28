@@ -4,27 +4,42 @@ config:
 ---
 flowchart TB
     A[/"Input
-    퀘스트 정보
-    캐릭터 정보 (페르소나 / 외형 / 말투 / 이름)"/]
+    FeedGenerationInput
+    (quest, character + image_url)"/]
 
-    A --> CTX1["이미지 생성 컨텍스트 조립
-    퀘스트 + 캐릭터 외형 / 페르소나"]
+    A --> VAL["validate
+    character.image_url 비어있으면 InputValidationError"]
 
-    CTX1 --> VLM{{"VLM
-    캐릭터가 퀘스트를 수행하는
-    이미지 생성"}}
+    VAL --> CTX1["assemble_image_prompt
+    appearance_keywords + quest_text
+    → image_prompt (텍스트)"]
 
-    VLM --> CTX2["캡션 컨텍스트 조립
-    퀘스트 + 캐릭터 말투 / 페르소나
-    + 생성된 이미지 묘사"]
+    CTX1 --> IMG{{"img2img
+    기준 이미지 + image_prompt
+    → raw_image (bytes)
+    RetryPolicy max=3"}}
 
-    CTX2 --> LLM{{"LLM
-    캐릭터 말투로
-    1~2줄 캡션 생성
-    (한글 140자 이내)"}}
+    IMG --> S3{{"s3_upload
+    raw_image → S3 업로드
+    → image_url
+    RetryPolicy max=3"}}
 
-    LLM --> BUILD["피드 객체 구성
-    이미지 + 캡션 + 캐릭터 id"]
+    S3 --> CTX2["assemble_caption_ctx
+    quest + 캐릭터 말투/페르소나 + image_prompt
+    → caption_ctx (LLM 프롬프트)"]
+
+    CTX2 --> LLM{{"llm_caption
+    Mi:dm LLM
+    → raw_caption (한글)
+    RetryPolicy max=3"}}
+
+    LLM --> VCHK["validate_caption
+    len ≤ 140 · 한글 포함 여부
+    CaptionValidationError (재시도 없음)"]
+
+    VCHK --> BUILD["builder
+    character_id + quest_id + image_url + caption
+    → GeneratedFeed"]
 
     BUILD --> OUT[/"Output
     GeneratedFeed"/]
@@ -32,11 +47,15 @@ flowchart TB
     classDef input fill:#fef9c3,stroke:#ca8a04,color:#713f12
     classDef process fill:#ffffff,stroke:#6b7280,color:#111827
     classDef ai fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+    classDef gate fill:#fed7aa,stroke:#ea580c,color:#7c2d12
 
     A:::input
     OUT:::input
+    VAL:::process
     CTX1:::process
-    VLM:::ai
+    IMG:::ai
+    S3:::process
     CTX2:::process
     LLM:::ai
+    VCHK:::gate
     BUILD:::process
