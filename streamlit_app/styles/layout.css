@@ -53,6 +53,14 @@
 }
 
 /* ───── Timer panel ───── */
+.timer-sun {
+  font-size: 32px;
+  text-align: center;
+  line-height: 1;
+  margin-bottom: 4px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 4px rgba(255, 200, 0, 0.6));
+}
 .timer-display {
   font-family: 'Press Start 2P', monospace;
   font-size: 26px;

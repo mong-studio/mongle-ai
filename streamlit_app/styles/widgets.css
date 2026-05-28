@@ -223,3 +223,52 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
   margin: 10px 0;
   background: var(--parchment-light);
 }
+
+/* ───── Plan modal — pending events card ───── */
+.plan-pending-card {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  padding: 14px 16px;
+  margin: 10px 0 14px;
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.plan-pending-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--wood-dark);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px dashed var(--wood-mid);
+}
+.plan-pending-summary {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--wood-mid);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.plan-pending-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--parchment-dark);
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--ink);
+}
+.plan-pending-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.plan-pending-date {
+  font-family: 'DotGothic16', monospace;
+  font-size: 11px;
+  color: var(--wood-mid);
+  margin-left: auto;
+  white-space: nowrap;
+}
