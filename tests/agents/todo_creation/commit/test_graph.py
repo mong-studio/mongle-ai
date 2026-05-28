@@ -207,3 +207,4 @@ async def test_commit_graph_dispatch_failure_does_not_break_commit() -> None:
     )
     assert len(final["todo_ids"]) == 1
     assert final["quest_triggered"] is False
+    assert counter.peek(user_id="u1", day_kst=_today()) == 0
