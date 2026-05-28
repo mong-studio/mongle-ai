@@ -1,0 +1,125 @@
+/* ───── Feed post card ───── */
+.feed-post-card {
+  background: var(--parchment-light);
+  border: 3px solid var(--wood-dark);
+  margin: 0 0 4px;
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+/* ───── Post header (avatar + name + time) ───── */
+.feed-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  border-bottom: 2px solid var(--wood-mid);
+  background: var(--parchment);
+}
+.feed-post-avatar {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--wood-dark);
+  image-rendering: pixelated;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+.feed-post-avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  border: 2px dashed var(--wood-mid);
+  background: var(--parchment);
+  flex-shrink: 0;
+}
+.feed-post-char-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: var(--wood-dark);
+  letter-spacing: 1px;
+  flex: 1;
+}
+.feed-post-time {
+  font-family: 'DotGothic16', monospace;
+  font-size: 11px;
+  color: var(--wood-mid);
+  white-space: nowrap;
+}
+
+/* ───── Post image (작은 고정 크기, 중앙 정렬) ───── */
+.feed-post-image-wrap {
+  padding: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--parchment);
+  border-bottom: 2px solid var(--wood-mid);
+}
+.feed-post-image {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  border: 2px solid var(--wood-mid);
+}
+
+/* ───── Caption ───── */
+.feed-post-caption {
+  padding: 10px 14px 6px;
+  font-family: 'DotGothic16', monospace;
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+/* ───── Quest reference footer ───── */
+.feed-quest-ref {
+  padding: 4px 14px 8px;
+  font-family: 'DotGothic16', monospace;
+  font-size: 11px;
+  color: var(--wood-mid);
+  border-bottom: 1px dashed var(--wood-mid);
+}
+
+/* ───── Comments block ───── */
+.feed-comments-wrap {
+  padding: 6px 14px 8px;
+  background: var(--parchment);
+  border-bottom: 1px dashed var(--wood-mid);
+}
+.feed-comment-item {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--ink);
+  padding: 2px 0;
+  line-height: 1.5;
+}
+.feed-comment-author {
+  font-weight: bold;
+  color: var(--wood-dark);
+}
+
+/* ───── Comment count ───── */
+.feed-comment-count {
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  color: var(--wood-mid);
+  line-height: 2.4;
+  padding: 0 4px;
+}
+
+/* ───── Post divider ───── */
+.feed-divider {
+  height: 12px;
+}
+
+/* ───── Empty state ───── */
+.feed-empty {
+  font-family: 'DotGothic16', monospace;
+  font-size: 15px;
+  color: var(--wood-mid);
+  text-align: center;
+  padding: 48px 0;
+  line-height: 2;
+  opacity: 0.75;
+}
