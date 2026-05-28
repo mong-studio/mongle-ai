@@ -123,6 +123,7 @@ def _timer_panel() -> None:
         """
         <div class="timer-overlay">
           <div class="side-panel">
+            <div class="timer-sun" id="mg-timer-sun">☀</div>
             <div class="label" id="mg-timer-label">&lt; FOCUS TIME &gt;</div>
             <div class="timer-display" id="mg-timer-display">25:00</div>
             <div class="timer-meta"   id="mg-timer-meta">0 CYCLES</div>
@@ -176,11 +177,13 @@ def _timer_panel() -> None:
             var dsp = doc.getElementById('mg-timer-display');
             var met = doc.getElementById('mg-timer-meta');
             var btn = doc.getElementById('mg-timer-start');
+            var sun = doc.getElementById('mg-timer-sun');
             if (lbl) lbl.textContent = state.isBreak ? '< BREAK TIME >' : '< FOCUS TIME >';
             if (dsp) dsp.textContent = fmt(getRem());
             if (met) met.textContent = state.cycles + ' CYCLES';
             if (btn) btn.textContent = state.running ? '⏸ PAUSE' : '▶ START';
-            /* 휴식 중이면 타이머를 골드→청량한 색으로 표시 */
+            /* 햇님/달님 아이콘 + 색상 */
+            if (sun) sun.textContent = state.isBreak ? '🌙' : '☀';
             if (dsp) dsp.style.color = state.isBreak ? '#7ecfd4' : '';
           }
 
@@ -713,7 +716,7 @@ def _todo_modal(characters: list) -> None:
             _sel = _tag in direct_tags
             with dt_cols[_ti]:
                 if st.button(
-                    f"✓ {_tag}" if _sel else _tag,
+                    f"{_tag}  ✕" if _sel else _tag,
                     key=f"dtag_{_tag}",
                     type="primary" if _sel else "secondary",
                     use_container_width=True,
@@ -837,8 +840,20 @@ def _todo_modal(characters: list) -> None:
                 if text.strip():
                     try:
                         from adapters.todo_creation.openai_llm import OpenAILLM as TodoOpenAILLM  # noqa: PLC0415
+                        # 당일 캘린더 일정을 프롬프트에 자동 포함
+                        today_str = date.today().isoformat()
+                        cal_events: list[dict] = st.session_state.get("calendar_events", [])
+                        today_events = [
+                            ev for ev in cal_events
+                            if ev.get("start_date", "") <= today_str <= ev.get("end_date", ev.get("start_date", ""))
+                        ]
+                        if today_events:
+                            ev_names = ", ".join(ev["title"] for ev in today_events)
+                            prompt_with_cal = f"{text}\n\n[오늘 일정: {ev_names}]"
+                        else:
+                            prompt_with_cal = text
                         llm_candidates = asyncio.run(
-                            TodoOpenAILLM().split_tasks(prompt=text, today=date.today())
+                            TodoOpenAILLM().split_tasks(prompt=prompt_with_cal, today=date.today())
                         )
                         candidates = [
                             {
@@ -1749,8 +1764,11 @@ def _plan_modal() -> None:
 
 @st.dialog("< DAILY RETRO >  오늘 하루는 어땠어?", width="large")
 def _reflection_modal() -> None:
+    is_edit = st.session_state.get("reflection_done", False)
+    saved   = st.session_state.get("reflection", {})
+
     st.markdown(
-        '<div class="modal-sub">하루의 일이 끝났어요! 내일이 기대되죠</div>',
+        f'<div class="modal-sub">{"수정 모드 — 기존 회고를 수정해요" if is_edit else "하루의 일이 끝났어요! 내일이 기대되죠"}</div>',
         unsafe_allow_html=True,
     )
 
@@ -1784,6 +1802,12 @@ def _reflection_modal() -> None:
 
     st.markdown("---")
 
+    # 수정 모드: 기존 내용 pre-fill (최초 1회)
+    if is_edit and not st.session_state.get("retro_prefilled"):
+        st.session_state["retro_good"]    = saved.get("good", "")
+        st.session_state["retro_bad"]     = saved.get("bad", "")
+        st.session_state["retro_prefilled"] = True
+
     good_text = st.text_area(
         "잘한 일",
         height=120,
@@ -1799,30 +1823,50 @@ def _reflection_modal() -> None:
         key="retro_bad",
     )
 
-    st.markdown(
-        '<div class="retro-token-info">🍎 회고 작성 완료 시 사과 토큰을 받을 수 있어요 (잘한 일 +2, 아쉬운 일 +2)</div>',
-        unsafe_allow_html=True,
-    )
+    if is_edit:
+        st.markdown(
+            '<div class="retro-token-info">✏️ 수정 시 토큰 15개가 소모됩니다 🍎</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="retro-token-info">🍎 회고 작성 완료 시 사과 토큰을 받을 수 있어요 (잘한 일 +2, 아쉬운 일 +2)</div>',
+            unsafe_allow_html=True,
+        )
 
     cancel_col, ok_col = st.columns([1, 1])
     if cancel_col.button("취소", key="retro_cancel", width="stretch"):
+        st.session_state.pop("retro_prefilled", None)
         st.session_state["modal"] = None
         st.rerun()
     if ok_col.button("기록하기 →", key="retro_submit", type="primary", width="stretch"):
-        token_gain = 0
-        if len(good_text.strip()) >= 30:
-            token_gain += 2
-        if len(bad_text.strip()) >= 30:
-            token_gain += 2
-        st.session_state["tokens"] = st.session_state.get("tokens", 5) + token_gain
+        # 수정 모드: 토큰 15개 차감
+        if is_edit:
+            current_tokens = st.session_state.get("tokens", 0)
+            if current_tokens < 15:
+                st.warning(f"토큰이 부족해요! 수정에는 🍎 15개가 필요해요 (현재 {current_tokens}개)")
+                return
+            st.session_state["tokens"] = current_tokens - 15
+            token_gain = 0
+        else:
+            token_gain = 0
+            if len(good_text.strip()) >= 30:
+                token_gain += 2
+            if len(bad_text.strip()) >= 30:
+                token_gain += 2
+            st.session_state["tokens"] = st.session_state.get("tokens", 5) + token_gain
+
         st.session_state["reflection_done"] = True
         st.session_state["reflection"] = {
             "good": good_text.strip(),
-            "bad": bad_text.strip(),
+            "bad":  bad_text.strip(),
             "date": date.today().isoformat(),
         }
-        if token_gain > 0:
+        st.session_state.pop("retro_prefilled", None)
+        if not is_edit and token_gain > 0:
             st.session_state["reflection_token_msg"] = token_gain
+        elif is_edit:
+            st.session_state["reflection_token_msg"] = -15  # 소모 알림용
         st.session_state["modal"] = None
         st.rerun()
 
@@ -2001,10 +2045,13 @@ def main() -> None:
             if _qdata:
                 _generate_and_store_feed_post(_qdata, cfg)
 
-    # 회고 토큰 지급 알림
+    # 회고 토큰 지급/소모 알림
     if "reflection_token_msg" in st.session_state:
-        gained = st.session_state.pop("reflection_token_msg")
-        st.success(f"🍎 회고 완료! 사과 토큰 +{gained}개를 받았어요!")
+        delta = st.session_state.pop("reflection_token_msg")
+        if delta > 0:
+            st.success(f"🍎 회고 완료! 사과 토큰 +{delta}개를 받았어요!")
+        elif delta < 0:
+            st.info(f"✏️ 회고가 수정되었어요! 토큰 {abs(delta)}개가 소모됐어요.")
 
     # TODO 진행 상황 계산 → 날짜 패널에 전달
     todo_list: list[dict] = st.session_state.get("todo_list", [])
@@ -2017,6 +2064,13 @@ def main() -> None:
         (item["title"], bool(st.session_state.get(f"todo_item_{i}", False)))
         for i, item in enumerate(todo_list)
     ]
+
+    # TODO 전체 완료 시 회고 유도 토스트 (하루 1회)
+    if todo_entries and all(done for _, done in todo_entries):
+        today_str = date.today().isoformat()
+        if st.session_state.get("retro_nudge_date") != today_str:
+            st.session_state["retro_nudge_date"] = today_str
+            st.toast("🎉 오늘 할 일을 모두 완료했어요! 회고를 작성해볼까요? 📓")
 
     _village_map()
     _timer_panel()
