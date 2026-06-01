@@ -1,37 +1,25 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from agents.character_creation.exceptions import S3UploadFailedError
 
 
 class LocalStorage:
-    """Implements S3Port by writing bytes to a local directory.
+    """Implements S3Port using in-memory storage.
 
-    Returns the absolute file path so ``st.image(path)`` can render it directly.
+    파일을 디스크에 저장하지 않고 메모리에만 보관한다.
+    image_url은 data URI로 반환하므로 st.image()에서 바로 렌더링 가능.
     """
 
     def __init__(self, *, root: Path, prefix: str = "") -> None:
-        self._root = Path(root)
-        self._prefix = prefix.strip("/")
-        self._root.mkdir(parents=True, exist_ok=True)
-
-    def _full_path(self, key: str) -> Path:
-        rel = f"{self._prefix}/{key}" if self._prefix else key
-        return self._root / rel
+        self._store: dict[str, tuple[bytes, str]] = {}  # key → (body, content_type)
 
     async def put_object(self, *, key: str, body: bytes, content_type: str) -> str:
-        path = self._full_path(key)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(body)
-        except OSError as err:
-            raise S3UploadFailedError(f"Local write failed: {err}") from err
-        return str(path)
+        self._store[key] = (body, content_type)
+        b64 = base64.b64encode(body).decode()
+        return f"data:{content_type};base64,{b64}"
 
     async def delete_object(self, *, key: str) -> None:
-        path = self._full_path(key)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as err:
-            raise S3UploadFailedError(f"Local delete failed: {err}") from err
+        self._store.pop(key, None)

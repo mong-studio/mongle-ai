@@ -48,6 +48,7 @@ class OpenAIImageGenerator:
         llm_result: LLMPersonaResult,
         vlm_result: VLMResult | None,
         fallback_persona: str | None,
+        source_image_bytes: bytes | None = None,
     ) -> bytes:
         prompt = self._build_prompt(
             llm_result=llm_result,

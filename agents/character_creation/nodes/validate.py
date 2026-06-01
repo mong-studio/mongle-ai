@@ -11,7 +11,7 @@ from agents.character_creation.state import CharacterGraphState
 ALLOWED_MIME = {"image/jpeg", "image/jpg", "image/png"}
 MAX_BYTES = 5 * 1024 * 1024
 
-_ValidateTarget = Literal["llm_persona", "source_upload", "vlm_analyzer"]
+_ValidateTarget = Literal["llm_persona", "source_upload"]
 
 
 def check(input: CharacterCreationInput) -> None:
@@ -36,6 +36,6 @@ async def validate_node(
     targets: list[_ValidateTarget] = (
         ["llm_persona", "source_upload"]
         if state["input"].source_image is not None
-        else ["llm_persona", "vlm_analyzer"]
+        else ["llm_persona"]
     )
     return Command(goto=targets)

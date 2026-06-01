@@ -66,7 +66,7 @@ from streamlit_app.ports_factory import (  # noqa: E402
 )
 
 st.set_page_config(
-    page_title="몽글마을",
+    page_title="내일도와줘, 몽글마을",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -86,6 +86,7 @@ _CSS_FILES = [
     "calendar.css",
     "widgets.css",
     "sidebar.css",
+    "notifications.css",
 ]
 
 
@@ -94,6 +95,145 @@ def _inject_css() -> None:
         (_STYLES_DIR / f).read_text(encoding="utf-8") for f in _CSS_FILES
     )
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Notification system
+# ────────────────────────────────────────────────────────────────────────────
+def _push_notification(
+    icon: str,
+    title: str,
+    subtitle: str,
+    icon_bg: str = "#4a3880",
+    notif_id: str | None = None,
+) -> None:
+    """Append a notification to the persistent queue. Deduplicates by notif_id."""
+    if "notifications" not in st.session_state:
+        st.session_state["notifications"] = []
+    nid = notif_id or f"notif_{uuid4().hex[:8]}"
+    if any(n["id"] == nid for n in st.session_state["notifications"]):
+        return
+    st.session_state["notifications"].append(
+        {"id": nid, "icon": icon, "icon_bg": icon_bg, "title": title, "subtitle": subtitle}
+    )
+
+
+def _notification_panel() -> None:
+    """Render the fixed-position notification card overlay."""
+    notifications: list[dict] = st.session_state.get("notifications", [])
+    if not notifications:
+        return
+
+    items_html = "".join(
+        f'<div class="mg-notif-item" data-nid="{n["id"]}">'
+        f'<div class="mg-notif-icon-box" style="background:{n.get("icon_bg","#4a3880")}">{n["icon"]}</div>'
+        f'<div class="mg-notif-text">'
+        f'<div class="mg-notif-item-title">{n["title"]}</div>'
+        f'<div class="mg-notif-item-sub">{n["subtitle"]}</div>'
+        f'</div>'
+        f'<span class="mg-notif-item-x" data-nid="{n["id"]}">×</span>'
+        f'</div>'
+        for n in notifications
+    )
+    st.markdown(
+        f'<div class="mg-notif-panel" id="mg-notif-panel">'
+        f'<div class="mg-notif-header">'
+        f'<div class="mg-notif-header-left"><span class="mg-notif-bell">🔔</span>알림</div>'
+        f'<div class="mg-notif-header-right">'
+        f'<span class="mg-notif-dots">···</span>'
+        f'<span class="mg-notif-header-x" id="mg-notif-header-x">×</span>'
+        f'</div></div>'
+        f'{items_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Hidden Streamlit buttons — visually invisible (CSS hides their containers).
+    # JS wires the HTML × clicks to these real buttons so Streamlit processes them.
+    with st.container():
+        st.markdown('<span class="mg-notif-btn-close-all" style="display:none"></span>', unsafe_allow_html=True)
+        if st.button("close_all", key="mg_notif_btn_close_all"):
+            st.session_state["notifications"] = []
+            st.rerun()
+
+    for notif in notifications:
+        with st.container():
+            st.markdown(
+                f'<span class="mg-notif-btn-close-item" data-nid="{notif["id"]}" style="display:none"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button("close", key=f"mg_notif_btn_{notif['id']}"):
+                st.session_state["notifications"] = [
+                    n for n in st.session_state["notifications"] if n["id"] != notif["id"]
+                ]
+                st.rerun()
+
+    nids_json = json.dumps([n["id"] for n in notifications])
+    components.html(
+        f"""
+        <script>
+        (function() {{
+          var myId = (window.parent.__mg_notif_js_id || 0) + 1;
+          window.parent.__mg_notif_js_id = myId;
+          var nids = {nids_json};
+
+          function findByMarker(sel) {{
+            var doc = window.parent.document;
+            var marker = doc.querySelector(sel);
+            if (!marker) return null;
+            var el = marker.parentElement;
+            while (el) {{
+              if (el.getAttribute && el.getAttribute('data-testid') === 'stVerticalBlock') return el;
+              el = el.parentElement;
+            }}
+            return null;
+          }}
+
+          function clickBtn(container) {{
+            if (!container) return;
+            var btn = container.querySelector('button');
+            if (btn) btn.click();
+          }}
+
+          function wire() {{
+            var doc = window.parent.document;
+            var hx = doc.getElementById('mg-notif-header-x');
+            if (hx) {{
+              hx.onclick = function(e) {{
+                e.stopPropagation();
+                clickBtn(findByMarker('.mg-notif-btn-close-all'));
+              }};
+            }}
+            nids.forEach(function(nid) {{
+              var ix = doc.querySelector('.mg-notif-item-x[data-nid="' + nid + '"]');
+              if (ix) {{
+                ix.onclick = function(e) {{
+                  e.stopPropagation();
+                  clickBtn(findByMarker('.mg-notif-btn-close-item[data-nid="' + nid + '"]'));
+                }};
+              }}
+            }});
+          }}
+
+          function apply() {{
+            if (window.parent.__mg_notif_js_id !== myId) return;
+            // Hide dismiss button containers so they don't appear in page flow
+            var ca = findByMarker('.mg-notif-btn-close-all');
+            if (ca) ca.style.setProperty('display', 'none', 'important');
+            nids.forEach(function(nid) {{
+              var c = findByMarker('.mg-notif-btn-close-item[data-nid="' + nid + '"]');
+              if (c) c.style.setProperty('display', 'none', 'important');
+            }});
+            wire();
+          }}
+
+          apply();
+          setInterval(apply, 400);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -109,7 +249,7 @@ def _topbar() -> None:
             <span>RESIDENTS</span>
             <span>SETTINGS</span>
           </div>
-          <div class="brand">몽글마을</div>
+          <div class="brand">내일도와줘, 몽글마을</div>
           <div class="session">🍎 {tokens} &nbsp; GUEST</div>
         </div>
         """,
@@ -243,6 +383,7 @@ def _timer_panel() -> None:
             state.isBreak   = false;
             state.endAt     = null;
             state.remaining = WORK;
+            state.cycles    = 0;
             save(state);
             updateUI();
           }
@@ -319,8 +460,7 @@ def _date_panel(today: date, todo_entries: list[tuple[str, bool]] | None = None)
     else:
         hint_html = (
             '<div class="date-hint">'
-            "오늘의 할 일을 추가해보세요<br/>"
-            '<span class="key">PRESS &lt;+&gt; TO ADD</span>'
+            "오늘의 할 일을 추가해보세요"
             "</div>"
         )
 
@@ -378,13 +518,13 @@ def _icon_button_js(marker_class: str, right_px: int, run_id_key: str) -> None:
                 btn.style.setProperty('border',      'none',        'important');
                 btn.style.setProperty('box-shadow',  'none',        'important');
                 btn.style.setProperty('padding',     '0',           'important');
-                btn.style.setProperty('font-size',   '22px',        'important');
+                btn.style.setProperty('font-size',   '20px',        'important');
                 btn.style.setProperty('min-height',  'auto',        'important');
                 btn.style.setProperty('line-height', '1',           'important');
                 btn.style.setProperty('cursor',      'pointer',     'important');
                 btn.style.setProperty('color',       '#f4ead6',     'important');
-                btn.style.setProperty('width',       '28px',        'important');
-                btn.style.setProperty('height',      '28px',        'important');
+                btn.style.setProperty('width',       '26px',        'important');
+                btn.style.setProperty('height',      '26px',        'important');
               }}
             }} catch(e) {{}}
           }}
@@ -485,38 +625,45 @@ def _chief_house_cta() -> None:
         if st.button("📅", key="open_calendar", width="stretch"):
             st.session_state["modal"] = "calendar"
             st.session_state["chief_open"] = False
+            st.session_state["cal_mode"] = "view"
+            for k in ("cal_edit_id", "cal_ev_tag", "cal_ev_title", "cal_ev_desc", "cal_ev_start", "cal_ev_end"):
+                st.session_state.pop(k, None)
             st.rerun()
 
 
 def _chief_dialog() -> None:
     if not st.session_state.get("chief_open", False):
         return
-    st.markdown(
-        """
-        <div class="chief-dialog">
-          <div class="chief-row">
-            <div>
-              <div class="chief-avatar">🧙</div>
-              <div class="chief-name">CHIEF</div>
+    _, mid, _ = st.columns([1, 4, 1])
+    with mid:
+        st.markdown(
+            """
+            <div class="chief-dialog">
+              <div class="chief-row">
+                <div>
+                  <div class="chief-avatar">🧙</div>
+                  <div class="chief-name">이장님</div>
+                </div>
+                <div>
+                  <div class="chief-speech">안녕! 오늘은 뭘 도와줄까?</div>
+                </div>
+              </div>
             </div>
-            <div>
-              <div class="chief-speech">안녕! 오늘은 뭘 도와줄까?</div>
-            </div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    cols = st.columns(3)
-    if cols[0].button("📝  오늘의 TODO 만들기", key="open_todo", width="stretch"):
-        st.session_state["modal"] = "todo"
-        st.rerun()
-    if cols[1].button("📅  장기 플랜 짜기", key="open_plan", width="stretch"):
-        st.session_state["modal"] = "plan"
-        st.rerun()
-    if cols[2].button("👋  새 주민 맞이하기", key="open_character", width="stretch"):
-        st.session_state["modal"] = "character"
-        st.rerun()
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown('<span class="mg-chief-btns-marker" style="display:none"></span>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        if cols[0].button("📝 오늘의 TODO 만들기", key="open_todo", width="stretch"):
+            _reset_todo_state()
+            st.session_state["modal"] = "todo"
+            st.rerun()
+        if cols[1].button("📅 장기 플랜 짜기", key="open_plan", width="stretch"):
+            st.session_state["modal"] = "plan"
+            st.rerun()
+        if cols[2].button("👋 새 주민 맞이하기", key="open_character", width="stretch"):
+            st.session_state["modal"] = "character"
+            st.rerun()
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -663,7 +810,7 @@ def _todo_modal(characters: list) -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            '<div class="todo-modal-title">오늘 뭐 할거이?</div>'
+            '<div class="todo-modal-title">오늘 뭐 할거야 ?</div>'
             '<div class="modal-sub">이장님이 정리해주면 내가 알려줄게요</div>',
             unsafe_allow_html=True,
         )
@@ -704,7 +851,7 @@ def _todo_modal(characters: list) -> None:
         )
         st.markdown(
             f'<div class="direct-tag-label">'
-            f'# 키워드 선택 <span style="font-size:11px;opacity:0.6">(선택사항)</span>'
+            f'# 태그 선택 <span style="font-size:11px;opacity:0.6">(선택사항)</span>'
             f'{"&nbsp;" + tag_label_parts if direct_tags else ""}'
             f'</div>',
             unsafe_allow_html=True,
@@ -1443,12 +1590,14 @@ def _feed_modal() -> None:
                 )
 
             # ── 댓글 입력 ────────────────────────────────────────────────
+            # counter로 key를 바꿔 게시 후 입력창을 강제 초기화
+            c_ver = st.session_state.get(f"feed_comment_ver_{i}", 0)
             ci_col, ci_btn_col = st.columns([5, 1])
             with ci_col:
                 comment_val = st.text_input(
                     "댓글",
                     placeholder="댓글 달기...",
-                    key=f"feed_comment_{i}",
+                    key=f"feed_comment_{i}_{c_ver}",
                     label_visibility="collapsed",
                 )
             with ci_btn_col:
@@ -1459,6 +1608,7 @@ def _feed_modal() -> None:
                             "created_at": datetime.now().strftime("%-m월 %-d일 %H:%M"),
                         })
                         st.session_state["feed_posts"] = posts
+                        st.session_state[f"feed_comment_ver_{i}"] = c_ver + 1
                         st.rerun()
 
             st.markdown(
@@ -1988,9 +2138,9 @@ def _reflection_modal() -> None:
             token_gain = 0
         else:
             token_gain = 0
-            if len(good_text.strip()) >= 30:
+            if len(good_text.strip()) >= 10:
                 token_gain += 2
-            if len(bad_text.strip()) >= 30:
+            if len(bad_text.strip()) >= 10:
                 token_gain += 2
             st.session_state["tokens"] = st.session_state.get("tokens", 5) + token_gain
 
@@ -2004,7 +2154,7 @@ def _reflection_modal() -> None:
         if not is_edit and token_gain > 0:
             st.session_state["reflection_token_msg"] = token_gain
         elif is_edit:
-            st.session_state["reflection_token_msg"] = -15  # 소모 알림용
+            st.session_state["reflection_token_msg"] = -15
         st.session_state["modal"] = None
         st.rerun()
 
@@ -2093,10 +2243,70 @@ def _sidebar(repo: InMemoryRepo) -> tuple[str, bool]:
     return user_id, is_regen
 
 
+@st.dialog("　", width="large")
+def _char_detail_modal() -> None:
+    char_name: str = st.session_state.get("selected_detail_char", "")
+    repo: InMemoryRepo = st.session_state.get("_repo_ref")
+    user_id: str = st.session_state.get("_user_id_ref", "")
+    char = None
+    if repo and user_id:
+        char = next((c for c in repo.list_characters(user_id) if c.name == char_name), None)
+    if char is None:
+        st.write("캐릭터 정보를 찾을 수 없어요.")
+        if st.button("닫기", use_container_width=True):
+            st.session_state["modal"] = None
+            st.rerun()
+        return
+
+    img_src = _img_to_data_uri(char.image_url)
+
+    # LLM이 생성한 세 필드를 자연스럽게 이어 붙여 4~5줄 단락 만들기
+    parts = [p for p in (char.personality, char.speech_style, char.background) if p]
+    description = " ".join(parts) if parts else (char.persona or "")
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, #f5ead8 0%, #eedcc4 100%);
+            border-radius: 16px;
+            padding: 28px 24px 20px;
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+        ">
+          <div style="flex-shrink:0">
+            {"" if not img_src else
+              f'<img src="{img_src}" style="width:140px;height:140px;object-fit:cover;'
+              f'image-rendering:pixelated;border-radius:12px;'
+              f'box-shadow:4px 4px 0 rgba(0,0,0,0.18)">'}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:\'DotGothic16\',monospace;font-size:26px;
+                        font-weight:bold;color:#3d2010;margin-bottom:14px;
+                        letter-spacing:1px">{char.name}</div>
+            <div style="font-family:\'DotGothic16\',monospace;font-size:17px;
+                        line-height:2.0;color:#4a3020;word-break:keep-all">
+              {description}
+            </div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("닫기", use_container_width=True):
+        st.session_state["modal"] = None
+        st.rerun()
+
+
 def _gallery(repo: InMemoryRepo, user_id: str) -> None:
     chars = repo.list_characters(user_id)
     if not chars:
         return
+    # 모달에서 repo/user_id 참조용 저장
+    st.session_state["_repo_ref"] = repo
+    st.session_state["_user_id_ref"] = user_id
     quests: dict[str, dict] = st.session_state.get("quest_assignments", {})
     st.markdown(
         f'<div class="gallery-title">&lt; RESIDENTS · {len(chars)} &gt;</div>',
@@ -2110,13 +2320,12 @@ def _gallery(repo: InMemoryRepo, user_id: str) -> None:
                 (q for q in quests.values() if q["character_name"] == char.name),
                 None,
             )
-            # 이미지 — parchment 배경으로 투명 PNG 보호
             img_tag = f'<img src="{img_src}" class="char-gallery-img">' if img_src else ""
             st.markdown(
                 f'<div class="char-img-wrap">{img_tag}</div>',
                 unsafe_allow_html=True,
             )
-            # 이름 — 퀘스트 있으면 클릭 가능 버튼, 없으면 텍스트
+            # 이름 — 퀘스트 있으면 퀘스트 버튼, 없으면 텍스트
             if char_quest:
                 if st.button(
                     char.name,
@@ -2131,10 +2340,16 @@ def _gallery(repo: InMemoryRepo, user_id: str) -> None:
                     f'<div class="char-name">{char.name}</div>',
                     unsafe_allow_html=True,
                 )
+            # 성격 미리보기 + 더보기 버튼
             st.markdown(
-                f'<div class="char-meta">{(char.personality or "")[:40]}…</div>',
+                f'<div class="char-meta">{(char.personality or "")[:30]}…</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown('<span class="mg-gallery-more-marker" style="display:none"></span>', unsafe_allow_html=True)
+            if st.button("자세히 보기 →", key=f"gallery_detail_{idx}", use_container_width=True):
+                    st.session_state["selected_detail_char"] = char.name
+                    st.session_state["modal"] = "char_detail"
+                    st.rerun()
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -2193,7 +2408,7 @@ def main() -> None:
                     st.session_state["tokens"]            = _tokens - 4
                     st.session_state["todo_list_date"]    = _today_str
                     st.session_state["todo_extended_date"] = _today_str
-                    st.toast("🔄 TODO가 오늘까지 연장됐어요! 토큰 4개 소모")
+                    _push_notification("⏰", "할일이 연장됐어요", "토큰 4개 소모 🍎", "#5a2a1a", "todo_extended")
                     st.rerun()
                 if st.button("실패 확인", key="midnight_dismiss", use_container_width=True):
                     for _i in _uncompleted:
@@ -2204,12 +2419,12 @@ def main() -> None:
 
     if "last_created" in st.session_state:
         entity: CharacterEntity = st.session_state.pop("last_created")
-        st.success(f"'{entity.name}' 님이 마을에 도착했어요!")
+        _push_notification("🏡", f"'{entity.name}' 마을 도착!", "새 주민을 환영해요", "#1e3a5a")
 
     # 퀘스트 완료 알림 + 피드 게시물 생성
     if "quest_completed_msg" in st.session_state:
         char_name = st.session_state.pop("quest_completed_msg")
-        st.success(f"🎉 {char_name}의 퀘스트 달성! 수고했어요!")
+        _push_notification("⚔️", f"{char_name} 퀘스트 달성!", "수고했어요! 🍎 +1", "#1a3a1a")
 
     # 대기 중인 피드 게시물 생성 처리
     pending_feed: list[str] = st.session_state.pop("pending_feed_quests", [])
@@ -2224,34 +2439,37 @@ def main() -> None:
     if "reflection_token_msg" in st.session_state:
         delta = st.session_state.pop("reflection_token_msg")
         if delta > 0:
-            st.success(f"🍎 회고 완료! 사과 토큰 +{delta}개를 받았어요!")
+            _push_notification("🍎", "회고 완료!", f"사과 토큰 +{delta}개 획득", "#3a2a1a", f"retro_token_{date.today().isoformat()}")
         elif delta < 0:
-            st.info(f"✏️ 회고가 수정되었어요! 토큰 {abs(delta)}개가 소모됐어요.")
+            _push_notification("✏️", "회고가 수정됐어요", f"토큰 {abs(delta)}개 소모", "#3a2a1a", "retro_edit")
 
     # TODO 진행 상황 계산 → 날짜 패널에 전달
     todo_list: list[dict] = st.session_state.get("todo_list", [])
     # @st.dialog 종료 시 위젯 상태가 리셋될 수 있으므로, persistent dict에서 복원
     _todo_done: dict = st.session_state.get("todo_done_items", {})
     for _i in range(len(todo_list)):
-        if _todo_done.get(str(_i), False):
+        # 위젯 키가 이미 존재하면 사용자의 체크/해제 동작이므로 건드리지 않음
+        # 키가 없을 때(dialog close 후 리셋된 경우)만 복원
+        if _todo_done.get(str(_i), False) and f"todo_item_{_i}" not in st.session_state:
             st.session_state[f"todo_item_{_i}"] = True
     todo_entries: list[tuple[str, bool]] = [
         (item["title"], bool(st.session_state.get(f"todo_item_{i}", False)))
         for i, item in enumerate(todo_list)
     ]
 
-    # TODO 전체 완료 시 회고 유도 토스트 (하루 1회)
+    # TODO 전체 완료 시 회고 유도 알림 (하루 1회)
     if todo_entries and all(done for _, done in todo_entries):
         today_str = date.today().isoformat()
         if st.session_state.get("retro_nudge_date") != today_str:
             st.session_state["retro_nudge_date"] = today_str
-            st.toast("🎉 오늘 할 일을 모두 완료했어요! 회고를 작성해볼까요? 📓")
+            _push_notification("🌙", "오늘 하루는 어땠어?", "짧게 회고 한 줄 남기면 🍎+2 추가!", "#4a2870", "reflection_nudge")
 
     _village_map()
     _timer_panel()
     _date_panel(date.today(), todo_entries or None)
     _diary_icon_panel()
     _feed_icon_panel()
+    _notification_panel()
 
     _chief_house_cta()
     _chief_dialog()
@@ -2278,6 +2496,8 @@ def main() -> None:
         _calendar_modal(characters, cfg)
     elif modal == "char_quest":
         _char_quest_popup()
+    elif modal == "char_detail":
+        _char_detail_modal()
 
     _gallery(repo, user_id)
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
@@ -14,8 +16,16 @@ from agents.character_creation.nodes.image_generator import image_generator_node
 from agents.character_creation.nodes.llm_persona import llm_persona_node
 from agents.character_creation.nodes.source_upload import source_upload_node
 from agents.character_creation.nodes.validate import validate_node
-from agents.character_creation.nodes.vlm_analyzer import vlm_analyzer_node
 from agents.character_creation.state import CharacterGraphState
+
+# ---------------------------------------------------------------------------
+# Sync barrier: llm_persona와 vlm_analyzer 둘 다 완료된 후 image_generator 실행
+# ---------------------------------------------------------------------------
+
+async def _sync_node(state: CharacterGraphState, config: dict[str, Any]) -> dict:
+    """llm_persona + vlm_analyzer fan-in 배리어. 상태만 pass-through."""
+    return {}
+
 
 # ---------------------------------------------------------------------------
 # Graph factory
@@ -31,7 +41,7 @@ def build_graph():
     g.add_node(
         "validate",
         validate_node,
-        destinations=("llm_persona", "source_upload", "vlm_analyzer"),
+        destinations=("llm_persona", "source_upload"),
     )
     g.add_node(
         "llm_persona",
@@ -43,7 +53,8 @@ def build_graph():
         source_upload_node,
         retry=RetryPolicy(max_attempts=4, retry_on=S3UploadFailedError),
     )
-    g.add_node("vlm_analyzer", vlm_analyzer_node)
+    # sync barrier: llm_persona와 source_upload 모두 완료 후 image_generator 1회만 실행
+    g.add_node("sync", _sync_node)
     # image_generator/generated_upload/builder return Command for either the
     # success path or cleanup_source_image (compensation on error).
     g.add_node(
@@ -66,12 +77,14 @@ def build_graph():
     # ---- edges ----
     g.add_edge(START, "validate")
 
-    # source_upload → vlm_analyzer → image_generator (image-and-text path).
-    g.add_edge("source_upload", "vlm_analyzer")
-    g.add_edge("vlm_analyzer", "image_generator")
+    # source_upload → sync
+    g.add_edge("source_upload", "sync")
 
-    # llm_persona always feeds into image_generator (fan-in with vlm branch).
-    g.add_edge("llm_persona", "image_generator")
+    # llm_persona → sync
+    g.add_edge("llm_persona", "sync")
+
+    # sync → image_generator (한 번만 실행)
+    g.add_edge("sync", "image_generator")
 
     g.add_edge("cleanup_source_image", END)
 

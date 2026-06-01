@@ -1,3 +1,13 @@
+/* ───── Scroll fix ───── */
+[data-testid="stAppViewContainer"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+[data-testid="stMain"],
+section[data-testid="stMain"] > .main {
+  overflow-y: auto !important;
+}
+
 /* ───── Top bar ───── */
 .pixel-topbar {
   position: fixed;
@@ -14,7 +24,7 @@
   align-items: center;
   font-family: 'Press Start 2P', monospace;
   color: var(--bone);
-  font-size: 10px;
+  font-size: 15px;
   letter-spacing: 2px;
   margin-bottom: 0;
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);
@@ -24,14 +34,15 @@
   color: var(--bone);
   opacity: 0.85;
   cursor: pointer;
+  font-size: 9px;
 }
 .pixel-topbar .menu span:hover { color: var(--gold); opacity: 1; }
 .pixel-topbar .brand {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--gold);
   text-shadow: 2px 2px 0 #000;
 }
-.pixel-topbar .session { color: var(--parchment-dark); font-size: 10px; }
+.pixel-topbar .session { color: var(--parchment-dark); font-size: 9px; }
 
 /* ───── Side panels ───── */
 .side-panel {
@@ -47,6 +58,7 @@
 .side-panel .label {
   font-family: 'Press Start 2P', monospace;
   font-size: 8px;
+  text-align: center;
   letter-spacing: 2px;
   color: var(--parchment-dark);
   margin-bottom: 4px;
@@ -83,14 +95,19 @@
 .pixel-row { display: flex; gap: 8px; }
 .pixel-btn {
   flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--parchment);
   color: var(--ink);
   border: 3px solid var(--wood-dark);
   font-family: 'Press Start 2P', monospace;
   font-size: 8px;
   letter-spacing: 1px;
-  padding: 6px 10px;
+  padding: 6px 0;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 3px 3px 0 var(--wood-mid);
   user-select: none;
   cursor: pointer;
