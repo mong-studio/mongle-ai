@@ -20,7 +20,6 @@ async def image_generator_node(
     assert llm_result is not None
 
     await ports.repository.increment(state["input"].user_id)
-    vlm_result = state.get("vlm_result")
     last_err: ImageGenerationFailedError | None = None
     for _ in range(MAX_ATTEMPTS):
         try:
@@ -28,8 +27,7 @@ async def image_generator_node(
             image_bytes = await ports.image_generator.generate(
                 user_id=state["input"].user_id,
                 llm_result=llm_result,
-                vlm_result=vlm_result,
-                fallback_persona=state["input"].persona if vlm_result is None else None,
+                fallback_persona=state["input"].persona,
                 source_image_bytes=src.data if src is not None else None,
             )
             return Command(update={"image_bytes": image_bytes}, goto="generated_upload")

@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from agents.todo_creation.commit.graph import build_commit_graph
+from langgraph.graph import END, START, StateGraph
+
+from agents.todo_creation.commit.nodes.quest_dispatch import quest_dispatch_node
+from agents.todo_creation.commit.nodes.quest_gate import quest_gate
+from agents.todo_creation.commit.nodes.save_dispatcher import save_dispatcher_node
+from agents.todo_creation.commit.nodes.validate import validate_node
 from agents.todo_creation.commit.state import CommitGraphState
 from agents.todo_creation.debug import log_end, log_start, log_step
 from agents.todo_creation.protocols import (
@@ -20,6 +25,25 @@ class CommitPorts:
     repository: TodoRepositoryPort
     quest_counter: QuestCounterPort
     quest_dispatch: QuestDispatchPort
+
+
+def build_commit_graph():
+    g = StateGraph(CommitGraphState)
+
+    g.add_node("validate", validate_node)
+    g.add_node("save_dispatcher", save_dispatcher_node)
+    g.add_node("quest_dispatch", quest_dispatch_node)
+
+    g.add_edge(START, "validate")
+    g.add_edge("validate", "save_dispatcher")
+    g.add_conditional_edges(
+        "save_dispatcher",
+        quest_gate,
+        ["quest_dispatch", END],
+    )
+    g.add_edge("quest_dispatch", END)
+
+    return g.compile()
 
 
 _GRAPH = build_commit_graph()

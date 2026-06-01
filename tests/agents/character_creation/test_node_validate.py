@@ -27,9 +27,9 @@ def _state(*, with_image: bool, bad_mime: bool = False) -> CharacterGraphState:
 _CONFIG: dict = {"configurable": {}}
 
 
-async def test_validate_node_text_only_fans_out_to_llm_and_vlm() -> None:
+async def test_validate_node_text_only_fans_out_to_llm_only() -> None:
     out = await validate_node(_state(with_image=False), _CONFIG)
-    assert out.goto == ["llm_persona", "vlm_analyzer"]
+    assert out.goto == ["llm_persona"]
     assert out.update is None
 
 

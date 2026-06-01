@@ -7,7 +7,7 @@ import pytest
 
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from agents.todo_creation.commit.graph import build_commit_graph
+from agents.todo_creation.commit.pipeline import build_commit_graph
 from agents.todo_creation.exceptions import SaveFailedError
 from agents.todo_creation.schemas import CommitInput, TaskCandidate
 

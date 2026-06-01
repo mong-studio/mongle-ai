@@ -10,7 +10,7 @@ from PIL import Image
 from rembg import remove
 
 from agents.character_creation.exceptions import ImageGenerationFailedError
-from agents.character_creation.schemas import LLMPersonaResult, VLMResult
+from agents.character_creation.schemas import LLMPersonaResult
 
 _PROMPT = (
     "16x16 pixel art sprite, NES style, cute stuffed animal character, "
@@ -103,7 +103,6 @@ class LoRAImageGenerator:
         *,
         user_id: str,
         llm_result: LLMPersonaResult,
-        vlm_result: VLMResult | None,
         fallback_persona: str | None,
         source_image_bytes: bytes | None = None,
     ) -> bytes:

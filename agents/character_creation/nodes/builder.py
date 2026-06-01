@@ -11,7 +11,6 @@ from agents.character_creation.schemas import (
     CharacterCreationInput,
     CharacterEntity,
     LLMPersonaResult,
-    VLMResult,
 )
 from agents.character_creation.state import CharacterGraphState
 
@@ -22,7 +21,6 @@ def build(
     *,
     input: CharacterCreationInput,
     llm_result: LLMPersonaResult,
-    vlm_result: VLMResult | None,
     generated_image_url: str,
     source_image_url: str | None,
     now: datetime,
@@ -37,7 +35,6 @@ def build(
         background=llm_result.background,
         image_url=generated_image_url,
         source_image_url=source_image_url,
-        appearance_description=vlm_result.appearance_description if vlm_result else None,
         created_at=now,
     )
 
@@ -54,7 +51,6 @@ async def builder_node(
         entity = build(
             input=state["input"],
             llm_result=llm_result,
-            vlm_result=state.get("vlm_result"),
             generated_image_url=generated_url,
             source_image_url=state.get("source_url"),
             now=now,

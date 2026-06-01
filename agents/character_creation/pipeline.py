@@ -4,14 +4,26 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import RetryPolicy
+
 from agents.character_creation.debug import log_end, log_start, log_step
-from agents.character_creation.graph import build_graph
+from agents.character_creation.exceptions import (
+    LLMFailedError,
+    S3UploadFailedError,
+)
+from agents.character_creation.nodes.builder import builder_node
+from agents.character_creation.nodes.cleanup import cleanup_source_image_node
+from agents.character_creation.nodes.generated_upload import generated_upload_node
+from agents.character_creation.nodes.image_generator import image_generator_node
+from agents.character_creation.nodes.llm_persona import llm_persona_node
+from agents.character_creation.nodes.source_upload import source_upload_node
+from agents.character_creation.nodes.validate import validate_node
 from agents.character_creation.protocols import (
     CharacterRepositoryPort,
     ImageGeneratorPort,
     LLMPort,
     S3Port,
-    VLMPort,
 )
 from agents.character_creation.schemas import CharacterCreationInput, CharacterEntity
 from agents.character_creation.state import CharacterGraphState
@@ -20,10 +32,58 @@ from agents.character_creation.state import CharacterGraphState
 @dataclass
 class Ports:
     llm: LLMPort
-    vlm: VLMPort
     s3: S3Port
     image_generator: ImageGeneratorPort
     repository: CharacterRepositoryPort
+
+
+async def _sync_node(state: CharacterGraphState, config: dict[str, Any]) -> dict:
+    return {}
+
+
+def build_graph():
+    g = StateGraph(CharacterGraphState)
+
+    g.add_node(
+        "validate",
+        validate_node,
+        destinations=("llm_persona", "source_upload"),
+    )
+    g.add_node(
+        "llm_persona",
+        llm_persona_node,
+        retry=RetryPolicy(max_attempts=3, retry_on=LLMFailedError),
+    )
+    g.add_node(
+        "source_upload",
+        source_upload_node,
+        retry=RetryPolicy(max_attempts=4, retry_on=S3UploadFailedError),
+    )
+    g.add_node("sync", _sync_node)
+    g.add_node(
+        "image_generator",
+        image_generator_node,
+        destinations=("generated_upload", "cleanup_source_image"),
+    )
+    g.add_node(
+        "generated_upload",
+        generated_upload_node,
+        destinations=("builder", "cleanup_source_image"),
+    )
+    g.add_node(
+        "builder",
+        builder_node,
+        destinations=("cleanup_source_image", END),
+    )
+    g.add_node("cleanup_source_image", cleanup_source_image_node)
+
+    g.add_edge(START, "validate")
+    g.add_edge("source_upload", "sync")
+    g.add_edge("llm_persona", "sync")
+    g.add_edge("sync", "image_generator")
+    g.add_edge("cleanup_source_image", END)
+
+    return g.compile()
 
 
 _GRAPH = build_graph()

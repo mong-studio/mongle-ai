@@ -11,7 +11,6 @@ from agents.character_creation.schemas import (
     CharacterEntity,
     LLMPersonaResult,
     PersonalityKeyword,
-    VLMResult,
 )
 
 
@@ -43,11 +42,6 @@ def test_input_rejects_more_than_three_keywords(sample_user_id: str) -> None:
 def test_llm_persona_result_all_fields_required() -> None:
     with pytest.raises(ValidationError):
         LLMPersonaResult(personality="x", speech_style="y")  # type: ignore[call-arg]
-
-
-def test_vlm_result_holds_appearance_description() -> None:
-    result = VLMResult(appearance_description="둥근 갈색 곰, 빨간 리본")
-    assert "곰" in result.appearance_description
 
 
 def test_character_entity_serializes_round_trip(sample_user_id: str) -> None:

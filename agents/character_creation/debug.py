@@ -11,7 +11,6 @@ from agents.character_creation.schemas import (
     CharacterCreationInput,
     CharacterEntity,
     LLMPersonaResult,
-    VLMResult,
 )
 
 
@@ -85,13 +84,6 @@ def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:
         _emit(f"  personality    : {_format(llm_result.personality)}")
         _emit(f"  speech_style   : {_format(llm_result.speech_style)}")
         _emit(f"  background     : {_format(llm_result.background)}")
-
-    vlm_result = update.get("vlm_result")
-    if isinstance(vlm_result, VLMResult):
-        _emit("  --- VLM appearance ---")
-        _emit(f"  appearance     : {_format(vlm_result.appearance_description)}")
-    elif "vlm_result" in update and vlm_result is None:
-        _emit("  vlm_result     : None (VLM 실패 후 degrade)")
 
     source_url = update.get("source_url")
     if source_url:

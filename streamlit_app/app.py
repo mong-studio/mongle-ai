@@ -45,7 +45,6 @@ from agents.character_creation.exceptions import (  # noqa: E402
     LLMFailedError,
     S3UploadFailedError,
     ValidationFailedError,
-    VLMFailedError,
 )
 from agents.character_creation.pipeline import run as pipeline_run  # noqa: E402
 from agents.character_creation.schemas import (  # noqa: E402
@@ -277,12 +276,11 @@ def _timer_panel() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── 2. JS 타이머 엔진 (iframe height=0, localStorage로 상태 유지) ─────────
+    # ── 2. JS 타이머 엔진 ─────────
     components.html(
         """
         <script>
         (function () {
-          var LS_KEY = 'mg_timer_v2';
           var WORK   = 25 * 60;   // 25분
           var BREAK  =  5 * 60;   //  5분
 
@@ -290,11 +288,6 @@ def _timer_panel() -> None:
             return String(Math.floor(s / 60)).padStart(2,'0') + ':' +
                    String(s % 60).padStart(2,'0');
           }
-          function load() {
-            try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
-            catch { return {}; }
-          }
-          function save(st) { localStorage.setItem(LS_KEY, JSON.stringify(st)); }
 
           /* ── 초기 상태 ── */
           var state = {
@@ -335,7 +328,6 @@ def _timer_panel() -> None:
             state.remaining = BREAK;
             state.endAt     = Date.now() + BREAK * 1000;
             state.running   = true;
-            save(state);
             ticker = setInterval(tick, 1000);
             updateUI();
           }
@@ -347,7 +339,6 @@ def _timer_panel() -> None:
             state.isBreak   = false;
             state.remaining = WORK;
             state.endAt     = null;
-            save(state);
             updateUI();
           }
 
@@ -364,7 +355,6 @@ def _timer_panel() -> None:
             if (state.running) return;
             state.endAt   = Date.now() + getRem() * 1000;
             state.running = true;
-            save(state);
             ticker = setInterval(tick, 1000);
             updateUI();
           }
@@ -374,7 +364,6 @@ def _timer_panel() -> None:
             state.running   = false;
             state.endAt     = null;
             clearInterval(ticker); ticker = null;
-            save(state);
             updateUI();
           }
           function doReset() {
@@ -384,7 +373,6 @@ def _timer_panel() -> None:
             state.endAt     = null;
             state.remaining = WORK;
             state.cycles    = 0;
-            save(state);
             updateUI();
           }
 
@@ -408,24 +396,8 @@ def _timer_panel() -> None:
             nr.addEventListener('click', doReset);
           }
 
-          /* ── 초기화 (localStorage 복원) ── */
+          /* ── 초기화 ── */
           function init() {
-            var s = load();
-            if (s && s.cycles !== undefined) {
-              state.running   = !!s.running;
-              state.endAt     = s.endAt   || null;
-              state.remaining = s.remaining !== undefined ? s.remaining : WORK;
-              state.cycles    = s.cycles   || 0;
-              state.isBreak   = !!s.isBreak;
-            }
-            if (state.running && state.endAt) {
-              if (Date.now() >= state.endAt) {
-                if (state.isBreak) { onBreakComplete(); }
-                else               { onWorkComplete();  }
-              } else {
-                ticker = setInterval(tick, 1000);
-              }
-            }
             updateUI();
             bindButtons();
           }
@@ -2167,8 +2139,6 @@ def _handle_pipeline_error(err: Exception) -> None:
         st.error(f"[{err.code}] {err.message}")
     elif isinstance(err, LLMFailedError):
         st.error("페르소나 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
-    elif isinstance(err, VLMFailedError):
-        st.error("이미지 분석에 실패했습니다.")
     elif isinstance(err, ImageGenerationFailedError):
         st.error("이미지 생성에 실패했습니다.")
     elif isinstance(err, S3UploadFailedError):

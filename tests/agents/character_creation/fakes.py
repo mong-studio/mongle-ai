@@ -6,14 +6,11 @@ from agents.character_creation.exceptions import (
     ImageGenerationFailedError,
     LLMFailedError,
     S3UploadFailedError,
-    VLMFailedError,
 )
 from agents.character_creation.schemas import (
     CharacterEntity,
     LLMPersonaResult,
     PersonalityKeyword,
-    SourceImage,
-    VLMResult,
 )
 
 
@@ -37,19 +34,6 @@ class FakeLLM:
             speech_style="존댓말",
             background="조용한 숲에서 옴",
         )
-
-
-@dataclass
-class FakeVLM:
-    fail_times: int = 0
-    calls: int = 0
-
-    async def extract_appearance(self, image: SourceImage) -> VLMResult:
-        self.calls += 1
-        if self.fail_times > 0:
-            self.fail_times -= 1
-            raise VLMFailedError("simulated VLM failure")
-        return VLMResult(appearance_description="둥근 갈색 곰")
 
 
 @dataclass
@@ -85,15 +69,15 @@ class FakeImageGenerator:
         *,
         user_id: str,
         llm_result: LLMPersonaResult,
-        vlm_result: VLMResult | None,
         fallback_persona: str | None,
+        source_image_bytes: bytes | None,
     ) -> bytes:
         self.calls += 1
         self.last_inputs = {
             "user_id": user_id,
             "llm_result": llm_result,
-            "vlm_result": vlm_result,
             "fallback_persona": fallback_persona,
+            "source_image_bytes": source_image_bytes,
         }
         if self.fail_times > 0:
             self.fail_times -= 1

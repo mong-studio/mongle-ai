@@ -14,7 +14,6 @@ from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.lora_image import LoRAImageGenerator
 from adapters.character_creation.midm_llm import MidmLLM as MidmCharacterLLM
 from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
-from adapters.character_creation.openai_vlm import OpenAIVLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.memory_repo import (
     MemoryCharacterQueryRepo,
@@ -28,7 +27,7 @@ from adapters.todo_creation.midm_llm import MidmLLM as MidmTodoLLM
 from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
-from agents.character_creation.schemas import LLMPersonaResult, VLMResult
+from agents.character_creation.schemas import LLMPersonaResult
 from agents.quest_generation.protocols import LLMPort as QuestLLMPort
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.single_turn.pipeline import GeneratePorts as TodoGeneratePorts
@@ -197,11 +196,6 @@ def _get_lora_generator(lora_dir: str) -> LoRAImageGenerator:
 def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
     openai_client = OpenAI(api_key=cfg.openai_api_key)
 
-    chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
-    vlm_runnable = chat.with_structured_output(
-        VLMResult, method="json_schema", strict=True
-    )
-
     if cfg.storage_backend == "s3":
         # boto3 import 비용을 local 모드에서 피하려고 지연 import.
         import boto3
@@ -222,7 +216,6 @@ def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
 
     return Ports(
         llm=_build_character_llm(cfg),
-        vlm=OpenAIVLM(runnable=vlm_runnable),
         s3=storage,
         image_generator=_get_lora_generator(cfg.lora_dir),
         repository=repo,

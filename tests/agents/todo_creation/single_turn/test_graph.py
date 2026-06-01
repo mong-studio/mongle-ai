@@ -4,10 +4,10 @@ from datetime import date
 
 import pytest
 
-from adapters.todo_creation.fake_llm import FakeLLM
+from tests.agents.todo_creation.fake_llm import FakeLLM
 from agents.todo_creation.exceptions import LLMFailedError, ValidationError
 from agents.todo_creation.schemas import SingleTurnInput, TaskCandidate
-from agents.todo_creation.single_turn.graph import build_generate_graph
+from agents.todo_creation.single_turn.pipeline import build_generate_graph
 
 
 class _Ports:

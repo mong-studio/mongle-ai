@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from agents.character_creation.exceptions import S3UploadFailedError
-from agents.character_creation.nodes.image_upload import key_for, put_once
+from agents.character_creation.nodes._upload_utils import key_for, put_once
 from tests.agents.character_creation.fakes import FakeS3
 
 
