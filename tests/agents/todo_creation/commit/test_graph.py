@@ -7,7 +7,7 @@ import pytest
 
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from agents.todo_creation.commit.graph import build_commit_graph
+from agents.todo_creation.commit.pipeline import build_commit_graph
 from agents.todo_creation.exceptions import SaveFailedError
 from agents.todo_creation.schemas import CommitInput, TaskCandidate
 
@@ -207,4 +207,3 @@ async def test_commit_graph_dispatch_failure_does_not_break_commit() -> None:
     )
     assert len(final["todo_ids"]) == 1
     assert final["quest_triggered"] is False
-    assert counter.peek(user_id="u1", day_kst=_today()) == 0

@@ -33,14 +33,14 @@
 }
 .feed-post-char-name {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 13px;
   color: var(--wood-dark);
   letter-spacing: 1px;
   flex: 1;
 }
 .feed-post-time {
   font-family: 'DotGothic16', monospace;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--wood-mid);
   white-space: nowrap;
 }
@@ -67,7 +67,7 @@
 .feed-post-caption {
   padding: 10px 14px 6px;
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--ink);
   line-height: 1.7;
 }
@@ -76,7 +76,7 @@
 .feed-quest-ref {
   padding: 4px 14px 8px;
   font-family: 'DotGothic16', monospace;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--wood-mid);
   border-bottom: 1px dashed var(--wood-mid);
 }
@@ -89,7 +89,7 @@
 }
 .feed-comment-item {
   font-family: 'DotGothic16', monospace;
-  font-size: 13px;
+  font-size: 18px;
   color: var(--ink);
   padding: 2px 0;
   line-height: 1.5;
@@ -102,7 +102,7 @@
 /* ───── Comment count ───── */
 .feed-comment-count {
   font-family: 'DotGothic16', monospace;
-  font-size: 13px;
+  font-size: 18px;
   color: var(--wood-mid);
   line-height: 2.4;
   padding: 0 4px;
@@ -116,7 +116,7 @@
 /* ───── Empty state ───── */
 .feed-empty {
   font-family: 'DotGothic16', monospace;
-  font-size: 15px;
+  font-size: 20px;
   color: var(--wood-mid);
   text-align: center;
   padding: 48px 0;

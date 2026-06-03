@@ -7,7 +7,7 @@
   border-radius: 0 !important;
   box-shadow: 4px 4px 0 var(--wood-mid) !important;
   padding: 10px 18px !important;
-  font-size: 15px !important;
+  font-size: 20px !important;
   font-weight: normal !important;
   letter-spacing: 1px !important;
   transition: none !important;
@@ -42,7 +42,7 @@
   border: 3px solid var(--wood-dark) !important;
   border-radius: 0 !important;
   font-family: 'DotGothic16', monospace !important;
-  font-size: 15px !important;
+  font-size: 20px !important;
   box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.12) !important;
 }
 
@@ -70,7 +70,7 @@
 .stFileUploader label,
 .stCheckbox label > div {
   font-family: 'Press Start 2P', monospace !important;
-  font-size: 9px !important;
+  font-size: 14px !important;
   color: var(--wood-dark) !important;
   letter-spacing: 1px !important;
 }
@@ -107,7 +107,7 @@
 }
 .preview-caption {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 13px;
   letter-spacing: 1px;
   color: var(--wood-dark);
   text-align: center;
@@ -117,7 +117,7 @@
 /* ───── Personality keyword label ───── */
 .kw-label {
   font-family: 'Press Start 2P', monospace !important;
-  font-size: 9px !important;
+  font-size: 14px !important;
   color: var(--wood-dark) !important;
   letter-spacing: 1px !important;
   margin-bottom: 6px;
@@ -126,7 +126,7 @@
 /* 다이얼로그 내에서는 위젯 레이블과 동일하게 보이도록 크기 맞춤 */
 div[role="dialog"] .kw-label {
   font-family: 'DotGothic16', monospace !important;
-  font-size: 14px !important;
+  font-size: 19px !important;
   font-weight: normal !important;
   letter-spacing: 0 !important;
 }
@@ -140,7 +140,7 @@ div[role="dialog"] .kw-label {
 div[role="dialog"] .stButton > button {
   border-radius: 999px !important;
   font-family: 'DotGothic16', monospace !important;
-  font-size: 13px !important;
+  font-size: 18px !important;
   font-weight: normal !important;
   padding: 6px 14px !important;
   letter-spacing: 0 !important;
@@ -165,7 +165,7 @@ div[role="dialog"] h1,
 div[role="dialog"] h2,
 div[role="dialog"] h3 {
   font-family: 'Press Start 2P', monospace !important;
-  font-size: 12px !important;
+  font-size: 17px !important;
   color: var(--wood-dark) !important;
   text-align: center !important;
   border-bottom: 2px dashed var(--wood-mid) !important;
@@ -178,7 +178,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 
 .modal-sub {
   text-align: center;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--wood-dark);
   margin-bottom: 14px;
 }
@@ -193,7 +193,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 /* ───── Reflection (Daily Retro) modal ───── */
 .retro-section-label {
   font-family: 'DotGothic16', monospace;
-  font-size: 15px;
+  font-size: 20px;
   color: var(--wood-dark);
   font-weight: bold;
   letter-spacing: 1px;
@@ -201,7 +201,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 }
 .retro-char-name {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 13px;
   color: var(--wood-dark);
   text-align: center;
   letter-spacing: 1px;
@@ -209,14 +209,14 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 }
 .retro-empty {
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--wood-mid);
   padding: 12px 0;
   opacity: 0.7;
 }
 .retro-token-info {
   font-family: 'DotGothic16', monospace;
-  font-size: 13px;
+  font-size: 18px;
   color: var(--wood-mid);
   border: 2px dashed var(--wood-mid);
   padding: 8px 12px;
@@ -234,7 +234,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 }
 .plan-pending-title {
   font-family: 'Press Start 2P', monospace;
-  font-size: 9px;
+  font-size: 14px;
   color: var(--wood-dark);
   letter-spacing: 2px;
   margin-bottom: 10px;
@@ -243,7 +243,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 }
 .plan-pending-summary {
   font-family: 'DotGothic16', monospace;
-  font-size: 13px;
+  font-size: 18px;
   color: var(--wood-mid);
   margin-bottom: 10px;
   line-height: 1.5;
@@ -255,7 +255,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
   padding: 5px 0;
   border-bottom: 1px dashed var(--parchment-dark);
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--ink);
 }
 .plan-pending-dot {
@@ -267,7 +267,7 @@ div[role="dialog"] button[aria-label="Close"] { color: var(--wood-dark) !importa
 }
 .plan-pending-date {
   font-family: 'DotGothic16', monospace;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--wood-mid);
   margin-left: auto;
   white-space: nowrap;

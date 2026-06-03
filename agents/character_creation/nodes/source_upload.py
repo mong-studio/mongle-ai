@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents.character_creation.nodes.image_upload import key_for, put_once
+from agents.character_creation.nodes._upload_utils import key_for, put_once
 from agents.character_creation.state import CharacterGraphState
 
 

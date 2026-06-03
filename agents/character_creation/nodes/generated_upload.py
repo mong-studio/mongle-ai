@@ -5,7 +5,7 @@ from typing import Any, Literal
 from langgraph.types import Command
 
 from agents.character_creation.exceptions import S3UploadFailedError
-from agents.character_creation.nodes.image_upload import key_for, put_once
+from agents.character_creation.nodes._upload_utils import key_for, put_once
 from agents.character_creation.state import CharacterGraphState
 
 MAX_ATTEMPTS = 4

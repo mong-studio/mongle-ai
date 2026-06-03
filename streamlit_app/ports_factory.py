@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import os
 from dataclasses import dataclass
 from datetime import date
@@ -10,10 +11,9 @@ from openai import OpenAI
 
 from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
+from adapters.character_creation.lora_image import LoRAImageGenerator
 from adapters.character_creation.midm_llm import MidmLLM as MidmCharacterLLM
-from adapters.character_creation.openai_image import OpenAIImageGenerator
 from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
-from adapters.character_creation.openai_vlm import OpenAIVLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.memory_repo import (
     MemoryCharacterQueryRepo,
@@ -27,7 +27,7 @@ from adapters.todo_creation.midm_llm import MidmLLM as MidmTodoLLM
 from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
-from agents.character_creation.schemas import LLMPersonaResult, VLMResult
+from agents.character_creation.schemas import LLMPersonaResult
 from agents.quest_generation.protocols import LLMPort as QuestLLMPort
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.single_turn.pipeline import GeneratePorts as TodoGeneratePorts
@@ -70,6 +70,7 @@ class AppConfig:
     midm_base_url: str | None     # llm_provider/quest_llm_provider == "midm" 일 때 필수
     midm_model: str | None        # 동일
     midm_api_key: str             # vLLM 등은 더미 키 허용 → 기본 "EMPTY"
+    lora_dir: str                 # LoRA 가중치 폴더 경로
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -111,12 +112,17 @@ class AppConfig:
             midm_base_url = need("MIDM_BASE_URL")
             midm_model = need("MIDM_MODEL")
 
+        lora_dir = os.environ.get("LORA_DIR", "").strip()
+        if not lora_dir:
+            missing.append("LORA_DIR")
+
         common_midm = dict(
             quest_llm_provider=quest_llm_provider,
             llm_provider=llm_provider,
             midm_base_url=midm_base_url,
             midm_model=midm_model,
             midm_api_key=midm_api_key,
+            lora_dir=lora_dir,
         )
 
         if backend == "s3":
@@ -181,13 +187,14 @@ def build_todo_generate_ports(cfg: AppConfig) -> TodoGeneratePorts:
     return TodoGeneratePorts(llm=llm)
 
 
+@functools.lru_cache(maxsize=1)
+def _get_lora_generator(lora_dir: str) -> LoRAImageGenerator:
+    """앱 전체에서 LoRA 모델을 한 번만 로드."""
+    return LoRAImageGenerator(lora_dir=lora_dir)
+
+
 def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
     openai_client = OpenAI(api_key=cfg.openai_api_key)
-
-    chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
-    vlm_runnable = chat.with_structured_output(
-        VLMResult, method="json_schema", strict=True
-    )
 
     if cfg.storage_backend == "s3":
         # boto3 import 비용을 local 모드에서 피하려고 지연 import.
@@ -209,11 +216,8 @@ def build_ports(repo: InMemoryRepo, cfg: AppConfig) -> Ports:
 
     return Ports(
         llm=_build_character_llm(cfg),
-        vlm=OpenAIVLM(runnable=vlm_runnable),
         s3=storage,
-        image_generator=OpenAIImageGenerator(
-            client=openai_client, model="gpt-image-1", size="1024x1024"
-        ),
+        image_generator=_get_lora_generator(cfg.lora_dir),
         repository=repo,
     )
 

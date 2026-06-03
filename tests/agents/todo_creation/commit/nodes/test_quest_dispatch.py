@@ -3,9 +3,6 @@ from __future__ import annotations
 from datetime import date
 from uuid import uuid4
 
-from langgraph.graph import END
-from langgraph.types import Command
-
 from agents.todo_creation.commit.nodes.quest_dispatch import quest_dispatch_node
 from agents.todo_creation.schemas import CommitInput, TaskCandidate
 
@@ -42,19 +39,15 @@ def _state_and_ports(port) -> tuple[dict, dict]:
     return state, config
 
 
-async def test_quest_dispatch_success_routes_to_end() -> None:
+async def test_quest_dispatch_success_sets_triggered_true() -> None:
     port = _SuccessPort()
     state, config = _state_and_ports(port)
-    cmd = await quest_dispatch_node(state, config)
-    assert isinstance(cmd, Command)
-    assert cmd.goto == END
-    assert cmd.update["quest_triggered"] is True
+    diff = await quest_dispatch_node(state, config)
+    assert diff["quest_triggered"] is True
     assert port.calls == ["u1"]
 
 
-async def test_quest_dispatch_failure_routes_to_quota_restore() -> None:
+async def test_quest_dispatch_failure_is_silently_skipped() -> None:
     state, config = _state_and_ports(_FailingPort())
-    cmd = await quest_dispatch_node(state, config)
-    assert isinstance(cmd, Command)
-    assert cmd.goto == "quota_restore"
-    assert cmd.update["quest_triggered"] is False
+    diff = await quest_dispatch_node(state, config)
+    assert diff["quest_triggered"] is False

@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from adapters.todo_creation.fake_llm import FakeLLM
+from tests.agents.todo_creation.fake_llm import FakeLLM
 from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.schemas import TaskCandidate
 

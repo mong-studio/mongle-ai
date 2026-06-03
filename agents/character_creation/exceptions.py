@@ -20,10 +20,6 @@ class LLMFailedError(ExternalServiceError):
     pass
 
 
-class VLMFailedError(ExternalServiceError):
-    pass
-
-
 class S3UploadFailedError(ExternalServiceError):
     pass
 

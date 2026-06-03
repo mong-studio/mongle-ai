@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 import pytest
 
-from adapters.todo_creation.fake_llm import FakeLLM
+from tests.agents.todo_creation.fake_llm import FakeLLM
 from agents.todo_creation.exceptions import LLMFailedError, ValidationError
 from agents.todo_creation.schemas import SingleTurnInput, TaskCandidate
 from agents.todo_creation.single_turn.pipeline import GeneratePorts, run

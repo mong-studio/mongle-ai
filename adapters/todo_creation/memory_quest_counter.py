@@ -22,11 +22,5 @@ class MemoryQuestCounter:
             self._counts[(user_id, day_kst)] = current + 1
             return True
 
-    async def decr(self, *, user_id: str, day_kst: date) -> None:
-        async with self._lock:
-            current = self._counts.get((user_id, day_kst), 0)
-            if current > 0:
-                self._counts[(user_id, day_kst)] = current - 1
-
     def peek(self, *, user_id: str, day_kst: date) -> int:
         return self._counts.get((user_id, day_kst), 0)

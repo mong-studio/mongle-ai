@@ -14,7 +14,6 @@ from tests.agents.character_creation.fakes import (
     FakeLLM,
     FakeRepository,
     FakeS3,
-    FakeVLM,
 )
 
 
@@ -22,13 +21,11 @@ def _ports(
     *,
     repo: FakeRepository | None = None,
     llm: FakeLLM | None = None,
-    vlm: FakeVLM | None = None,
     s3: FakeS3 | None = None,
     img: FakeImageGenerator | None = None,
 ) -> Ports:
     return Ports(
         llm=llm or FakeLLM(),
-        vlm=vlm or FakeVLM(),
         s3=s3 or FakeS3(),
         image_generator=img or FakeImageGenerator(),
         repository=repo or FakeRepository(),
@@ -57,23 +54,13 @@ async def test_text_only_pipeline_returns_entity_without_source_url() -> None:
     entity = await run(_input(), ports=ports)
     assert entity.source_image_url is None
     assert entity.image_url.startswith("https://fake-s3.local/characters/u1/")
-    assert ports.vlm.calls == 0  # type: ignore[attr-defined]
 
 
-async def test_image_plus_text_pipeline_uploads_source_and_invokes_vlm() -> None:
+async def test_image_pipeline_uploads_source_url() -> None:
     ports = _ports()
     entity = await run(_input(with_image=True), ports=ports)
     assert entity.source_image_url is not None
     assert entity.source_image_url.startswith("https://fake-s3.local/sources/u1/")
-    assert ports.vlm.calls == 1  # type: ignore[attr-defined]
-    assert ports.image_generator.last_inputs["vlm_result"] is not None  # type: ignore[attr-defined]
-
-
-async def test_vlm_failure_degrades_but_completes() -> None:
-    ports = _ports(vlm=FakeVLM(fail_times=3))
-    entity = await run(_input(with_image=True), ports=ports)
-    assert entity is not None
-    assert ports.image_generator.last_inputs["vlm_result"] is None  # type: ignore[attr-defined]
 
 
 async def test_validation_failure_does_not_call_external_services() -> None:

@@ -6,7 +6,7 @@ from agents.character_creation.exceptions import (
     ImageGenerationFailedError,
     LLMFailedError,
 )
-from agents.character_creation.graph import build_graph
+from agents.character_creation.pipeline import build_graph
 from agents.character_creation.schemas import CharacterCreationInput, SourceImage
 from agents.character_creation.state import CharacterGraphState
 from tests.agents.character_creation.fakes import (
@@ -14,14 +14,12 @@ from tests.agents.character_creation.fakes import (
     FakeLLM,
     FakeRepository,
     FakeS3,
-    FakeVLM,
 )
 
 
 class _Ports:
     def __init__(self, **kw) -> None:
         self.llm = kw.get("llm") or FakeLLM()
-        self.vlm = kw.get("vlm") or FakeVLM()
         self.s3 = kw.get("s3") or FakeS3()
         self.image_generator = kw.get("image_generator") or FakeImageGenerator()
         self.repository = kw.get("repository") or FakeRepository()
@@ -57,10 +55,9 @@ async def test_graph_text_only_path_produces_entity() -> None:
         config={"configurable": {"ports": ports, "now": None}},
     )
     assert _final_entity(final) is not None
-    assert ports.vlm.calls == 0
 
 
-async def test_graph_image_path_invokes_vlm_and_source_upload() -> None:
+async def test_graph_image_path_uploads_source() -> None:
     graph = build_graph()
     ports = _Ports()
     final = await graph.ainvoke(
@@ -68,7 +65,6 @@ async def test_graph_image_path_invokes_vlm_and_source_upload() -> None:
         config={"configurable": {"ports": ports, "now": None}},
     )
     assert _final_source_image_url(final) is not None
-    assert ports.vlm.calls == 1
 
 
 async def test_graph_llm_retry_policy_eventually_raises() -> None:

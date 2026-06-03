@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 import pytest
 
-from adapters.todo_creation.fake_llm import FakeLLM
+from tests.agents.todo_creation.fake_llm import FakeLLM
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 

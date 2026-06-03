@@ -4,7 +4,6 @@ from agents.character_creation.schemas import (
     LLMPersonaResult,
     PersonalityKeyword,
     SourceImage,
-    VLMResult,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "LLMPersonaResult",
     "PersonalityKeyword",
     "SourceImage",
-    "VLMResult",
 ]

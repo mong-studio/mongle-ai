@@ -7,6 +7,17 @@ dependencies = [
     "pydantic>=2.6,<3",
     "boto3>=1.34",
     "langgraph>=0.2,<0.3",
+    "huggingface-hub>=1.16.4",
+    "torch>=2.12.0",
+    "diffusers>=0.37.1",
+    "opencv-python>=4.13.0.92",
+    "rembg[cpu]>=2.0.75",
+    "pillow>=12.2.0",
+    "transformers>=5.9.0",
+    "torchvision>=0.27.0",
+    "accelerate>=1.13.0",
+    "peft>=0.19.1",
+    "opencv-python-headless>=4.13.0.92",
 ]
 
 [project.optional-dependencies]

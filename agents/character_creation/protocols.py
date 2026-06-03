@@ -6,8 +6,6 @@ from agents.character_creation.schemas import (
     CharacterEntity,
     LLMPersonaResult,
     PersonalityKeyword,
-    SourceImage,
-    VLMResult,
 )
 
 
@@ -18,10 +16,6 @@ class LLMPort(Protocol):
         persona: str,
         keywords: list[PersonalityKeyword],
     ) -> LLMPersonaResult: ...
-
-
-class VLMPort(Protocol):
-    async def extract_appearance(self, image: SourceImage) -> VLMResult: ...
 
 
 class S3Port(Protocol):
@@ -35,8 +29,8 @@ class ImageGeneratorPort(Protocol):
         *,
         user_id: str,
         llm_result: LLMPersonaResult,
-        vlm_result: VLMResult | None,
         fallback_persona: str | None,
+        source_image_bytes: bytes | None,
     ) -> bytes: ...
 
 

@@ -48,10 +48,6 @@ class LLMPersonaResult(BaseModel):
     background: str
 
 
-class VLMResult(BaseModel):
-    appearance_description: str
-
-
 class CharacterEntity(BaseModel):
     character_id: UUID
     user_id: str
@@ -62,5 +58,4 @@ class CharacterEntity(BaseModel):
     background: str
     image_url: str
     source_image_url: str | None
-    appearance_description: str | None = None
     created_at: datetime

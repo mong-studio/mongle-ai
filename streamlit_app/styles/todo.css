@@ -1,7 +1,7 @@
 /* ───── Step tag (multi-step modal header) ───── */
 .step-tag {
   font-family: 'Press Start 2P', monospace;
-  font-size: 9px;
+  font-size: 14px;
   letter-spacing: 2px;
   color: var(--wood-dark);
   text-align: center;
@@ -17,7 +17,7 @@
 /* ───── Section label ───── */
 .todo-section-label {
   font-family: 'DotGothic16', monospace;
-  font-size: 15px;
+  font-size: 20px;
   color: var(--wood-dark);
   font-weight: bold;
   letter-spacing: 1px;
@@ -27,7 +27,7 @@
 /* ───── Direct-add item row ───── */
 .todo-direct-item {
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--ink);
   background: var(--parchment-light);
   border: 2px solid var(--wood-dark);
@@ -47,7 +47,7 @@
 /* ───── TODO List (right panel) ───── */
 .todo-list-header {
   font-family: 'Press Start 2P', monospace;
-  font-size: 8px;
+  font-size: 12px;
   color: var(--wood-dark);
   letter-spacing: 1px;
   text-align: center;
@@ -58,7 +58,7 @@
 
 .todo-item {
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--ink);
   padding: 5px 8px;
   border-left: 3px solid var(--wood-dark);
@@ -86,7 +86,7 @@
 /* ───── TODO modal title ───── */
 .todo-modal-title {
   font-family: 'Press Start 2P', monospace;
-  font-size: 11px;
+  font-size: 16px;
   color: var(--wood-dark);
   text-align: center;
   letter-spacing: 2px;
@@ -99,7 +99,7 @@
   background: var(--parchment-light);
   color: var(--wood-dark);
   font-family: 'DotGothic16', monospace;
-  font-size: 11px;
+  font-size: 16px;
   padding: 2px 8px;
   margin: 2px 2px;
   border: 2px solid var(--wood-dark);
@@ -114,7 +114,7 @@
 }
 .todo-step2-title {
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--ink);
 }
 .todo-step2-tags {
@@ -156,7 +156,7 @@
   max-width: 78%;
   padding: 8px 12px;
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   line-height: 1.5;
   border: 2px solid var(--wood-dark);
 }
@@ -170,14 +170,14 @@
 }
 .plan-chat-label {
   font-family: 'Press Start 2P', monospace;
-  font-size: 7px;
+  font-size: 12px;
   color: var(--wood-dark);
   letter-spacing: 1px;
   margin-bottom: 2px;
 }
 .plan-empty {
   font-family: 'DotGothic16', monospace;
-  font-size: 14px;
+  font-size: 19px;
   color: var(--wood-mid);
   text-align: center;
   padding: 24px 0;
@@ -194,7 +194,7 @@
   background: transparent !important;
   color: var(--bone) !important;
   border-left-color: var(--wood-mid) !important;
-  font-size: 12px !important;
+  font-size: 17px !important;
   padding: 2px 4px !important;
   white-space: nowrap !important;
   overflow: hidden !important;
@@ -207,7 +207,6 @@
 }
 
 /* ───── Compact row spacing inside fixed todo panel ───── */
-/* :not(:has(...)) 로 가장 안쪽 stVerticalBlock만 선택 — 바깥 컨테이너에 영향 없음 */
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) {
   row-gap: 0 !important;
   gap: 0 !important;
@@ -220,24 +219,44 @@
 }
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) [data-testid="stHorizontalBlock"] {
   gap: 2px !important;
-  margin-bottom: 0 !important;
+  margin: 0 !important;
   padding: 0 !important;
+  min-height: unset !important;
+  height: auto !important;
+  align-items: center !important;
 }
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) [data-testid="column"] {
   padding: 0 2px !important;
   min-height: unset !important;
+  height: auto !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) [data-testid="stHorizontalBlock"] > div {
+  min-height: unset !important;
+  height: auto !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) .stCheckbox {
-  min-height: 22px !important;
+  min-height: unset !important;
+  height: auto !important;
   padding: 0 !important;
   margin: 0 !important;
 }
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) .stCheckbox > label {
-  padding: 1px 0 !important;
+  padding: 0 !important;
   min-height: unset !important;
-  gap: 0 !important;
+  gap: 2px !important;
+  line-height: 1 !important;
 }
 [data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) .stMarkdownContainer p {
   margin: 0 !important;
   line-height: 1.2 !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) [data-testid="stVerticalBlock"] {
+  row-gap: 0 !important;
+  gap: 0 !important;
+}
+[data-testid="stVerticalBlock"]:has(.todo-list-header):not(:has([data-testid="stVerticalBlock"]:has(.todo-list-header))) [data-testid="stVerticalBlock"] > [data-testid="element-container"] {
+  margin: 0 !important;
+  padding: 0 !important;
 }

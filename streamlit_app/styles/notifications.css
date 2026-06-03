@@ -1,0 +1,124 @@
+/* ───── Hide Streamlit wiring buttons (notification close handlers) ─────
+ * `:has(> element-container .marker)` 로 직접 자식 element-container 안에
+ * 마커가 있는 가장 안쪽 stVerticalBlock만 선택한다.
+ * 단순 `:has(.marker)` 는 루트 stVerticalBlock까지 매칭해 페이지 전체를 숨긴다.
+ * ────────────────────────────────────────────────────────────────────── */
+[data-testid="stVerticalBlock"]:has(> [data-testid="element-container"] .mg-notif-btn-close-all),
+[data-testid="stVerticalBlock"]:has(> [data-testid="element-container"] .mg-notif-btn-close-item) {
+  display: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* ───── Notification Panel ───── */
+.mg-notif-panel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 292px;
+  z-index: 9999;
+  background: rgba(12, 15, 26, 0.97);
+  border: 1.5px solid rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255,255,255,0.04);
+  font-family: 'DotGothic16', monospace;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.mg-notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mg-notif-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e2daf4;
+  font-size: 19px;
+}
+
+.mg-notif-bell {
+  font-size: 19px;
+}
+
+.mg-notif-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mg-notif-dots {
+  color: rgba(226, 218, 244, 0.45);
+  font-size: 17px;
+  letter-spacing: 3px;
+}
+
+.mg-notif-header-x,
+.mg-notif-item-x {
+  color: rgba(226, 218, 244, 0.55);
+  font-size: 21px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.mg-notif-header-x:hover,
+.mg-notif-item-x:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mg-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.mg-notif-item:last-child {
+  border-bottom: none;
+}
+
+.mg-notif-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mg-notif-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.mg-notif-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mg-notif-item-title {
+  color: #e8e0f8;
+  font-size: 19px;
+  font-family: 'DotGothic16', monospace;
+  line-height: 1.3;
+}
+
+.mg-notif-item-sub {
+  color: rgba(226, 218, 244, 0.58);
+  font-size: 17px;
+  font-family: 'DotGothic16', monospace;
+  margin-top: 3px;
+  line-height: 1.3;
+}

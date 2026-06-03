@@ -6,7 +6,6 @@ from agents.character_creation.nodes.builder import build, builder_node
 from agents.character_creation.schemas import (
     CharacterCreationInput,
     LLMPersonaResult,
-    VLMResult,
 )
 from agents.character_creation.state import CharacterGraphState
 
@@ -33,7 +32,6 @@ def test_builds_entity_with_all_required_fields() -> None:
     entity = build(
         input=_input(),
         llm_result=_llm(),
-        vlm_result=VLMResult(appearance_description="둥근 곰"),
         generated_image_url="https://s3/characters/u1/x.png",
         source_image_url="https://s3/sources/u1/y.png",
         now=fixed_now,
@@ -46,7 +44,6 @@ def test_builds_entity_with_all_required_fields() -> None:
     assert entity.background == "숲에서 옴"
     assert entity.image_url.endswith("x.png")
     assert entity.source_image_url is not None
-    assert entity.appearance_description == "둥근 곰"
     assert entity.created_at == fixed_now
     assert entity.character_id is not None
 
@@ -55,13 +52,11 @@ def test_source_url_is_none_for_text_only() -> None:
     entity = build(
         input=_input(),
         llm_result=_llm(),
-        vlm_result=None,
         generated_image_url="https://s3/c.png",
         source_image_url=None,
         now=datetime(2026, 5, 22),
     )
     assert entity.source_image_url is None
-    assert entity.appearance_description is None
 
 
 async def test_builder_node_assembles_entity() -> None:
