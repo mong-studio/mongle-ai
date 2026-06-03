@@ -12,11 +12,6 @@ from functools import lru_cache
 from pathlib import Path
 from uuid import uuid4
 
-# langgraph 가 import 시 langchain-core 의 Reviver 를 인자 없이 생성하여
-# LangChainPendingDeprecationWarning 을 띄운다. 라이브러리 내부 호출이라
-# 사용자가 인자를 넘길 수 없으므로 import 전에 필터링한다.
-# langchain_core._api.deprecation 은 import 시 자체 'default' 필터를 등록하므로
-# 더 구체적인 서브클래스로 ignore 를 지정해야 우선 적용된다.
 from langchain_core._api.deprecation import (  # noqa: E402
     LangChainPendingDeprecationWarning,
 )
@@ -768,6 +763,127 @@ def _character_modal(user_id: str, is_regen: bool, repo: InMemoryRepo, cfg: AppC
 # ── TODO 프리셋 태그 ──────────────────────────────────────────────────────────
 _PRESET_TAGS: list[str] = ["건강", "학습", "업무/프로젝트", "일상", "취미"]
 
+_MOCK_FEEDS = [
+    {
+        "avatar": "🐱",
+        "name": "다온",
+        "bg": "#FFDAB9",
+        "accent": "#F4A460",
+        "emoji": "📚",
+        "caption": "오늘도 열심히 공부했어요~ 수학 문제집 3장 완성! 뿌듯하다냥~ ✏️",
+        "likes": 42,
+        "comments": 7,
+        "time": "2시간 전",
+    },
+    {
+        "avatar": "🐶",
+        "name": "몽글이",
+        "bg": "#B0E0FF",
+        "accent": "#6CB4E4",
+        "emoji": "🏃",
+        "caption": "산책 다녀왔어요! 오늘은 공원 두 바퀴! 몸이 가벼워지는 기분이야 🌸",
+        "likes": 28,
+        "comments": 3,
+        "time": "4시간 전",
+    },
+    {
+        "avatar": "🦊",
+        "name": "솔이",
+        "bg": "#C8F5C8",
+        "accent": "#6DC96D",
+        "emoji": "🍳",
+        "caption": "요리 퀘스트 완료! 오늘 저녁은 내가 만든 계란볶음밥 🍳 맛있게 드세요!",
+        "likes": 65,
+        "comments": 12,
+        "time": "6시간 전",
+    },
+]
+
+
+def _feed_image_uri(bg: str, accent: str, emoji: str) -> str:
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="340" height="340">'
+        f'<rect width="340" height="340" fill="{bg}"/>'
+        f'<circle cx="170" cy="160" r="100" fill="{accent}" opacity="0.35"/>'
+        f'<text x="170" y="185" font-size="110" text-anchor="middle"'
+        f' dominant-baseline="middle">{emoji}</text>'
+        f"</svg>"
+    )
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+@st.dialog("< FEED >  마을 피드", width="large")
+def _feed_modal() -> None:
+    stories = "".join(
+        f'<div class="insta-story-item">'
+        f'<div class="insta-story-ring">'
+        f'<div class="insta-story-avatar">{f["avatar"]}</div>'
+        f"</div>"
+        f'<div class="insta-story-name">{f["name"]}</div>'
+        f"</div>"
+        for f in _MOCK_FEEDS
+    )
+
+    posts = "".join(
+        f'<div class="insta-post">'
+        f'<div class="insta-post-header">'
+        f'<div class="insta-post-user">'
+        f'<div class="insta-post-ring"><div class="insta-post-avatar">{f["avatar"]}</div></div>'
+        f"<div>"
+        f'<div class="insta-post-username">{f["name"]}</div>'
+        f'<div class="insta-post-location">몽글마을</div>'
+        f"</div></div>"
+        f'<div class="insta-post-more">···</div>'
+        f"</div>"
+        f'<div class="insta-post-image-wrap">'
+        f'<img class="insta-post-image" src="{_feed_image_uri(f["bg"], f["accent"], f["emoji"])}" alt=""/>'
+        f"</div>"
+        f'<div class="insta-post-actions">'
+        f'<span class="insta-action">🤍</span>'
+        f'<span class="insta-action">💬</span>'
+        f'<span class="insta-action">↗</span>'
+        f'<span class="insta-action save">🔖</span>'
+        f"</div>"
+        f'<div class="insta-likes">좋아요 {f["likes"]}개</div>'
+        f'<div class="insta-caption"><span class="uname">{f["name"]}</span> {f["caption"]}</div>'
+        f'<div class="insta-comments">댓글 {f["comments"]}개 보기</div>'
+        f'<div class="insta-time">{f["time"]}</div>'
+        f"</div>"
+        for f in _MOCK_FEEDS
+    )
+
+    st.markdown(
+        f"""
+        <div class="pixel-phone-wrap">
+          <div class="pixel-phone">
+            <div class="pixel-phone-status">
+              <span>09:41</span>
+              <div class="pixel-phone-notch"></div>
+              <span>&#x1F4F6; &#x1F50B;</span>
+            </div>
+            <div class="pixel-phone-screen">
+              <div class="insta-app">
+                <div class="insta-nav">
+                  <div class="insta-nav-logo">몽글마을</div>
+                  <div class="insta-nav-icons"><span>&#x2764;&#xFE0F;</span><span>&#x2709;&#xFE0F;</span></div>
+                </div>
+                <div class="insta-stories">{stories}</div>
+                {posts}
+              </div>
+            </div>
+            <div class="pixel-phone-home"></div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    _, close_col, _ = st.columns([2, 1, 2])
+    if close_col.button("닫기", key="feed_close", width="stretch"):
+        st.session_state["modal"] = None
+        st.rerun()
+
 
 @st.dialog("< TODO LIST >  오늘 뭐 할거야?", width="large")
 def _todo_modal(characters: list) -> None:
@@ -1079,21 +1195,6 @@ def _todo_modal(characters: list) -> None:
                 _reset_todo_state()
                 st.session_state["modal"] = None
                 st.rerun()
-
-
-def _run_todo_pipeline(text: str, user_id: str, cfg: AppConfig) -> list[dict]:
-    from datetime import datetime as _dt
-
-    from agents.todo_creation.schemas import SingleTurnInput
-    from agents.todo_creation.single_turn.pipeline import run as todo_run
-
-    inp = SingleTurnInput(user_id=user_id, prompt=text, today=date.today())
-    ports = build_todo_generate_ports(cfg)
-    result = asyncio.run(todo_run(inp, ports=ports, now=_dt.now()))
-    return [
-        {"title": t.title, "due_date": t.due_date.isoformat(), "checked": True, "tags": t.tags, "todo_id": str(uuid4())}
-        for t in result.todos + result.calendar_events
-    ]
 
 
 def _reset_todo_state() -> None:

@@ -1,0 +1,1502 @@
+[
+  {
+    "quest_id": "QUEST-SAMPLE-001",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "아침에 구름 베개를 햇볕에 말리기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-002",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "아침에 당근밭에 물 한 컵 주기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-003",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "아침에 창가 햇빛 자리를 보송하게 정돈하기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-004",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "아침에 빨간 스카프를 살살 털기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-005",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "아침에 작은 찻잔을 가지런히 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-006",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "아침에 별 무늬 담요를 폭신하게 접기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-007",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "아침에 꽃핀 상자를 색깔별로 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-008",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "아침에 조끼 단추를 반짝 닦기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-009",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "아침에 마을 우체통에 리본 달기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-010",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "아침에 달빛 조약돌을 창가에 두기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-011",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "아침에 폭신한 의자 먼지를 살짝 털기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-012",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "아침에 작은 화분에 물방울 나누기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-013",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "아침에 종이별을 바구니에 모으기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-014",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "아침에 낮잠 방석을 보송하게 펴기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-015",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "아침에 마을 표지판을 부드럽게 닦기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-016",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "아침에 리본 매듭을 동그랗게 묶기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-017",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "아침에 조개 단추를 줄 맞춰 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-018",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "아침에 꿈결 엽서를 서랍에 넣기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-019",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "아침에 나무 의자에 작은 쿠션 놓기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-020",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "아침에 반짝 씨앗을 화분 옆에 두기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-021",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "천천히 구름 베개를 햇볕에 말리기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-022",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "천천히 당근밭에 물 한 컵 주기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-023",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "천천히 창가 햇빛 자리를 보송하게 정돈하기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-024",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "천천히 빨간 스카프를 살살 털기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-025",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "천천히 작은 찻잔을 가지런히 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-026",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "천천히 별 무늬 담요를 폭신하게 접기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-027",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "천천히 꽃핀 상자를 색깔별로 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-028",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "천천히 조끼 단추를 반짝 닦기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-029",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "천천히 마을 우체통에 리본 달기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-030",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "천천히 달빛 조약돌을 창가에 두기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-031",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "천천히 폭신한 의자 먼지를 살짝 털기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-032",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "천천히 작은 화분에 물방울 나누기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-033",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "천천히 종이별을 바구니에 모으기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-034",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "천천히 낮잠 방석을 보송하게 펴기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-035",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "천천히 마을 표지판을 부드럽게 닦기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-036",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "천천히 리본 매듭을 동그랗게 묶기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-037",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "천천히 조개 단추를 줄 맞춰 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-038",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "천천히 꿈결 엽서를 서랍에 넣기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-039",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "천천히 나무 의자에 작은 쿠션 놓기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-040",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "천천히 반짝 씨앗을 화분 옆에 두기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-041",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "조심조심 구름 베개를 햇볕에 말리기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-042",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "조심조심 당근밭에 물 한 컵 주기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-043",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "조심조심 창가 햇빛 자리를 보송하게 정돈하기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-044",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "조심조심 빨간 스카프를 살살 털기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-045",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "조심조심 작은 찻잔을 가지런히 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-046",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "조심조심 별 무늬 담요를 폭신하게 접기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-047",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "조심조심 꽃핀 상자를 색깔별로 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-048",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "조심조심 조끼 단추를 반짝 닦기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-049",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "조심조심 마을 우체통에 리본 달기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-050",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "조심조심 달빛 조약돌을 창가에 두기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-051",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "조심조심 폭신한 의자 먼지를 살짝 털기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-052",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "조심조심 작은 화분에 물방울 나누기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-053",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "조심조심 종이별을 바구니에 모으기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-054",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "조심조심 낮잠 방석을 보송하게 펴기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-055",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "조심조심 마을 표지판을 부드럽게 닦기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-056",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "조심조심 리본 매듭을 동그랗게 묶기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-057",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "조심조심 조개 단추를 줄 맞춰 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-058",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "조심조심 꿈결 엽서를 서랍에 넣기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-059",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "조심조심 나무 의자에 작은 쿠션 놓기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-060",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "조심조심 반짝 씨앗을 화분 옆에 두기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-061",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "햇살 아래 구름 베개를 햇볕에 말리기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-062",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "햇살 아래 당근밭에 물 한 컵 주기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-063",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "햇살 아래 창가 햇빛 자리를 보송하게 정돈하기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-064",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "햇살 아래 빨간 스카프를 살살 털기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-065",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "햇살 아래 작은 찻잔을 가지런히 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-066",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "햇살 아래 별 무늬 담요를 폭신하게 접기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-067",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "햇살 아래 꽃핀 상자를 색깔별로 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-068",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "햇살 아래 조끼 단추를 반짝 닦기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-069",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "햇살 아래 마을 우체통에 리본 달기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-070",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "햇살 아래 달빛 조약돌을 창가에 두기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-071",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "햇살 아래 폭신한 의자 먼지를 살짝 털기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-072",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "햇살 아래 작은 화분에 물방울 나누기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-073",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "햇살 아래 종이별을 바구니에 모으기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-074",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "햇살 아래 낮잠 방석을 보송하게 펴기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-075",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "햇살 아래 마을 표지판을 부드럽게 닦기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-076",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "햇살 아래 리본 매듭을 동그랗게 묶기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-077",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "햇살 아래 조개 단추를 줄 맞춰 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-078",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "햇살 아래 꿈결 엽서를 서랍에 넣기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-079",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "햇살 아래 나무 의자에 작은 쿠션 놓기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-080",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "햇살 아래 반짝 씨앗을 화분 옆에 두기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-081",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "꿈결처럼 구름 베개를 햇볕에 말리기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-082",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "꿈결처럼 당근밭에 물 한 컵 주기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-083",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "꿈결처럼 창가 햇빛 자리를 보송하게 정돈하기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-084",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "꿈결처럼 빨간 스카프를 살살 털기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-085",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "꿈결처럼 작은 찻잔을 가지런히 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-086",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "꿈결처럼 별 무늬 담요를 폭신하게 접기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-087",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "꿈결처럼 꽃핀 상자를 색깔별로 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-088",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "꿈결처럼 조끼 단추를 반짝 닦기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-089",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "꿈결처럼 마을 우체통에 리본 달기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-090",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "꿈결처럼 달빛 조약돌을 창가에 두기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-091",
+    "character_type": "곰 인형",
+    "appearance_keywords": [
+      "하늘색",
+      "노란 리본",
+      "둥근 귀"
+    ],
+    "personality": [
+      "다정한",
+      "소심한"
+    ],
+    "quest": "꿈결처럼 폭신한 의자 먼지를 살짝 털기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-092",
+    "character_type": "토끼 인형",
+    "appearance_keywords": [
+      "분홍색",
+      "긴 귀",
+      "작은 앞치마"
+    ],
+    "personality": [
+      "소심한",
+      "엉뚱한"
+    ],
+    "quest": "꿈결처럼 작은 화분에 물방울 나누기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-093",
+    "character_type": "고양이 인형",
+    "appearance_keywords": [
+      "회색",
+      "작은 방울",
+      "동그란 꼬리"
+    ],
+    "personality": [
+      "활발한",
+      "겁 많은"
+    ],
+    "quest": "꿈결처럼 종이별을 바구니에 모으기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-094",
+    "character_type": "강아지 인형",
+    "appearance_keywords": [
+      "크림색",
+      "접힌 귀",
+      "빨간 스카프"
+    ],
+    "personality": [
+      "잠이 많은",
+      "다정한"
+    ],
+    "quest": "꿈결처럼 낮잠 방석을 보송하게 펴기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-095",
+    "character_type": "병아리 인형",
+    "appearance_keywords": [
+      "노란색",
+      "작은 부리",
+      "동그란 날개"
+    ],
+    "personality": [
+      "엉뚱한",
+      "잠이 많은"
+    ],
+    "quest": "꿈결처럼 마을 표지판을 부드럽게 닦기",
+    "quest_tag": "마을일"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-096",
+    "character_type": "펭귄 인형",
+    "appearance_keywords": [
+      "남색",
+      "하얀 배",
+      "파란 모자"
+    ],
+    "personality": [
+      "성실한",
+      "새침한"
+    ],
+    "quest": "꿈결처럼 리본 매듭을 동그랗게 묶기",
+    "quest_tag": "꾸미기"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-097",
+    "character_type": "양 인형",
+    "appearance_keywords": [
+      "아이보리",
+      "몽글한 털",
+      "작은 꽃핀"
+    ],
+    "personality": [
+      "새침한",
+      "몽환적인"
+    ],
+    "quest": "꿈결처럼 조개 단추를 줄 맞춰 놓기",
+    "quest_tag": "정리"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-098",
+    "character_type": "햄스터 인형",
+    "appearance_keywords": [
+      "연갈색",
+      "통통한 볼",
+      "줄무늬 조끼"
+    ],
+    "personality": [
+      "겁 많은",
+      "활발한"
+    ],
+    "quest": "꿈결처럼 꿈결 엽서를 서랍에 넣기",
+    "quest_tag": "몽글"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-099",
+    "character_type": "여우 인형",
+    "appearance_keywords": [
+      "살구색",
+      "폭신한 꼬리",
+      "초록 케이프"
+    ],
+    "personality": [
+      "장난꾸러기",
+      "성실한"
+    ],
+    "quest": "꿈결처럼 나무 의자에 작은 쿠션 놓기",
+    "quest_tag": "휴식"
+  },
+  {
+    "quest_id": "QUEST-SAMPLE-100",
+    "character_type": "고래 인형",
+    "appearance_keywords": [
+      "파란색",
+      "작은 지느러미",
+      "별 무늬"
+    ],
+    "personality": [
+      "몽환적인",
+      "장난꾸러기"
+    ],
+    "quest": "꿈결처럼 반짝 씨앗을 화분 옆에 두기",
+    "quest_tag": "마을일"
+  }
+]

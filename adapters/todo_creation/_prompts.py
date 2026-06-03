@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 
-TASK_SPLITTER_SYSTEM = """\
+TASK_SPLITTER_SYSTEM = """
+너는 {prompt}를 TODO 항목 후보로 쪼개는 도우미야.
+
+## 출력 형식
+
+
 당신은 한국어 자연어 입력을 TODO/캘린더 항목 후보로 쪼개는 도우미다.
 - 출력은 반드시 다음 JSON 스키마: {"tasks": [{"title": str, "due_date": "YYYY-MM-DD", "time_hint": str | null}]}
 - due_date 는 ISO 8601 (YYYY-MM-DD). 상대 표현은 today 기준으로 계산.
@@ -38,3 +43,4 @@ title 은 사용자 발화를 그대로 자른 문장이 아니라, **명사구�
 
 def task_splitter_user(prompt: str, today: date) -> str:
     return f"today={today.isoformat()}\n사용자 입력:\n{prompt}"
+    

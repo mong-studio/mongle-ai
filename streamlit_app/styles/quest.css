@@ -63,3 +63,91 @@
   text-align: center;
   margin-bottom: 6px;
 }
+
+/* ───── Quest HUD (top-right fixed panel) ───── */
+.quest-hud-progress {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  text-align: right;
+  margin-bottom: 8px;
+}
+
+.quest-hud-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.quest-hud-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--gold);
+}
+
+.quest-hud-item.done {
+  border-left-color: var(--wood-mid);
+  opacity: 0.5;
+}
+
+.quest-hud-avatar {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  border: 2px solid var(--wood-mid);
+  flex-shrink: 0;
+}
+
+.quest-hud-avatar-ph {
+  width: 30px;
+  height: 30px;
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  flex-shrink: 0;
+}
+
+.quest-hud-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.quest-hud-name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 6px;
+  color: var(--gold);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quest-hud-title {
+  font-family: 'DotGothic16', monospace;
+  font-size: 11px;
+  color: var(--bone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+.quest-hud-badge {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: var(--bone);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.quest-hud-badge.done {
+  color: var(--gold);
+  opacity: 1;
+}

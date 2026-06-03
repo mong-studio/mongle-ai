@@ -198,12 +198,6 @@ section[data-testid="stMain"] > .main {
   width: 210px;
 }
 
-/* ───── TODO list panel — CSS :has() 로 position:fixed 적용 ───── */
-/*
- * mg-todo-anchor 마커가 들어 있는 가장 안쪽 stVerticalBlock만 선택한다.
- * :not(:has(div[data-testid="stVerticalBlock"]:has(...))) 로 외부 블록 제외.
- * → JS iframe + setInterval 불필요 / 다이얼로그 닫힌 후 레이아웃 깨짐 없음.
- */
 div[data-testid="stVerticalBlock"]:has(.mg-todo-anchor):not(:has(div[data-testid="stVerticalBlock"]:has(.mg-todo-anchor))) {
   position:   fixed        !important;
   top:        210px        !important;
