@@ -4,9 +4,9 @@ from agents.character_creation.schemas import CharacterEntity
 
 
 class InMemoryRepo:
-    """Implements CharacterRepositoryPort with dict storage.
+    """Implements CharacterRepositoryPort with in-process dict storage.
 
-    Lives inside Streamlit session_state. Resets when the Streamlit process restarts.
+    State lives in memory and resets when the process restarts.
     """
 
     def __init__(self) -> None:
