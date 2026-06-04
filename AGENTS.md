@@ -71,12 +71,9 @@ agents/{feature}/
 
 ```bash
 uv sync              # 기본 의존성 (agents/, tests/)
-uv sync --extra ui   # streamlit 데모 실행 시 (langchain-openai, openai, streamlit 등)
 ```
-
-> UI 작업 진입 시 `ModuleNotFoundError: No module named 'langchain_openai'` 가 나면 `--extra ui` 누락이다.
 
 실행:
 ```bash
-uv run streamlit run streamlit_app/app.py
+uv run uvicorn api.main:app --reload --port 8000
 ```
