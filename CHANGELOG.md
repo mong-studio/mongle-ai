@@ -7,6 +7,13 @@
 > **갱신 규칙:** 파이프라인을 만들거나 변경할 때마다 항목을 추가한다. 완성 정의는 `docs/FEATURES.md` §4 참조.
 
 ## [Unreleased]
+
+### Changed
+- **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 무상태 FastAPI AI 엔진(`api/`)으로 대체.
+  Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
+  `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 무상태 전환 (근거: `docs/adr/0001`~`0005`).
+  feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
+
 ### Added
 - `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.
 - `adapters/todo_creation/quest_dispatch_adapter`: 위 에이전트를 commit 파이프라인의 `QuestDispatchPort` 에 연결 (오늘 TODO·활성 캐릭터 fetch → 에이전트 호출 → quests 영속화).
