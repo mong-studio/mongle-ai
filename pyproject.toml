@@ -18,6 +18,12 @@ dependencies = [
     "accelerate>=1.13.0",
     "peft>=0.19.1",
     "opencv-python-headless>=4.13.0.92",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "openai>=1.50",
+    "langchain-openai>=0.3,<1",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -27,24 +33,18 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-mock>=3.12",
 ]
-ui = [
-    "streamlit>=1.36",
-    "openai>=1.50",
-    "langchain-openai>=0.3,<1",
-    "python-dotenv>=1.0",
-]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -m 'not contract' --cov=agents --cov-report=term-missing --cov-fail-under=80"
+addopts = "-ra --strict-markers -m 'not contract' --cov=agents --cov=adapters --cov=api --cov-report=term-missing --cov-fail-under=80"
 markers = [
     "contract: requires external services (OPENAI_API_KEY etc.); skipped by default",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["agents"]
+source = ["agents", "adapters", "api"]
 
 [tool.coverage.report]
 exclude_lines = [
