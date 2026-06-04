@@ -9,9 +9,9 @@
 ## [Unreleased]
 
 ### Changed
-- **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 무상태 FastAPI AI 엔진(`api/`)으로 대체.
+- **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 stateless FastAPI AI 엔진(`api/`)으로 대체.
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
-  `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 무상태 전환 (근거: `docs/adr/0001`~`0005`).
+  `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 stateless 전환 (근거: `docs/adr/0001`~`0005`).
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
