@@ -51,6 +51,7 @@ def _fetch_override():
 
 
 def test_character_returns_entity_envelope(api_client):
+    """/v1/character는 생성된 캐릭터 엔티티를 done 봉투로 반환한다."""
     api_client.app.dependency_overrides[get_character_ports] = _ports_builder
     api_client.app.dependency_overrides[fetch_source_bytes] = _fetch_override
     body = {
@@ -71,4 +72,5 @@ def test_character_returns_entity_envelope(api_client):
 
 
 def test_character_requires_api_key(api_client):
+    """API 키 없이 /v1/character 호출 시 401을 반환한다."""
     assert api_client.post("/v1/character", json={}).status_code == 401

@@ -15,6 +15,7 @@ def _override():
 
 
 def test_quest_generate_returns_done(api_client):
+    """/v1/quest/generate는 입력 todo별 퀘스트를 done 봉투로 반환한다."""
     api_client.app.dependency_overrides[get_quest_ports] = _override
     cid, tid = str(uuid4()), str(uuid4())
     body = {
@@ -39,6 +40,7 @@ def test_quest_generate_returns_done(api_client):
 
 
 def test_quest_requires_api_key(api_client):
+    """API 키 없이 호출 시 401 + "unauthorized"를 반환한다."""
     resp = api_client.post("/v1/quest/generate", json={})
     assert resp.status_code == 401
     assert resp.json()["error"]["code"] == "unauthorized"

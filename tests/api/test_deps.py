@@ -35,11 +35,13 @@ def _cfg(**over) -> AppConfig:
 
 
 def test_quest_ports_fake_provider_builds():
+    """fake 프로바이더로 quest 포트가 빌드된다."""
     ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
     assert ports.llm is not None
 
 
 def test_todo_generate_ports_openai_builds():
+    """openai 프로바이더로 todo 생성 포트가 빌드된다."""
     ports = build_todo_generate_ports(_cfg(llm_provider="openai"))
     assert ports.llm is not None
 
@@ -49,6 +51,7 @@ def test_todo_generate_ports_openai_builds():
 # ---------------------------------------------------------------------------
 
 def test_build_todo_multiturn_ports_openai():
+    """openai 프로바이더로 멀티턴 포트가 빌드된다."""
     ports = build_todo_multiturn_ports(_cfg(llm_provider="openai"))
     assert ports.llm is not None
 
@@ -58,6 +61,7 @@ def test_build_todo_multiturn_ports_openai():
 # ---------------------------------------------------------------------------
 
 def test_build_commit_ports_returns_ports():
+    """commit 포트에 repository·quest_counter·quest_dispatch가 모두 채워진다."""
     ports = build_commit_ports(_cfg(), remaining_daily_quota=3)
     assert ports.repository is not None
     assert ports.quest_counter is not None
@@ -65,11 +69,13 @@ def test_build_commit_ports_returns_ports():
 
 
 def test_build_commit_ports_quest_counter_remaining():
+    """요청당 남은 할당량이 quest_counter.remaining에 그대로 반영된다."""
     ports = build_commit_ports(_cfg(), remaining_daily_quota=7)
     assert ports.quest_counter.remaining == 7
 
 
 def test_build_commit_ports_zero_quota():
+    """남은 할당량이 0이면 quest_counter.remaining도 0이다."""
     ports = build_commit_ports(_cfg(), remaining_daily_quota=0)
     assert ports.quest_counter.remaining == 0
 
@@ -79,6 +85,7 @@ def test_build_commit_ports_zero_quota():
 # ---------------------------------------------------------------------------
 
 def test_get_config_returns_state_config():
+    """get_config는 app.state에 보관된 config 객체를 그대로 반환한다."""
     cfg = _cfg()
     fake_request = types.SimpleNamespace(
         app=types.SimpleNamespace(
@@ -93,6 +100,7 @@ def test_get_config_returns_state_config():
 # ---------------------------------------------------------------------------
 
 async def test_fetch_source_bytes_local(tmp_path):
+    """local 백엔드에서 키 경로의 파일 바이트를 읽어 온다."""
     content = b"hello image bytes"
     key = "uploads/test_image.png"
     file_path = tmp_path / key
@@ -105,6 +113,7 @@ async def test_fetch_source_bytes_local(tmp_path):
 
 
 async def test_fetch_source_bytes_local_nested_key(tmp_path):
+    """중첩 경로 키도 local 백엔드에서 올바로 읽어 온다."""
     content = b"\x89PNG\r\n\x1a\n"
     key = "a/b/c/img.png"
     (tmp_path / "a" / "b" / "c").mkdir(parents=True, exist_ok=True)
@@ -121,6 +130,7 @@ async def test_fetch_source_bytes_local_nested_key(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_build_quest_ports_midm_builds():
+    """midm 프로바이더로 quest 포트가 빌드된다(네트워크 호출 없음)."""
     ports = build_quest_ports(
         _cfg(
             quest_llm_provider="midm",
@@ -133,6 +143,7 @@ def test_build_quest_ports_midm_builds():
 
 
 def test_build_todo_generate_ports_midm_builds():
+    """midm 프로바이더로 todo 생성 포트가 빌드된다."""
     ports = build_todo_generate_ports(
         _cfg(
             llm_provider="midm",
@@ -145,6 +156,7 @@ def test_build_todo_generate_ports_midm_builds():
 
 
 def test_build_todo_multiturn_ports_midm_builds():
+    """midm 프로바이더로 멀티턴 포트가 빌드된다."""
     ports = build_todo_multiturn_ports(
         _cfg(
             llm_provider="midm",
