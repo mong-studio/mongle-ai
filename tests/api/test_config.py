@@ -13,6 +13,7 @@ def _base_env(monkeypatch):
 
 
 def test_from_env_local_backend(monkeypatch):
+    """local 백엔드 환경에서 핵심 설정값이 올바로 로드된다."""
     _base_env(monkeypatch)
     cfg = AppConfig.from_env()
     assert cfg.storage_backend == "local"
@@ -21,6 +22,7 @@ def test_from_env_local_backend(monkeypatch):
 
 
 def test_missing_required_env_raises(monkeypatch):
+    """필수 환경변수가 빠지면 MissingEnvError를 던진다."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("LORA_DIR", raising=False)
     monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
@@ -29,6 +31,7 @@ def test_missing_required_env_raises(monkeypatch):
 
 
 def test_missing_api_key_raises(monkeypatch):
+    """MONGLE_API_KEY가 없으면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
     monkeypatch.delenv("MONGLE_API_KEY", raising=False)
     with pytest.raises(MissingEnvError):
@@ -40,6 +43,7 @@ def test_missing_api_key_raises(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_from_env_s3_backend(monkeypatch):
+    """s3 백엔드에서 버킷·리전이 로드되고 프리픽스는 기본값을 쓴다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("STORAGE_BACKEND", "s3")
     monkeypatch.setenv("AWS_S3_BUCKET", "my-bucket")
@@ -52,6 +56,7 @@ def test_from_env_s3_backend(monkeypatch):
 
 
 def test_from_env_s3_backend_with_prefix_in_bucket(monkeypatch):
+    """버킷 값에 s3:// URI로 프리픽스가 박혀 있으면 분리해서 읽는다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("STORAGE_BACKEND", "s3")
     monkeypatch.setenv("AWS_S3_BUCKET", "s3://my-bucket/custom-prefix")
@@ -77,6 +82,7 @@ def test_from_env_s3_backend_env_prefix_overrides(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_invalid_llm_provider_raises(monkeypatch):
+    """알 수 없는 LLM_PROVIDER 값이면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", "bogus")
     with pytest.raises(MissingEnvError, match="LLM_PROVIDER"):
@@ -88,6 +94,7 @@ def test_invalid_llm_provider_raises(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_invalid_quest_llm_provider_raises(monkeypatch):
+    """알 수 없는 QUEST_LLM_PROVIDER 값이면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("QUEST_LLM_PROVIDER", "notvalid")
     with pytest.raises(MissingEnvError, match="QUEST_LLM_PROVIDER"):
@@ -99,6 +106,7 @@ def test_invalid_quest_llm_provider_raises(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_llm_provider_midm_missing_vars_raises(monkeypatch):
+    """midm 프로바이더인데 MIDM_* 변수가 없으면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", "midm")
     monkeypatch.delenv("MIDM_BASE_URL", raising=False)
@@ -108,6 +116,7 @@ def test_llm_provider_midm_missing_vars_raises(monkeypatch):
 
 
 def test_llm_provider_midm_with_vars_succeeds(monkeypatch):
+    """midm 프로바이더에 MIDM_* 변수가 갖춰지면 설정이 로드된다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", "midm")
     monkeypatch.setenv("MIDM_BASE_URL", "http://midm-host/v1")
@@ -119,6 +128,7 @@ def test_llm_provider_midm_with_vars_succeeds(monkeypatch):
 
 
 def test_quest_llm_provider_midm_with_vars_succeeds(monkeypatch):
+    """quest용 midm 프로바이더에 MIDM_* 변수가 갖춰지면 설정이 로드된다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("QUEST_LLM_PROVIDER", "midm")
     monkeypatch.setenv("MIDM_BASE_URL", "http://midm-host/v1")
@@ -133,24 +143,28 @@ def test_quest_llm_provider_midm_with_vars_succeeds(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_split_s3_uri_with_prefix():
+    """s3:// URI에서 버킷과 프리픽스를 분리한다."""
     bucket, prefix = _split_s3_uri("s3://my-bucket/some/prefix")
     assert bucket == "my-bucket"
     assert prefix == "some/prefix"
 
 
 def test_split_s3_uri_bare_bucket():
+    """프리픽스 없는 버킷명만 주면 프리픽스는 빈 문자열이다."""
     bucket, prefix = _split_s3_uri("my-bucket")
     assert bucket == "my-bucket"
     assert prefix == ""
 
 
 def test_split_s3_uri_no_scheme_with_prefix():
+    """s3:// 스킴 없이 버킷/프리픽스 형태도 분리한다."""
     bucket, prefix = _split_s3_uri("my-bucket/path/to/prefix")
     assert bucket == "my-bucket"
     assert prefix == "path/to/prefix"
 
 
 def test_split_s3_uri_strips_slashes():
+    """뒤따르는 슬래시는 제거되어 프리픽스가 빈 문자열이 된다."""
     bucket, prefix = _split_s3_uri("s3://my-bucket/")
     assert bucket == "my-bucket"
     assert prefix == ""

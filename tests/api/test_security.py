@@ -18,20 +18,24 @@ def client(monkeypatch):
 
 
 def test_missing_key_returns_401(client):
+    """X-API-Key 헤더가 없으면 401을 반환한다."""
     assert client.get("/ping").status_code == 401
 
 
 def test_wrong_key_returns_401(client):
+    """잘못된 X-API-Key면 401을 반환한다."""
     assert client.get("/ping", headers={"X-API-Key": "nope"}).status_code == 401
 
 
 def test_correct_key_passes(client):
+    """올바른 X-API-Key면 200으로 통과한다."""
     resp = client.get("/ping", headers={"X-API-Key": "secret-key"})
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
 
 
 def test_unconfigured_server_returns_500(monkeypatch):
+    """서버에 MONGLE_API_KEY가 설정 안 됐으면 500을 반환한다."""
     monkeypatch.delenv("MONGLE_API_KEY", raising=False)
     app = FastAPI()
 

@@ -31,6 +31,7 @@ def _client() -> TestClient:
 
 
 def test_llm_failure_maps_to_502_with_code():
+    """LLMFailedError는 502 + error code "llm_failed"로 매핑된다."""
     resp = _client().get("/llm")
     assert resp.status_code == 502
     body = resp.json()
@@ -39,18 +40,21 @@ def test_llm_failure_maps_to_502_with_code():
 
 
 def test_image_generation_failure_maps_to_502():
+    """ImageGenerationFailedError는 502 + "image_generation_failed"로 매핑된다."""
     resp = _client().get("/img")
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "image_generation_failed"
 
 
 def test_save_failure_maps_to_502():
+    """SaveFailedError는 502 + "storage_failed"로 매핑된다."""
     resp = _client().get("/save")
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "storage_failed"
 
 
 def test_unexpected_error_maps_to_500_without_leaking_message():
+    """예상치 못한 예외는 500 + "internal_error"로 매핑되며 내부 메시지를 노출하지 않는다."""
     resp = _client().get("/boom")
     assert resp.status_code == 500
     body = resp.json()
@@ -59,6 +63,7 @@ def test_unexpected_error_maps_to_500_without_leaking_message():
 
 
 def test_validation_error_uses_envelope():
+    """요청 검증 실패(422)도 봉투 형태로 "validation_error"를 반환한다."""
     from fastapi import FastAPI
     from pydantic import BaseModel
 
@@ -81,6 +86,7 @@ def test_validation_error_uses_envelope():
 
 
 def test_http_exception_401_uses_envelope():
+    """HTTPException 401도 봉투 형태로 "unauthorized"를 반환한다."""
     from fastapi import Depends, FastAPI, HTTPException, status
 
     app = FastAPI()
