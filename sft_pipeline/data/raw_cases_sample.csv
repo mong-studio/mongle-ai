@@ -1,0 +1,13 @@
+source_url,exam_type,time_left,daily_hours,start_level,goal,special_notes,actual_plan_summary,result,evidence_spans
+https://example.com/case-01,정처기 필기,D-7,하루 4시간,비전공 노베이스,과목당 60점 합격,직장 병행,기출 5개년 3회독 후 오답만 반복 정리,합격,기출 위주로 돌렸다
+https://example.com/case-02,정보처리기사 필기,2주,3~5시간,비전공,평균 70점,주말 집중,개념 1회독 후 기출 위주 정리 및 약점 과목 보충,합격,개념은 가볍게
+https://example.com/case-03,토익,D-14,하루 3시간,500점대,750점,LC 약점,파트별 문제풀이 루틴화 + 단어 매일 50개,합격,단어가 핵심
+https://example.com/case-04,toeic,10일 남음,2시간,600점대,700점,직장인,실전 모의 5회분 + 오답 분석 집중,불합격,시간이 부족했다
+https://example.com/case-05,한능검,일주일,하루 5시간,노베이스,심화 1급,벼락치기,흐름 강의 1회독 + 기출 3회분 반복,합격,흐름부터 잡았다
+https://example.com/case-06,한국사,D-5,4시간,노베이스,3급,주말 활용,핵심 키워드 암기 + 기출 2회분,합격,키워드 암기
+https://example.com/case-07,SQLD,2주,하루 2시간,비전공,합격,개념 약함,노랭이 문제집 2회독 + SQL 구문 정리,합격,노랭이 반복
+https://example.com/case-08,sqld,D-10,3시간,데이터 입문,합격,,핵심 이론 정리 후 기출 유형별 반복,불합격,2과목을 놓쳤다
+https://example.com/case-09,컴활 1급,3주,하루 3시간,엑셀 중급,필기 합격,함수 약점,필기 기출 반복 + 자주 나오는 함수 정리,합격,함수 위주
+https://example.com/case-10,컴활1급,D-14,2시간,초급,실기 합격,,실기 기출 함수·매크로 반복 숙달,합격,매크로 연습
+https://example.com/case-11,컴활 2급,일주일,하루 2시간,노베이스,필기 합격,,기출 2회독으로 빠르게 정리,합격,이틀이면 충분
+https://example.com/case-12,컴활2급,D-3,3시간,초급,실기 합격,단기,실기 기출 유형 집중 반복,합격,유형만 외웠다
