@@ -12,6 +12,7 @@ from rembg import remove
 from agents.character_creation.exceptions import ImageGenerationFailedError
 from agents.character_creation.schemas import LLMPersonaResult
 
+# 런타임 SSOT. 사람이 읽는 카탈로그: src/prompts/character_creation/image_gen_v1.md (변경 시 동기화).
 _PROMPT = (
     "16x16 pixel art sprite, NES style, cute stuffed animal character, "
     "strictly pixelated, chunky visible pixels, limited flat color palette, "

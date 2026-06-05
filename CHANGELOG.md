@@ -6,6 +6,12 @@
 >
 > **갱신 규칙:** 파이프라인을 만들거나 변경할 때마다 항목을 추가한다. 완성 정의는 `docs/FEATURES.md` §4 참조.
 
+## sft_pipeline 추가 (2026-06-04)
+
+- 합법-우선 SFT 데이터셋 파이프라인 `sft_pipeline/` 신설.
+- crawl(robots 강제 준수·실패 로그) → structure(정규화·검증) → build(템플릿/선택적 LLM) → validate 4단계 CLI.
+- 오프라인 `--mock` 재현, 합성 샘플 12건, 전처리 보고서 템플릿, 초보자 README 포함.
+
 ## [Unreleased]
 ### Added
 - `adapters/todo_creation/qwen_llm`: `Qwen/Qwen2.5-7B-Instruct` 전용 TODO 생성 어댑터. OpenAI-compatible 서버는 HTTP로 직접 호출하고, raw JSON 파싱·코드펜스 제거·스키마 재강화 1회 재시도를 제공.
