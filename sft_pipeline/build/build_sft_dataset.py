@@ -42,12 +42,16 @@ def build_samples(
     samples: list[dict] = []
     for i, case in enumerate(rows):
         output, by = rephrase(build_output(case), use_llm=use_llm, client=client, model=model)
+        user_content = f"{build_instruction(case, i)}\n\n{build_input(case)}"
         samples.append(
             {
-                "instruction": build_instruction(case, i),
-                "input": build_input(case),
-                "output": output,
+                "messages": [
+                    {"role": "user", "content": user_content},
+                    {"role": "assistant", "content": output},
+                ],
                 "meta": {
+                    "provenance": "exam-crawl",
+                    "turn_type": "single",
                     "source_url": case.get("source_url", ""),
                     "exam_type": case.get("exam_type", ""),
                     "result": case.get("result", ""),

@@ -1,5 +1,7 @@
 # 크롤 원문 등 중간 산출물은 커밋하지 않는다 (저작권 안전)
 data/generated/
+# 외부 원본 데이터(MS-LaTTE 등)는 다운로드 스크립트로 재취득 (git 미포함)
+data/sources/
 *.pyc
 __pycache__/
 .env

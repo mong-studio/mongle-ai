@@ -1,11 +1,12 @@
-"""SFT JSONL 품질 검사. 스키마·빈값·input 복붙(output==input) 휴리스틱.
+"""SFT JSONL 품질 검사. messages 스키마·빈값·역할 순서·직전 user 복붙 휴리스틱.
 
 참고: 이 검증기는 '데이터셋 위생'(스키마/빈값/프롬프트 복붙)만 본다.
 원문(블로그) 표절 방지는 상류 단계의 책임이다 - actual_plan_summary 는
 사람이 재서술한 요약이어야 하며(원문 복붙 금지), 이는 수집 검수 체크리스트
 (reports/preprocessing_report_template.md)와 README 가이드로 강제한다.
-build_output 은 의도적으로 actual_plan_summary 를 템플릿에 포함하므로,
-output 이 요약을 포함하는지 검사하지 않는다(정상 동작을 오탐하게 됨).
+
+스키마는 단일턴(시험준비)과 멀티턴(일상)을 모두 담는 messages 형식으로 통일한다.
+meta.provenance 로 출처를 구분하며, exam-crawl 출처에만 exam_type/result 를 강제한다.
 """
 from __future__ import annotations
 
@@ -14,32 +15,64 @@ import json
 import sys
 from pathlib import Path
 
-REQUIRED_KEYS = {"instruction", "input", "output", "meta"}
-REQUIRED_META = {"source_url", "exam_type", "result"}
+REQUIRED_KEYS = {"messages", "meta"}
+EXAM_REQUIRED_META = {"source_url", "exam_type", "result"}
+VALID_ROLES = {"system", "user", "assistant"}
 MIN_OUTPUT_LEN = 20
 
 
-def _validate_one(sample: dict, idx: int) -> list[str]:
+def _validate_messages(messages, idx: int) -> list[str]:
     errors: list[str] = []
-    missing = REQUIRED_KEYS - set(sample)
-    if missing:
-        errors.append(f"line {idx}: missing keys {sorted(missing)}")
+    if not isinstance(messages, list) or len(messages) < 2:
+        return [f"line {idx}: messages must be a list of >=2 turns"]
+
+    for j, m in enumerate(messages):
+        if not isinstance(m, dict) or "role" not in m or "content" not in m:
+            errors.append(f"line {idx}: message {j} missing role/content")
+            continue
+        if m["role"] not in VALID_ROLES:
+            errors.append(f"line {idx}: message {j} invalid role {m['role']!r}")
+        if not str(m["content"]).strip():
+            errors.append(f"line {idx}: message {j} empty content")
+    if errors:
         return errors
 
-    for key in ("instruction", "input", "output"):
-        if not str(sample[key]).strip():
-            errors.append(f"line {idx}: empty {key}")
+    roles = [m["role"] for m in messages]
+    if "user" not in roles:
+        errors.append(f"line {idx}: no user turn")
+    if roles[-1] != "assistant":
+        errors.append(f"line {idx}: last turn must be assistant")
+        return errors
 
-    meta = sample.get("meta") or {}
-    meta_missing = REQUIRED_META - set(meta)
-    if meta_missing:
-        errors.append(f"line {idx}: meta missing {sorted(meta_missing)}")
+    last = str(messages[-1]["content"]).strip()
+    if len(last) < MIN_OUTPUT_LEN:
+        errors.append(f"line {idx}: last assistant too short (<{MIN_OUTPUT_LEN})")
+    prev_user = next(
+        (str(m["content"]).strip() for m in reversed(messages[:-1]) if m["role"] == "user"),
+        "",
+    )
+    if last and last == prev_user:
+        errors.append(f"line {idx}: raw_copy (assistant == preceding user)")
+    return errors
 
-    output = str(sample.get("output", ""))
-    if len(output.strip()) < MIN_OUTPUT_LEN:
-        errors.append(f"line {idx}: output too short (<{MIN_OUTPUT_LEN})")
-    if output.strip() and output.strip() == str(sample.get("input", "")).strip():
-        errors.append(f"line {idx}: raw_copy (output == input)")
+
+def _validate_meta(meta: dict, idx: int) -> list[str]:
+    errors: list[str] = []
+    if "provenance" not in meta:
+        errors.append(f"line {idx}: meta missing ['provenance']")
+    if meta.get("provenance") == "exam-crawl":
+        missing = EXAM_REQUIRED_META - set(meta)
+        if missing:
+            errors.append(f"line {idx}: meta missing {sorted(missing)}")
+    return errors
+
+
+def _validate_one(sample: dict, idx: int) -> list[str]:
+    missing = REQUIRED_KEYS - set(sample)
+    if missing:
+        return [f"line {idx}: missing keys {sorted(missing)}"]
+    errors = _validate_messages(sample.get("messages"), idx)
+    errors += _validate_meta(sample.get("meta") or {}, idx)
     return errors
 
 
