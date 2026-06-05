@@ -4,22 +4,29 @@
 
 ## 전체 흐름
 
+데이터셋은 **시험준비(exam-crawl)** 와 **일상계획(daily-latte, MS-LaTTE 유래)** 두 소스를 `{messages, meta}` 통일 포맷으로 합칩니다.
+
 ```
-urls.txt ─[crawl]→ crawl_results.csv ─(사람 검수)→ raw_cases.csv
-        ─[structure]→ structured.csv ─[build]→ sft_dataset.jsonl ─[validate]
+[시험] urls.txt ─[crawl]→ crawl_results.csv ─(사람 검수)→ raw_cases.csv
+              ─[structure]→ structured.csv ─[build]→ exam.jsonl ┐
+                                                                 ├─[mix]→ sft_dataset.jsonl ─[validate]
+[일상] ms_latte.json ─[parse]→ ─[localize]→ daily_seeds.csv ─[synthesize]→ daily.jsonl ┘
 ```
 
 각 단계는 독립 CLI이고 중간 CSV/JSONL로 연결됩니다. crawl 이후 단계는 동봉된 샘플 CSV로 네트워크 없이 재현할 수 있습니다.
+
+**release 정책**: `mix --release public` 은 라이선스 없는 시험-크롤을 자동 제외하고 일상(MIT)만 공개판으로 출력합니다. `--release internal` 은 전체를 내부용으로 포함합니다.
 
 ## 파일 구조
 
 ```
 sft_pipeline/
 ├── config/        exam_types.yaml · extractors.yaml · normalization.yaml
-├── data/          urls.txt · raw_cases_template.csv · raw_cases_sample.csv · generated/(gitignore)
+├── data/          urls.txt · raw_cases_*.csv · sources/(gitignore) · generated/(gitignore)
 ├── crawl/         robots.py · fetcher.py · extractor.py · run_crawl.py
 ├── structure/     exam_types.py · normalize.py · fields.py · run_structure.py
-├── build/         templates.py · rephrase.py · build_sft_dataset.py · validate_dataset.py
+├── latte/         download.py · parse.py · localize.py · synthesize.py   # 일상(MS-LaTTE)
+├── build/         templates.py · rephrase.py · build_sft_dataset.py · mix_dataset.py · validate_dataset.py
 ├── reports/       preprocessing_report_template.md · batch_meta_template.yaml
 └── tests/
 ```
@@ -57,6 +64,35 @@ uv run python -m sft_pipeline.build.build_sft_dataset --in ... --out ... --use-l
 ```
 키가 없거나 호출 실패 시 자동으로 템플릿 출력으로 안전 복귀합니다.
 
+## 일상 계획(MS-LaTTE) 데이터
+
+플래너는 학습뿐 아니라 일상 계획도 다루므로, [MS-LaTTE](https://github.com/microsoft/MS-LaTTE)(MIT, 10,101 to-do 태스크 + 위치/시간 라벨)를 일상 멀티턴 시드로 사용합니다.
+
+```bash
+# 1) 원본 취득(SHA 고정) → data/sources/ms_latte.json (gitignore)
+uv run python -m sft_pipeline.latte.download
+
+# 2) 파싱(다수결 집계) → 3) 한국어 라벨 현지화
+G=sft_pipeline/data/generated
+uv run python -m sft_pipeline.latte.parse    --in sft_pipeline/data/sources/ms_latte.json --out $G/latte_parsed.csv
+uv run python -m sft_pipeline.latte.localize --in $G/latte_parsed.csv --out $G/daily_seeds.csv
+
+# 4) 멀티턴 합성. --use-llm 없으면 템플릿 폴백(오프라인). --limit 로 규모 조절.
+uv run python -m sft_pipeline.latte.synthesize --in $G/daily_seeds.csv --out $G/daily.jsonl --limit 1000
+
+# 5) 믹스 + 검증 (공개판은 시험-크롤 자동 제외)
+uv run python -m sft_pipeline.build.mix_dataset --daily $G/daily.jsonl --exam $G/exam.jsonl --release internal --out $G/sft_dataset.jsonl
+uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
+```
+
+**로컬 모델로 합성(외부 배포 권장)**: 외부 공개 데이터는 모델 ToS 제약을 피하려고 로컬 오픈모델을 권장합니다. OpenAI 호환 서버(Ollama/vLLM)를 띄우고 `base_url` 만 지정하면 됩니다.
+
+```bash
+# 예: Ollama (ollama serve, ollama pull qwen2.5)
+export LLM_BASE_URL=http://localhost:11434/v1
+uv run python -m sft_pipeline.latte.synthesize --in $G/daily_seeds.csv --out $G/daily.jsonl --limit 1000 --use-llm --model qwen2.5
+```
+
 ## 테스트
 
 ```bash
@@ -80,6 +116,7 @@ uv run pytest sft_pipeline/tests -o addopts="" -q
 - `data/generated/`(원문 포함)는 `.gitignore`. **최종 데이터셋엔 원문 전체를 넣지 말고** 구조화 필드 + 짧은 `evidence_spans`(≤200자)만 사용하세요.
 - 협찬/광고성 후기, 학원 홍보 글은 검수 단계에서 제외하세요.
 - 동봉된 `raw_cases_sample.csv`는 실제 블로그 복제가 아닌 **합성 예시**입니다.
+- **배포 정책**: 시험-크롤(라이선스 없는 블로그 기반)은 **내부 학습용에만** 쓰고, 외부 공개판(`mix --release public`)에서는 자동 제외됩니다. 일상(MS-LaTTE)은 MIT라 공개 가능하나 **출처·라이선스 고지**를 유지하세요.
 
 ## 향후 계획
 
