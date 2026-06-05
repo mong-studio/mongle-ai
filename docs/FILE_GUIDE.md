@@ -89,7 +89,7 @@ mongle-ai/
 | 파일 | 역할 |
 |---|---|
 | `openai_llm.py` | OpenAI GPT로 캐릭터 성격 생성 |
-| `midm_llm.py` | KT Mi:dm 모델로 캐릭터 성격 생성 |
+| `qwen_llm.py` | Qwen 7B로 캐릭터 성격 생성 |
 | `openai_vlm.py` | GPT-4o Vision으로 이미지 분석 |
 | `lora_image.py` | LoRA 모델로 캐릭터 이미지 생성 (현재 사용 중) |
 | `memory_repo.py` | 인메모리 캐릭터 저장소 (앱 실행 중 상태 유지용) |
@@ -102,15 +102,14 @@ mongle-ai/
 | 파일 | 역할 |
 |---|---|
 | `openai_llm.py` | OpenAI로 퀘스트 텍스트 생성 |
-| `midm_llm.py` | Mi:dm으로 퀘스트 텍스트 생성 |
+| `qwen_llm.py` | Qwen 7B로 퀘스트 텍스트 생성 |
 | `memory_repo.py` | 인메모리 저장소 (todo·character·quest 조회용) |
 
 **todo_creation/**
 
 | 파일 | 역할 |
 |---|---|
-| `openai_llm.py` | OpenAI로 TODO 생성 |
-| `midm_llm.py` | Mi:dm으로 TODO 생성 |
+| `qwen_llm.py` | Qwen 7B로 TODO 생성 |
 | `memory_repo.py` | 인메모리 TODO 저장소 |
 | `memory_quest_counter.py` | 인메모리 퀘스트 카운터 |
 | `quest_dispatch_adapter.py` | TODO 완료 시 퀘스트 생성 파이프라인 연결 |
@@ -119,13 +118,7 @@ mongle-ai/
 
 | 파일 | 역할 |
 |---|---|
-| `midm_llm.py` | Mi:dm으로 피드 캡션 생성. 파이프라인은 완성됐으나 현재 앱 UI에 미연결 |
-
-**_shared/**
-
-| 파일 | 역할 |
-|---|---|
-| `openai_compat.py` | Mi:dm(vLLM) 엔드포인트를 OpenAI SDK로 호환시켜주는 공통 유틸 |
+| `qwen_llm.py` | Qwen 7B로 피드 캡션 생성. 파이프라인은 완성됐으나 현재 앱 UI에 미연결 |
 
 ---
 
@@ -187,7 +180,7 @@ A. 피처마다 입출력 타입이 달라서 각각 별도 구현. 이름은 �
 A. 테스트할 때 OpenAI API 안 쓰고도 파이프라인 전체를 돌릴 수 있게 하는 가짜 구현체. `adapters/quest_generation/fake_llm.py`는 앱에서 LLM 미설정 시 fallback으로도 사용됨.
 
 **Q. `protocols.py`는 왜 있어?**
-A. Python의 `Protocol`로 인터페이스를 정의해두면, LLM을 교체해도 (`openai_llm` → `midm_llm`) agents 코드를 건드릴 필요 없음. 플러그처럼 꽂았다 뺐다 가능.
+A. Python의 `Protocol`로 인터페이스를 정의해두면, LLM을 교체해도 agents 코드를 건드릴 필요 없음. 플러그처럼 꽂았다 뺐다 가능.
 
 **Q. `state.py`는 왜 있어?**
 A. LangGraph 노드 간에 데이터를 넘길 때 쓰는 TypedDict. 각 노드가 이 상태를 읽고 써가며 파이프라인 진행.

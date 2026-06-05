@@ -9,6 +9,7 @@ from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.schemas import TaskCandidate
 
 
+# 검증 대상 기능: scripted fake 는 네트워크 없이 agent pipeline 을 구동한다.
 async def test_fake_llm_returns_scripted_response() -> None:
     tasks = [TaskCandidate(title="코테", due_date=date(2026, 5, 24))]
     llm = FakeLLM(responses=[tasks])
@@ -17,6 +18,7 @@ async def test_fake_llm_returns_scripted_response() -> None:
     assert llm.calls == 1
 
 
+# 실패 시뮬레이션: 지정한 횟수만큼 LLMFailedError 를 낸 뒤 성공한다.
 async def test_fake_llm_fails_n_times_then_succeeds() -> None:
     tasks = [TaskCandidate(title="할 일", due_date=date(2026, 5, 24))]
     llm = FakeLLM(responses=[tasks], fail_times=2)
@@ -29,6 +31,7 @@ async def test_fake_llm_fails_n_times_then_succeeds() -> None:
     assert llm.calls == 3
 
 
+# 응답 큐: 여러 호출에서 준비된 응답을 순서대로 소비한다.
 async def test_fake_llm_consumes_responses_queue() -> None:
     a = [TaskCandidate(title="A", due_date=date(2026, 5, 24))]
     b = [TaskCandidate(title="B", due_date=date(2026, 5, 24))]
@@ -39,6 +42,7 @@ async def test_fake_llm_consumes_responses_queue() -> None:
     assert out2 == b
 
 
+# 테스트 안전장치: 준비된 응답이 없으면 즉시 실패해 잘못된 호출을 드러낸다.
 async def test_fake_llm_exhausted_queue_raises() -> None:
     llm = FakeLLM(responses=[])
     with pytest.raises(IndexError):

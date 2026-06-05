@@ -8,11 +8,12 @@
 
 ## [Unreleased]
 ### Added
+- `adapters/todo_creation/qwen_llm`: `Qwen/Qwen2.5-7B-Instruct` 전용 TODO 생성 어댑터. OpenAI-compatible 서버는 HTTP로 직접 호출하고, raw JSON 파싱·코드펜스 제거·스키마 재강화 1회 재시도를 제공.
+- `tools/todo_qwen_console.py`: Streamlit 없이 Qwen TODO 프롬프트를 입력하고 messages/raw/parsed 출력을 확인하는 콘솔 도구.
 - `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.
 - `adapters/todo_creation/quest_dispatch_adapter`: 위 에이전트를 commit 파이프라인의 `QuestDispatchPort` 에 연결 (오늘 TODO·활성 캐릭터 fetch → 에이전트 호출 → quests 영속화).
-- `adapters/quest_generation/midm_llm`: Mi:dm-mini-Instruct 어댑터 (`LLMPort.generate_quest`). OpenAI 호환 endpoint(vLLM 등) 대상, `with_structured_output` 미지원 모델용 JSON 강제 + Pydantic 파싱 + 1회 재시도 (AI_RULES §3 정렬). 기존 `OpenAILLM` 과 동일한 `quest_text_v1` 시스템 프롬프트·user message 포맷 공유.
-- `adapters/_shared/openai_compat`: AsyncOpenAI 클라이언트 빌더(캐시) — Mi:dm 어댑터 및 향후 OpenAI-호환 어댑터들이 공유.
-- `streamlit_app/ports_factory`: `QUEST_LLM_PROVIDER=midm` 토글 + `MIDM_BASE_URL`/`MIDM_MODEL`/`MIDM_API_KEY` 환경변수 wiring. `build_commit_ports(cfg)` 가 cfg 의 provider 에 따라 `MidmLLM` 또는 `FakeLLM` 을 선택. 기존 no-arg 호출자 호환.
+- `adapters/{character_creation,quest_generation,feed_generation}/qwen_llm`: Qwen 7B 기반 텍스트 생성 어댑터. JSON 강제 파싱·코드펜스 제거·스키마 재강화 재시도를 각 피처 계약에 맞게 제공.
+- `streamlit_app/ports_factory`: `QWEN_*` 환경변수 wiring. TODO/캐릭터/퀘스트 텍스트 생성이 Qwen 7B 어댑터를 사용하도록 전환.
 - **multi_turn TODO/플랜 챗봇** (`agents/todo_creation/multi_turn/`):
   - Hybrid LangGraph (정보수집=결정론, 수정루프=tool-calling)
   - SessionStorePort + InMemorySessionStore (Port 확정, MySQL 어댑터는 후속)
@@ -28,6 +29,7 @@
 - Streamlit UI (`streamlit_app/app.py`) for `character_creation` agent, with real OpenAI (gpt-4o + gpt-image-1) and AWS S3 adapters under `adapters/character_creation/`. Run via `pip install -e ".[ui]"` + `streamlit run streamlit_app/app.py`. Adapters tested with 23 unit tests (memory_repo, s3_storage, openai_llm, openai_vlm, openai_image).
 
 ### Changed
+- 텍스트 LLM 경로를 Qwen 중심 환경변수(`QWEN_BASE_URL`, `QWEN_MODEL`, `QWEN_API_KEY`, `QWEN_TEMPERATURE`, `QWEN_MAX_TOKENS`)로 전환하고 기존 로컬 LLM 전용 어댑터/환경변수/공통 유틸을 제거.
 - `agents/character_creation/`: validation 책임 분리. C1(보유 상한)·C2(일일 재생성 제한)을 에이전트에서 제거하고 백엔드(호출자) 책임으로 이전. `nodes/validate.py` 는 이제 C3·C4(이미지 MIME/크기)와 라우팅 결정만 담당하며 레포지토리에 접근하지 않는다. `CharacterRepositoryPort` 에서 `count_active`·`today_regen_count` 제거(`increment`·`save` 만 노출). `CharacterGraphState`·`pipeline.run()`·`debug.log_start()` 에서 `is_regeneration` 파라미터 제거. Streamlit 사이드바의 보유/재생성 카운터는 UI 메트릭으로만 유지(`adapters/character_creation/memory_repo.py` 의 `count_active`·`today_regen_count` 는 그대로). `docs/features/character_generation/CLAUDE.md` §3·§4.1·§5.2 동기화. 백엔드 사전 검증은 `docs/TODO.md` 백로그 항목으로 이관.
 - `docs/features/character_generation/CLAUDE.md` §8 "미결 사항" → "결정 사항" 으로 갱신.
 - 프로젝트 의존성·테스트 도구 정의: `pyproject.toml` 신규 (pydantic≥2, pytest + asyncio + cov, 커버리지 게이트 80%).

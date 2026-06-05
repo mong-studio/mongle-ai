@@ -1074,21 +1074,22 @@ def _todo_modal(characters: list) -> None:
                 # LLM 호출 (실패 시 stub 폴백)
                 if text.strip():
                     try:
-                        from adapters.todo_creation.openai_llm import OpenAILLM as TodoOpenAILLM  # noqa: PLC0415
-                        # 당일 캘린더 일정을 프롬프트에 자동 포함
-                        today_str = date.today().isoformat()
-                        cal_events: list[dict] = st.session_state.get("calendar_events", [])
-                        today_events = [
-                            ev for ev in cal_events
-                            if ev.get("start_date", "") <= today_str <= ev.get("end_date", ev.get("start_date", ""))
-                        ]
-                        if today_events:
-                            ev_names = ", ".join(ev["title"] for ev in today_events)
-                            prompt_with_cal = f"{text}\n\n[오늘 일정: {ev_names}]"
-                        else:
-                            prompt_with_cal = text
-                        llm_candidates = asyncio.run(
-                            TodoOpenAILLM().split_tasks(prompt=prompt_with_cal, today=date.today())
+                        from agents.todo_creation.schemas import SingleTurnInput  # noqa: PLC0415
+                        from agents.todo_creation.single_turn.pipeline import run as todo_generate_run  # noqa: PLC0415
+
+                        generate_result = asyncio.run(
+                            todo_generate_run(
+                                SingleTurnInput(
+                                    user_id=user_id,
+                                    prompt=text.strip(),
+                                    today=date.today(),
+                                ),
+                                ports=build_todo_generate_ports(cfg),
+                                now=datetime.now(),
+                            )
+                        )
+                        llm_candidates = (
+                            generate_result.todos + generate_result.calendar_events
                         )
                         candidates = [
                             {

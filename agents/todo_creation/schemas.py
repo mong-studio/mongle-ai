@@ -14,9 +14,8 @@ class SingleTurnInput(BaseModel):
 
 
 class TaskCandidate(BaseModel):
-    title: Annotated[str, Field(min_length=1, max_length=80)]
+    title: Annotated[str, Field(min_length=1, max_length=20)]
     due_date: date
-    time_hint: str | None = None
     tags: Annotated[list[str], Field(default_factory=list)]
 
 
@@ -95,5 +94,3 @@ TurnResult = Annotated[
     GenerateResult | FollowUpResult,
     Field(discriminator="kind"),
 ]
-
-
