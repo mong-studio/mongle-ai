@@ -1,0 +1,51 @@
+# 사람 검수 전용 - 자동 크롤러(run_crawl.py)에 바로 넣지 말 것.
+#
+# 왜 분리했나:
+# - 이 소스들은 robots에서 AI 봇(ClaudeBot/GPTBot/CCBot 등)을 명시 차단하거나(네이버 블로그/지식iN/디시),
+#   일반 봇까지 전면 차단(네이버 카페/메인)하거나, 약관상 자동수집을 금지한다.
+# - 우리 크롤러의 UA("mongle-sft-crawler")는 그 AI 봇 이름이 아니라서 urllib robots 판정은
+#   관대한 '*' 규칙으로 떨어져 "통과"해 버린다. 즉 코드의 robots-skip이 이들을 막아주지 못한다.
+#   → 사이트가 기계로 표명한 'AI 크롤러 사절'을 UA만으로 우회하는 셈(잡코리아 vs 사람인 판례에서
+#     'UA 위장 = 악의적 접근'으로 불리하게 본 패턴). 그래서 자동 수집 대상에서 제외한다.
+# - 기술적으로도: 네이버 블로그 본문은 iframe(PostView), velog는 SPA, 카페는 로그인벽 → 정적 fetch로 빈 본문.
+#
+# 사용 방법(권장): 사람이 브라우저로 직접 열어 읽고, 원문 복붙 금지·요약/재서술로
+#   raw_cases.csv 에 손으로 입력. 필요하면 네이버는 공식 Open API(검색)로 URL만 확보.
+#   디시는 비속어/광고/도배 노이즈가 많아 강한 필터·검수 필수.
+# - 출처: 2026-06-04 deep-research.
+
+# ── 네이버 블로그 (robots: AI봇 차단 / 본문 iframe) ──
+https://m.blog.naver.com/sypark1904/222515535496   # 컴활1급 필기1주+실기2주, 풀이순서 TIP
+https://m.blog.naver.com/daeng_gu8/223824389099    # 한국사 일주일(실3~4일) 1급
+https://m.blog.naver.com/jhyun9582/222982342304    # 한국사 5일, 앱3000문제, 1급
+https://m.blog.naver.com/tksrhrkdud24/222692539804 # 한국사 노베 3주, 1급 92점
+https://m.blog.naver.com/hamppy00/223391427679     # 토익 2달, 640→805
+https://blog.naver.com/hackersingang/222324860172  # 토익 1달 670→830 (학원 수강생/광고성 - 주의)
+
+# ── 디시인사이드 (robots: AI봇 UA 차단 / 일반 UA는 허용·노이즈 多) ──
+https://gall.dcinside.com/mini/board/lists/?id=dataprocessing   # 정처기/데이터자격증 미니갤 글목록
+https://m.dcinside.com/mini/dataprocessing/101534              # SQLD 57회 비전공 후기(난이도 체감)
+https://gall.dcinside.com/mini/board/view/?id=toeicstudy&no=21156  # 토익 855, 파트별 전략
+https://gall.dcinside.com/mgallery/board/view/?id=cbt&no=130407    # 컴활1급 장문 후기(필기2~3주/실기2달+)
+https://gall.dcinside.com/mgallery/board/view/?id=cbt&no=104184    # 컴활1급, 회차별 점수·합불 구체
+https://m.dcinside.com/board/cbt/116661   # 컴활1급 실기 2트합, 필기3~4일/실기 한달
+https://m.dcinside.com/board/cbt/116972   # 컴활1급 쌩노베 2달 3트합(회차별 결과)
+https://m.dcinside.com/board/cbt/136250   # 컴활1급 6트 합격(회독별 점수·불합 다수)
+https://m.dcinside.com/board/xmrrud/16440 # 컴활2급 필기2일(10h)/실기5일(20h)
+
+# ── 커뮤니티 (linkareer/postype: robots는 대체로 허용이나 JS 로딩·robots 재확인 후 사용) ──
+https://community.linkareer.com/honeytips/2867892   # 토익 3주, 하루2~3h, 945
+https://community.linkareer.com/honeytips/339903    # 토익 첫토익 3주, 영포자(수능8등급), 835
+https://community.linkareer.com/honeytips/2568950   # 한국사 2주 1급 꿀팁(커트라인 명시)
+https://community.linkareer.com/jayuu/2002456       # 컴활1급 필기한달/실기27일, 1트
+https://community.linkareer.com/jayuu/1342703       # 컴활1급 필기3주/실기4주(실기 2탈→합)
+https://community.linkareer.com/jayuu/2898727       # 컴활2급 컴맹노베 필기3주/실기1주
+https://community.linkareer.com/honeytips/2558362   # 컴활2급 필기 3일 벼락치기, 턱걸이
+https://www.postype.com/@r3n3w3r/post/14630415      # 토익 2달, 800대→970
+https://www.postype.com/@uzunqele/post/17403582     # 한국사 노베 4주 1급
+
+# ── 다음 카페 / 광고성·SEO 개인도메인 (로그인벽 또는 합성/광고 혼입 - 검수 강하게) ──
+https://m.cafe.daum.net/Compcafe/5XZ7/2967   # 컴활1급 3주, 1~8일 개념+9일~ 기출 (다음카페, 로그인 가능)
+https://www.machuda.kr/blog/article/94       # 정처기 필기/실기 2개월 (기업 블로그/광고성)
+https://mojikmo.com/컴활-1급-실기-합격/       # 컴활1급 실기 3주, 비전공노베 (워드프레스)
+https://recommendproduct.net/sqld/           # SQLD 13일 5회독(문과), 일정표 (애드 도메인)
