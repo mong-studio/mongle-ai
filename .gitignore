@@ -43,3 +43,6 @@ data/sft/
 
 # IDE extensions list
 vscode-extensions.txt
+
+# docs
+docs/requirements/*

@@ -102,10 +102,10 @@
     {
       "title": "코딩테스트 1회차",
       "due_date": "2026-05-22",
-      "time_hint": "오전"
+      "tags": ["학습"]
     },
-    { "title": "면접 스터디", "due_date": "2026-05-22", "time_hint": "저녁" },
-    { "title": "프로젝트 발표", "due_date": "2026-05-25", "time_hint": null }
+    { "title": "면접 스터디", "due_date": "2026-05-22", "tags": ["학습"] },
+    { "title": "프로젝트 발표", "due_date": "2026-05-25", "tags": ["업무"] }
   ]
   ```
 - **제약:** 출력은 JSON 스키마 강제 (구조화 출력)
@@ -233,7 +233,6 @@ class MultiTurnInput(BaseModel):
 class TaskCandidate(BaseModel):
     title: str
     due_date: date
-    time_hint: str | None
     tags: list[str] = []
 
 class CommitPayload(BaseModel):
@@ -308,7 +307,7 @@ async def commit(payload: CommitPayload) -> CommitResult:
 | Q1 | 태그 어휘 (Tagger)                  | 자유 형식 문자열                                                  | 2026-05-25 multi_turn 설계 |
 | Q2 | 멀티턴 세션 저장소                       | 커스텀 `SessionStorePort` (in-memory → MySQL)                    | 2026-05-25 multi_turn 설계 |
 | Q3 | 수정 회귀 범위                         | edit_agent → plan_generator 직진 (Planner 거치지 않음)          | 2026-05-25 multi_turn 설계 |
-| Q4 | 싱글턴 time_hint 처리                | 별도 결정 필요 (싱글턴 영역)                                          | 미결 |
+| Q4 | 싱글턴 time_hint 처리                | 사용하지 않음. AI 응답은 `title`, `due_date`, `tags` 만 반환                 | 2026-06-05 싱글턴 DB 응답 정합 |
 | Q5 | Plan Generator C3 초과              | 재생성 1회 → 실패 시 마침표 기준 잘라내기                                | 2026-05-25 multi_turn 설계 |
 | Q6 | 한국어 위주 검증                      | 한글 유니코드 비율 ≥ 0.3 휴리스틱                                    | 2026-05-25 multi_turn 설계 |
 | Q7 | 퀘스트 분배 카운트 리셋                  | 기존 commit 모듈 결정 유지 (KST 자정)                                | PR #6 |

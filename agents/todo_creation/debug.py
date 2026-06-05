@@ -121,9 +121,7 @@ def _emit_task_list(key: str, tasks: list[Any]) -> None:
     for i, t in enumerate(tasks, 1):
         title = getattr(t, "title", "?")
         due = getattr(t, "due_date", "?")
-        hint = getattr(t, "time_hint", None)
-        hint_str = f" | {hint}" if hint else ""
-        _emit(f"    [{i}] {title} | {due}{hint_str}")
+        _emit(f"    [{i}] {title} | {due}")
 
 
 def log_step(step: int, node: str, update: dict[str, Any] | None) -> None:

@@ -40,7 +40,6 @@ def test_single_turn_input_rejects_empty_user_id() -> None:
 
 def test_task_candidate_defaults() -> None:
     t = TaskCandidate(title="코테", due_date=date(2026, 5, 24))
-    assert t.time_hint is None
     assert t.tags == []
 
 
@@ -49,9 +48,9 @@ def test_task_candidate_rejects_empty_title() -> None:
         TaskCandidate(title="", due_date=date(2026, 5, 24))
 
 
-def test_task_candidate_rejects_title_over_80_chars() -> None:
+def test_task_candidate_rejects_title_over_20_chars() -> None:
     with pytest.raises(PydanticValidationError):
-        TaskCandidate(title="x" * 81, due_date=date(2026, 5, 24))
+        TaskCandidate(title="x" * 21, due_date=date(2026, 5, 24))
 
 
 # ---- GenerateResult ----
@@ -181,5 +180,3 @@ def test_turn_result_discriminator() -> None:
     )
     assert isinstance(c, GenerateResult)
     assert isinstance(f, FollowUpResult)
-
-
