@@ -1,8 +1,13 @@
-"""일상 시드(daily_seeds.csv) → 한국어 멀티턴 대화(daily_dialogs.jsonl).
+"""일상 시드(daily_seeds.csv) → 단일턴 구조화 플랜 샘플(daily.jsonl).
+
+assistant 출력은 런타임 GenerateResult 미러(plan_schemas.PlanOutput) JSON 이다.
+멀티턴 잡담 대신 '요청 → 구조화 플랜' 단일턴을 합성한다 — SFT 의 목표는
+대화력이 아니라 출력의 구조·정합성이기 때문.
 
 provider-pluggable: OpenAI 호환 base_url 로 로컬 오픈모델(Ollama/vLLM)을 쓴다.
 외부 배포 데이터라 ToS 안전을 위해 로컬 모델 사용을 권장한다.
-모델이 없거나 출력이 깨지면 결정론적 템플릿으로 폴백해 오프라인에서도 동작한다.
+모델이 없거나 출력이 깨지거나 정합성 검증에 실패하면 결정론적 템플릿으로
+폴백해 오프라인에서도 동작한다.
 """
 from __future__ import annotations
 
@@ -10,111 +15,122 @@ import argparse
 import csv
 import json
 import logging
-import re
+from datetime import date
 from pathlib import Path
+
+from sft_pipeline.build.plan_schemas import (
+    PlanOutput,
+    PlanTask,
+    _extract_json,
+    check_plan_consistency,
+)
+from sft_pipeline.io_utils import write_jsonl
 
 log = logging.getLogger(__name__)
 
+HORIZON_DAYS = 7  # 일상 할 일은 기준일로부터 7일 이내로 잡는다
+
 _SYSTEM = (
     "너는 몽글마을의 다정하고 현실적인 일상 계획 도우미야. "
-    "사용자의 할 일을 자연스러운 한국어 대화로 함께 계획해줘. "
-    "주어진 장소와 시간대를 활용하되, 사실을 지어내지 말고 간결하게 제안해."
+    "사용자의 할 일을 구조화된 JSON 플랜으로 정리해줘. "
+    "사실을 지어내지 말고 주어진 장소와 시간대를 활용해."
 )
 
 
-def build_synthesis_prompt(seed: dict) -> str:
+def build_synthesis_prompt(seed: dict, *, today: date) -> str:
     times = ", ".join(seed.get("times_ko", []))
     return (
-        "다음 일상 할 일을 소재로, 한국어 멀티턴 대화를 만들어줘.\n"
+        "다음 일상 할 일로, 한국어 SFT 샘플(사용자 요청 + 구조화 플랜)을 만들어줘.\n"
         f"- 할 일(영문): {seed.get('task_title', '')}\n"
         f"- 장소: {seed.get('place_ko', '')}\n"
-        f"- 추천 시간대: {times}\n\n"
+        f"- 추천 시간대: {times}\n"
+        f"- 기준일(오늘): {today.isoformat()}\n\n"
         "요구사항:\n"
-        "1) 영문 할 일을 자연스러운 한국어로 옮겨서 사용해.\n"
-        "2) user가 계획을 요청 → assistant가 장소/시간대로 일정 제안 → "
-        "user가 제약(시간 변경 등) 추가 → assistant가 조정, 이렇게 4턴 이상.\n"
-        "3) 반드시 아래 JSON 형식으로만 출력:\n"
-        '{"messages": [{"role": "user", "content": "..."}, '
-        '{"role": "assistant", "content": "..."}]}'
+        "1) user 는 할 일을 자연스러운 한국어로 부탁하는 1~2문장.\n"
+        f"2) plan.todos 에는 오늘({today.isoformat()}) 할 일만, "
+        f"plan.calendar_events 에는 내일부터 {HORIZON_DAYS}일 이내 일만 담아.\n"
+        "3) title 은 20자 이하 한국어, due_date 는 YYYY-MM-DD 형식.\n"
+        "4) summary_text 에 장소·시간대 추천 이유를 1~2문장으로 적어.\n"
+        "5) 반드시 아래 JSON 형식으로만 출력:\n"
+        '{"user": "...", "plan": {"summary_text": "...", '
+        '"todos": [{"title": "...", "due_date": "YYYY-MM-DD", "tags": []}], '
+        '"calendar_events": [...]}}'
     )
 
 
-def _fallback_dialogue(seed: dict) -> list[dict]:
-    task = seed.get("task_title", "할 일")
+def _fallback_parts(seed: dict, today: date) -> tuple[str, PlanOutput]:
+    task = (seed.get("task_title") or "").strip() or "할 일"
     place = seed.get("place_ko", "")
     times = seed.get("times_ko", [])
-    times_str = ", ".join(times)
-    first = times[0] if times else "여유 있는 시간"
-    return [
-        {"role": "user", "content": f"'{task}' 할 일을 계획하고 싶어. 언제 하는 게 좋을까?"},
-        {
-            "role": "assistant",
-            "content": f"{place}에서 {times_str}에 하는 걸 추천해요. 그 시간대가 가장 여유로워 보여요.",
-        },
-        {"role": "user", "content": "혹시 다른 시간대도 괜찮을까?"},
-        {
-            "role": "assistant",
-            "content": f"네, 사정이 생기면 옮겨도 돼요. 그래도 {place} 일정은 {first}이 가장 무난해요.",
-        },
-    ]
+    times_str = ", ".join(times) if times else "여유 있는 시간"
+    tags = [t for t in [seed.get("broad_ko", "")] if t] or ["일상"]
+    plan = PlanOutput(
+        summary_text=f"{place}에서 {times_str}에 '{task}'을(를) 하는 걸 추천해요.",
+        todos=[PlanTask(title=task[:20], due_date=today, tags=tags)],
+        calendar_events=[],
+    )
+    user = f"'{task}' 할 일을 계획하고 싶어. 언제 하는 게 좋을까?"
+    return user, plan
 
 
-def _extract_json(content: str) -> str:
-    """모델 출력에서 JSON 객체만 추출한다(```json 코드펜스·앞뒤 잡설 제거)."""
-    text = content.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
-        text = re.sub(r"\s*```$", "", text).strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start != -1 and end > start:
-        text = text[start : end + 1]
-    return text
-
-
-def _parse_llm_messages(content: str) -> list[dict]:
+def _parse_llm_sample(content: str, *, today: date) -> tuple[str, PlanOutput]:
     # strict=False: 모델이 문자열 값 안에 raw 줄바꿈 등 제어문자를 넣어도 허용한다.
     data = json.loads(_extract_json(content), strict=False)
-    msgs = data["messages"] if isinstance(data, dict) else data
-    if not isinstance(msgs, list) or len(msgs) < 2:
-        raise ValueError("messages must be a list of >=2 turns")
-    for m in msgs:
-        if not isinstance(m, dict) or m.get("role") not in {"system", "user", "assistant"}:
-            raise ValueError("invalid message role")
-        if not str(m.get("content", "")).strip():
-            raise ValueError("empty message content")
-    if msgs[-1]["role"] != "assistant":
-        raise ValueError("last turn must be assistant")
-    return msgs
+    if not isinstance(data, dict):
+        raise ValueError("output must be a JSON object")
+    user = str(data.get("user", "")).strip()
+    if not user:
+        raise ValueError("empty user request")
+    plan = PlanOutput.model_validate(data.get("plan"))
+    errors = check_plan_consistency(plan, today=today, horizon_days=HORIZON_DAYS)
+    if errors:
+        raise ValueError("inconsistent plan: " + "; ".join(errors))
+    return user, plan
 
 
-def synthesize_dialogue(seed: dict, *, client=None, model: str = "qwen2.5", temperature: float = 0.7) -> dict:
+def synthesize_sample(
+    seed: dict,
+    *,
+    today: date,
+    client=None,
+    model: str = "qwen2.5",
+    temperature: float = 0.7,
+) -> dict:
     by = "template"
-    messages = _fallback_dialogue(seed)
+    user, plan = _fallback_parts(seed, today)
     if client is not None:
         try:
             resp = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": _SYSTEM},
-                    {"role": "user", "content": build_synthesis_prompt(seed)},
+                    {"role": "user", "content": build_synthesis_prompt(seed, today=today)},
                 ],
                 temperature=temperature,
             )
-            messages = _parse_llm_messages(resp.choices[0].message.content)
+            user, plan = _parse_llm_sample(resp.choices[0].message.content, today=today)
             by = "llm"
         except Exception as exc:  # noqa: BLE001 - 어떤 실패든 안전하게 템플릿 폴백
             log.warning("합성 LLM 실패, 템플릿 폴백 (seed id=%s): %s", seed.get("id"), exc)
-            messages = _fallback_dialogue(seed)
+            user, plan = _fallback_parts(seed, today)
             by = "template"
 
+    # due_date 산술의 앵커(기준일)는 항상 user 턴에 노출한다.
+    anchor = today.isoformat()
+    user_content = user if anchor in user else f"{user} (기준일: {anchor})"
     return {
-        "messages": messages,
+        "messages": [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": plan.model_dump_json()},
+        ],
         "meta": {
             "provenance": "daily-latte",
+            "turn_type": "single",
             "source_id": seed.get("id", ""),
             "license": "MIT",
             "place": seed.get("place_ko", ""),
             "times": seed.get("times_ko", []),
+            "today": anchor,
             "synthesized_by": by,
         },
     }
@@ -160,30 +176,32 @@ def load_seeds(path: Path) -> list[dict]:
     return rows
 
 
-def write_jsonl(samples: list[dict], out_path: Path) -> None:
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        for sample in samples:
-            f.write(json.dumps(sample, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="daily_seeds.csv → daily_dialogs.jsonl (멀티턴 합성)")
+    parser = argparse.ArgumentParser(description="daily_seeds.csv → daily.jsonl (단일턴 구조화 플랜 합성)")
     parser.add_argument("--in", dest="in_path", required=True, type=Path)
     parser.add_argument("--out", dest="out_path", required=True, type=Path)
     parser.add_argument("--limit", type=int, default=None, help="합성할 시드 수(기본: 전체)")
     parser.add_argument("--use-llm", action="store_true", help="로컬 모델 합성(미지정 시 템플릿)")
     parser.add_argument("--model", default="qwen2.5")
+    parser.add_argument(
+        "--today",
+        type=date.fromisoformat,
+        default=None,
+        help="due_date 산술 기준일(YYYY-MM-DD). 미지정 시 오늘. 재현 빌드 시 고정 권장.",
+    )
     args = parser.parse_args()
 
+    today = args.today or date.today()
     seeds = sample_seeds(dedup_seeds(load_seeds(args.in_path)), args.limit)
     client = make_local_client() if args.use_llm else None
     if args.use_llm and client is None:
-        print("warning: --use-llm 지정됐지만 모델 서버 설정이 없어 템플릿으로 대체합니다.")
-    samples = [synthesize_dialogue(s, client=client, model=args.model) for s in seeds]
+        print("[synthesize] warning: --use-llm 지정됐지만 모델 서버 설정이 없어 템플릿으로 대체합니다.")
+    samples = [
+        synthesize_sample(s, today=today, client=client, model=args.model) for s in seeds
+    ]
     write_jsonl(samples, args.out_path)
     llm_n = sum(1 for s in samples if s["meta"]["synthesized_by"] == "llm")
-    print(f"synthesized {len(samples)} dialogs ({llm_n} llm / {len(samples) - llm_n} template) -> {args.out_path}")
+    print(f"[synthesize] {len(samples)} samples ({llm_n} llm / {len(samples) - llm_n} template) -> {args.out_path}")
 
 
 if __name__ == "__main__":

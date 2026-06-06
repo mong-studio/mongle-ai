@@ -1,11 +1,14 @@
 import json
+from datetime import date
 
-from sft_pipeline.build.validate_dataset import validate_samples
+from sft_pipeline.build.plan_schemas import check_plan_consistency, parse_plan
 from sft_pipeline.latte.synthesize import (
     build_synthesis_prompt,
     dedup_seeds,
-    synthesize_dialogue,
+    synthesize_sample,
 )
+
+TODAY = date(2026, 6, 6)
 
 _SEED = {
     "id": "1",
@@ -16,45 +19,11 @@ _SEED = {
 }
 
 
-def test_build_synthesis_prompt_contains_seed_fields():
-    prompt = build_synthesis_prompt(_SEED)
-    assert "buy milk" in prompt
-    assert "마트" in prompt
-    assert "주말 아침" in prompt
-
-
-def test_fallback_dialogue_is_valid_multiturn(tmp_path):
-    """모델 없이 템플릿 폴백 → user/assistant 4턴, provenance=daily-latte, validate 통과."""
-    sample = synthesize_dialogue(_SEED, client=None)
-    msgs = sample["messages"]
-    assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
-    assert sample["meta"]["provenance"] == "daily-latte"
-    assert sample["meta"]["source_id"] == "1"
-    assert sample["meta"]["license"] == "MIT"
-    assert sample["meta"]["synthesized_by"] == "template"
-    # 장소가 대화에 반영되어야 한다
-    assert any("마트" in m["content"] for m in msgs)
-
-    # 산출물이 통일 validate 스키마를 통과해야 한다
-    path = tmp_path / "d.jsonl"
-    path.write_text(json.dumps(sample, ensure_ascii=False) + "\n", encoding="utf-8")
-    report = validate_samples(path)
-    assert report["ok"] == 1, report["errors"]
-
-
-def test_synthesize_uses_llm_client_when_present():
-    """클라이언트가 있으면 LLM 응답(JSON messages)을 파싱하고 synthesized_by=llm."""
-
+def _fake_client(content: str):
     class _FakeMsg:
-        content = json.dumps(
-            {
-                "messages": [
-                    {"role": "user", "content": "마트에서 우유 사야 하는데 언제가 좋아?"},
-                    {"role": "assistant", "content": "주말 아침에 마트 들르는 걸 추천해요."},
-                ]
-            },
-            ensure_ascii=False,
-        )
+        pass
+
+    _FakeMsg.content = content
 
     class _FakeChoice:
         message = _FakeMsg()
@@ -69,33 +38,82 @@ def test_synthesize_uses_llm_client_when_present():
                 def create(**kwargs):
                     return _FakeResp()
 
-    sample = synthesize_dialogue(_SEED, client=_FakeClient(), model="local")
+    return _FakeClient()
+
+
+def _llm_payload(due="2026-06-07"):
+    return json.dumps(
+        {
+            "user": "주말에 마트에서 우유 사려는데 계획 좀 짜줘.",
+            "plan": {
+                "summary_text": "주말 아침 마트가 한가해서 추천해요.",
+                "todos": [],
+                "calendar_events": [
+                    {"title": "마트에서 우유 사기", "due_date": due, "tags": ["장보기"]}
+                ],
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_build_synthesis_prompt_contains_seed_fields_and_today():
+    prompt = build_synthesis_prompt(_SEED, today=TODAY)
+    assert "buy milk" in prompt
+    assert "마트" in prompt
+    assert "주말 아침" in prompt
+    assert "2026-06-06" in prompt  # 날짜 산술 앵커
+
+
+def test_fallback_is_single_turn_structured_plan():
+    """모델 없이 템플릿 폴백 → user/assistant 단일턴 + 정합성 있는 구조화 플랜."""
+    sample = synthesize_sample(_SEED, today=TODAY, client=None)
+    msgs = sample["messages"]
+    assert [m["role"] for m in msgs] == ["user", "assistant"]
+    assert "마트" in msgs[0]["content"] or "buy milk" in msgs[0]["content"]
+    assert "2026-06-06" in msgs[0]["content"]  # 기준일이 user 턴에 노출
+
+    plan = parse_plan(msgs[-1]["content"])
+    assert check_plan_consistency(plan, today=TODAY, horizon_days=7) == []
+
+    meta = sample["meta"]
+    assert meta["provenance"] == "daily-latte"
+    assert meta["source_id"] == "1"
+    assert meta["license"] == "MIT"
+    assert meta["synthesized_by"] == "template"
+    assert meta["turn_type"] == "single"
+    assert meta["today"] == "2026-06-06"
+
+
+def test_synthesize_uses_llm_client_when_present():
+    """클라이언트가 있으면 {"user","plan"} 응답을 파싱하고 synthesized_by=llm."""
+    sample = synthesize_sample(_SEED, today=TODAY, client=_fake_client(_llm_payload()))
     assert sample["meta"]["synthesized_by"] == "llm"
-    assert sample["messages"][-1]["role"] == "assistant"
-    assert "마트" in sample["messages"][0]["content"]
+    msgs = sample["messages"]
+    assert [m["role"] for m in msgs] == ["user", "assistant"]
+    plan = parse_plan(msgs[-1]["content"])
+    assert plan.calendar_events[0].title == "마트에서 우유 사기"
 
 
 def test_synthesize_falls_back_on_bad_llm_output():
     """LLM이 깨진 출력을 주면 템플릿으로 폴백한다."""
-
-    class _FakeMsg:
-        content = "이건 JSON이 아니에요"
-
-    class _FakeChoice:
-        message = _FakeMsg()
-
-    class _FakeResp:
-        choices = [_FakeChoice()]
-
-    class _FakeClient:
-        class chat:
-            class completions:
-                @staticmethod
-                def create(**kwargs):
-                    return _FakeResp()
-
-    sample = synthesize_dialogue(_SEED, client=_FakeClient(), model="local")
+    sample = synthesize_sample(_SEED, today=TODAY, client=_fake_client("이건 JSON이 아니에요"))
     assert sample["meta"]["synthesized_by"] == "template"
+
+
+def test_synthesize_falls_back_on_inconsistent_plan():
+    """스키마는 맞지만 정합성(7일 지평 밖 날짜)이 깨진 LLM 플랜은 reject → 템플릿 폴백."""
+    sample = synthesize_sample(
+        _SEED, today=TODAY, client=_fake_client(_llm_payload(due="2026-07-20"))
+    )
+    assert sample["meta"]["synthesized_by"] == "template"
+
+
+def test_synthesize_recovers_fenced_json():
+    """```json 코드펜스로 감싼 LLM 출력도 파싱해 llm으로 기록."""
+    fenced = "```json\n" + _llm_payload() + "\n```"
+    sample = synthesize_sample(_SEED, today=TODAY, client=_fake_client(fenced))
+    assert sample["meta"]["synthesized_by"] == "llm"
 
 
 def test_dedup_seeds_by_task_title():
@@ -106,32 +124,3 @@ def test_dedup_seeds_by_task_title():
     ]
     out = dedup_seeds(seeds)
     assert len(out) == 2
-
-
-def test_synthesize_recovers_fenced_and_control_char_json():
-    """코드펜스로 감싸거나 문자열에 raw 줄바꿈이 섞인 LLM 출력도 파싱해 llm으로 기록."""
-    # JSON 문자열 안에 실제 줄바꿈(제어문자) 포함 + ```json 펜스로 감쌈
-    inner = '{"messages": [{"role": "user", "content": "마트 갈래\n언제?"}, ' \
-            '{"role": "assistant", "content": "주말 아침에 마트 들르는 걸 추천해요."}]}'
-    fenced = "```json\n" + inner + "\n```"
-
-    class _FakeMsg:
-        content = fenced
-
-    class _FakeChoice:
-        message = _FakeMsg()
-
-    class _FakeResp:
-        choices = [_FakeChoice()]
-
-    class _FakeClient:
-        class chat:
-            class completions:
-                @staticmethod
-                def create(**kwargs):
-                    return _FakeResp()
-
-    sample = synthesize_dialogue(_SEED, client=_FakeClient(), model="local")
-    assert sample["meta"]["synthesized_by"] == "llm"
-    assert sample["messages"][0]["role"] == "user"
-    assert sample["messages"][-1]["role"] == "assistant"

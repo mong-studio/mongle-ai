@@ -5,23 +5,48 @@ from sft_pipeline.build.mix_dataset import mix
 from sft_pipeline.build.validate_dataset import validate_samples
 
 
+def _plan(events_due="2026-06-08"):
+    return json.dumps(
+        {
+            "summary_text": "기출 위주 반복 전략이에요.",
+            "todos": [{"title": "핵심 개념 훑기", "due_date": "2026-06-06", "tags": ["공부"]}],
+            "calendar_events": [
+                {"title": "오답 정리·반복", "due_date": events_due, "tags": ["공부"]}
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
 def _exam():
     return {
         "messages": [
-            {"role": "user", "content": "시험 계획 짜줘.\n\n시험: 토익 / D-7"},
-            {"role": "assistant", "content": "[토익 · D-7 준비 플랜] 매일 모의고사 1회분 풀기."},
+            {"role": "user", "content": "시험 계획 짜줘.\n\n시험: 토익 / D-7 / 기준일(오늘): 2026-06-06"},
+            {"role": "assistant", "content": _plan()},
         ],
-        "meta": {"provenance": "exam-crawl", "source_url": "https://e.com/1", "exam_type": "토익", "result": "합격"},
+        "meta": {
+            "provenance": "exam-crawl",
+            "source_url": "https://e.com/1",
+            "exam_type": "토익",
+            "result": "합격",
+            "today": "2026-06-06",
+            "time_left_days": 7,
+        },
     }
 
 
 def _daily():
     return {
         "messages": [
-            {"role": "user", "content": "마트에서 장보기 계획 짜줘."},
-            {"role": "assistant", "content": "주말 아침에 마트 들르는 걸 추천해요. 한가해서 좋아요."},
+            {"role": "user", "content": "마트에서 장보기 계획 짜줘. (기준일: 2026-06-06)"},
+            {"role": "assistant", "content": _plan()},
         ],
-        "meta": {"provenance": "daily-latte", "source_id": "1", "license": "MIT"},
+        "meta": {
+            "provenance": "daily-latte",
+            "source_id": "1",
+            "license": "MIT",
+            "today": "2026-06-06",
+        },
     }
 
 

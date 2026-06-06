@@ -11,6 +11,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from sft_pipeline.io_utils import write_jsonl
+
 # 외부 공개판에 허용되는 출처(provenance) 화이트리스트(fail-closed).
 # 라이선스가 명시적으로 공개 가능한 출처만 통과시킨다. 누락/오타/미지정 출처는
 # 저작권 안전을 위해 기본 제외한다.
@@ -31,13 +33,6 @@ def load_jsonl(path: Path) -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
-def write_jsonl(samples: list[dict], out_path: Path) -> None:
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        for sample in samples:
-            f.write(json.dumps(sample, ensure_ascii=False) + "\n")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="exam/daily messages → sft_dataset.jsonl (release 믹스)")
     parser.add_argument("--exam", type=Path, default=None, help="시험 jsonl(exam-crawl)")
@@ -54,9 +49,9 @@ def main() -> None:
     mixed = mix(samples, release=args.release)
     write_jsonl(mixed, args.out_path)
     by_prov = Counter((s.get("meta") or {}).get("provenance", "?") for s in mixed)
-    print(f"[{args.release}] wrote {len(mixed)} samples -> {args.out_path}")
+    print(f"[mix][{args.release}] wrote {len(mixed)} samples -> {args.out_path}")
     for prov, n in by_prov.most_common():
-        print(f"  {prov}: {n}")
+        print(f"[mix]   {prov}: {n}")
 
 
 if __name__ == "__main__":

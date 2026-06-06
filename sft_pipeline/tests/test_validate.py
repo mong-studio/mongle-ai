@@ -12,50 +12,81 @@ def _write(tmp_path: Path, samples: list[dict]) -> Path:
     return path
 
 
+def _plan_json(todos=None, events=None, summary="기출 위주 반복 전략이에요."):
+    return json.dumps(
+        {
+            "summary_text": summary,
+            "todos": todos if todos is not None else [
+                {"title": "핵심 개념 훑기", "due_date": "2026-06-06", "tags": ["공부"]}
+            ],
+            "calendar_events": events if events is not None else [
+                {"title": "기출 1회차 풀이", "due_date": "2026-06-08", "tags": ["공부"]},
+                {"title": "오답 정리·반복", "due_date": "2026-06-12", "tags": ["공부"]},
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
 def _good():
-    """시험준비 단일턴(user→assistant) 샘플."""
+    """시험준비 단일턴(user→assistant 구조화 플랜) 샘플."""
     return {
         "messages": [
             {
                 "role": "user",
-                "content": "다음 조건에 맞는 단기 시험 준비 계획을 세워줘.\n\n시험: 토익 / 남은 기간: D-7",
+                "content": "다음 조건에 맞는 단기 시험 준비 계획을 세워줘.\n\n"
+                "시험: 토익 / 남은 기간: D-7 / 기준일(오늘): 2026-06-06",
             },
-            {
-                "role": "assistant",
-                "content": "[토익 · D-7 준비 플랜]\n추천 학습 흐름: 매일 모의고사 1회분",
-            },
+            {"role": "assistant", "content": _plan_json()},
         ],
         "meta": {
             "provenance": "exam-crawl",
             "source_url": "https://example.com/1",
             "exam_type": "토익",
             "result": "합격",
+            "today": "2026-06-06",
+            "time_left_days": 7,
         },
     }
 
 
 def _good_daily():
-    """일상 멀티턴(MS-LaTTE 유래) 샘플 - exam 필드 없이 provenance만 다르다."""
+    """일상 단일턴(MS-LaTTE 유래) 샘플 - exam 필드 없이 provenance만 다르다."""
     return {
         "messages": [
-            {"role": "user", "content": "이번 주에 장보기랑 운동 계획 좀 같이 짜줘."},
-            {"role": "assistant", "content": "좋아요. 장보기는 주말 오전, 운동은 평일 저녁으로 배치해볼게요."},
-            {"role": "user", "content": "운동은 화목만 가능해."},
-            {"role": "assistant", "content": "그럼 화·목 저녁 7시로 고정하고 장보기는 토요일 오전에 넣을게요."},
+            {"role": "user", "content": "주말에 장보기 계획 좀 짜줘. (기준일: 2026-06-06)"},
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "summary_text": "주말 아침 마트가 한가해서 추천해요.",
+                        "todos": [],
+                        "calendar_events": [
+                            {"title": "마트 장보기", "due_date": "2026-06-07", "tags": ["장보기"]}
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+            },
         ],
-        "meta": {"provenance": "daily-latte", "source_id": "latte-000123", "license": "MIT"},
+        "meta": {
+            "provenance": "daily-latte",
+            "source_id": "latte-000123",
+            "license": "MIT",
+            "today": "2026-06-06",
+        },
     }
 
 
 def test_valid_exam_sample_passes(tmp_path):
-    """messages 스키마를 갖춘 정상 시험 샘플은 통과(ok=1)하고 오류가 없는지 확인."""
+    """구조화 플랜을 갖춘 정상 시험 샘플은 통과(ok=1)하고 오류가 없는지 확인."""
     report = validate_samples(_write(tmp_path, [_good()]))
     assert report["ok"] == 1
     assert report["errors"] == []
 
 
 def test_valid_daily_sample_passes(tmp_path):
-    """exam_type/result 없는 일상 멀티턴 샘플도 통일 스키마에서 통과하는지 확인."""
+    """exam_type/result 없는 일상 단일턴 샘플도 통일 스키마에서 통과하는지 확인."""
     report = validate_samples(_write(tmp_path, [_good_daily()]))
     assert report["ok"] == 1
     assert report["errors"] == []
@@ -71,8 +102,8 @@ def test_missing_messages_flagged(tmp_path):
 
 def test_last_must_be_assistant(tmp_path):
     """대화의 마지막 턴이 assistant가 아니면 오류로 잡는지 확인."""
-    bad = _good_daily()
-    bad["messages"] = bad["messages"][:-1]  # 마지막 assistant 제거 → user로 끝남
+    bad = _good()
+    bad["messages"].append({"role": "user", "content": "고마워!"})  # user로 끝남
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("last" in e or "assistant" in e for e in report["errors"])
 
@@ -99,3 +130,56 @@ def test_exam_provenance_missing_meta_flagged(tmp_path):
     del bad["meta"]["exam_type"]
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("exam_type" in e for e in report["errors"])
+
+
+# === 구조화 플랜 정합성 ===
+
+
+def test_non_json_assistant_flagged(tmp_path):
+    """assistant 출력이 구조화 플랜 JSON이 아니면 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = "[토익 · D-7 준비 플랜] 매일 모의고사 1회분 풀기."
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("plan" in e for e in report["errors"])
+
+
+def test_missing_today_meta_flagged(tmp_path):
+    """meta.today(기준일 앵커)가 없으면 정합성 검증 불가 → 오류."""
+    bad = _good()
+    del bad["meta"]["today"]
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("today" in e for e in report["errors"])
+
+
+def test_date_beyond_horizon_flagged(tmp_path):
+    """D-7인데 기준일+7일 밖 due_date가 있으면 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(
+        events=[{"title": "기출 풀이", "due_date": "2026-07-01", "tags": []}]
+    )
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("horizon" in e and "초과" in e for e in report["errors"])
+
+
+def test_branching_violation_flagged(tmp_path):
+    """미래 날짜 task가 todos에 있으면 C5 분기 위반 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(
+        todos=[{"title": "기출 풀이", "due_date": "2026-06-08", "tags": []}]
+    )
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("todos" in e and "오늘" in e for e in report["errors"])
+
+
+def test_monotonic_decomposition_flagged(tmp_path):
+    """'1단원, 2단원...' 식 기계적 분해가 과반이면 품질 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(
+        todos=[],
+        events=[
+            {"title": f"{i}단원 풀기", "due_date": "2026-06-08", "tags": []}
+            for i in range(1, 4)
+        ],
+    )
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("단조 분해" in e for e in report["errors"])
