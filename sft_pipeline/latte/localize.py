@@ -166,7 +166,7 @@ def main() -> None:
     parsed = load_parsed(args.in_path)
     seeds = localize_seeds(parsed)
     write_csv(seeds, args.out_path)
-    print(f"localized {len(seeds)}/{len(parsed)} seeds -> {args.out_path}")
+    print(f"[localize] {len(seeds)}/{len(parsed)} seeds -> {args.out_path}")
 
 
 if __name__ == "__main__":

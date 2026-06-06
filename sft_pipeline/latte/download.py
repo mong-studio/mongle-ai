@@ -34,7 +34,7 @@ def main() -> None:
     args = parser.parse_args()
     path = download(args.out_path)
     size_mb = path.stat().st_size / 1_000_000
-    print(f"downloaded MS-LaTTE.json ({size_mb:.1f} MB) -> {path}")
+    print(f"[download] MS-LaTTE.json ({size_mb:.1f} MB) -> {path}")
 
 
 if __name__ == "__main__":

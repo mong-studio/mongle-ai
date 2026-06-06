@@ -27,6 +27,11 @@ dependencies = [
     "python-dotenv>=1.0",
 ]
 
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
