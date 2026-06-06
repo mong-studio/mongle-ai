@@ -43,6 +43,11 @@ MIN_OUTPUT_LEN = 20
 # latte.synthesize.HORIZON_DAYS 와 같은 값을 쓰는 게 정책
 DAILY_HORIZON_DAYS = 7
 
+# 마지막 assistant 출력이 "구조화 플랜 JSON"이어야 하는 출처들.
+# 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
+# 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
+PLAN_PROVENANCES = {"exam-crawl", "daily-latte"}
+
 
 def _validate_messages(messages, idx: int) -> list[str]:
     """대화(messages)가 올바른 모양인지 검사한다 (1층: 형식 검사)
@@ -185,7 +190,10 @@ def _validate_one(sample: dict, idx: int) -> list[str]:
     if not errors:
         # 형식 검사를 통과한 샘플만 2층(플랜 정합성)으로 내려보냄
         # (모양이 깨진 데이터에 플랜 검사를 하면 엉뚱한 에러만 나오기 때문)
-        errors += _validate_plan(sample, idx)
+        # 단, distractor 처럼 의도적으로 평문 대화인 출처는 플랜이 아니므로 2층을 건너뛴다.
+        provenance = (sample.get("meta") or {}).get("provenance")
+        if provenance in PLAN_PROVENANCES:
+            errors += _validate_plan(sample, idx)
     return errors
 
 
