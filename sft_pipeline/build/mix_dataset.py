@@ -11,8 +11,10 @@ import json
 from collections import Counter
 from pathlib import Path
 
-# 외부 공개판에서 제외할 출처(provenance).
-_EXCLUDE_FROM_PUBLIC = {"exam-crawl"}
+# 외부 공개판에 허용되는 출처(provenance) 화이트리스트(fail-closed).
+# 라이선스가 명시적으로 공개 가능한 출처만 통과시킨다. 누락/오타/미지정 출처는
+# 저작권 안전을 위해 기본 제외한다.
+_PUBLIC_ALLOWED = {"daily-latte"}
 RELEASES = ("public", "internal")
 
 
@@ -21,7 +23,7 @@ def mix(samples: list[dict], *, release: str) -> list[dict]:
         raise ValueError(f"release must be one of {RELEASES}, got {release!r}")
     if release == "internal":
         return list(samples)
-    return [s for s in samples if (s.get("meta") or {}).get("provenance") not in _EXCLUDE_FROM_PUBLIC]
+    return [s for s in samples if (s.get("meta") or {}).get("provenance") in _PUBLIC_ALLOWED]
 
 
 def load_jsonl(path: Path) -> list[dict]:

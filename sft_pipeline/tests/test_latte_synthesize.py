@@ -106,3 +106,32 @@ def test_dedup_seeds_by_task_title():
     ]
     out = dedup_seeds(seeds)
     assert len(out) == 2
+
+
+def test_synthesize_recovers_fenced_and_control_char_json():
+    """코드펜스로 감싸거나 문자열에 raw 줄바꿈이 섞인 LLM 출력도 파싱해 llm으로 기록."""
+    # JSON 문자열 안에 실제 줄바꿈(제어문자) 포함 + ```json 펜스로 감쌈
+    inner = '{"messages": [{"role": "user", "content": "마트 갈래\n언제?"}, ' \
+            '{"role": "assistant", "content": "주말 아침에 마트 들르는 걸 추천해요."}]}'
+    fenced = "```json\n" + inner + "\n```"
+
+    class _FakeMsg:
+        content = fenced
+
+    class _FakeChoice:
+        message = _FakeMsg()
+
+    class _FakeResp:
+        choices = [_FakeChoice()]
+
+    class _FakeClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    return _FakeResp()
+
+    sample = synthesize_dialogue(_SEED, client=_FakeClient(), model="local")
+    assert sample["meta"]["synthesized_by"] == "llm"
+    assert sample["messages"][0]["role"] == "user"
+    assert sample["messages"][-1]["role"] == "assistant"

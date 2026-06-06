@@ -10,6 +10,7 @@ import argparse
 import csv
 import json
 import logging
+import re
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -58,8 +59,21 @@ def _fallback_dialogue(seed: dict) -> list[dict]:
     ]
 
 
+def _extract_json(content: str) -> str:
+    """모델 출력에서 JSON 객체만 추출한다(```json 코드펜스·앞뒤 잡설 제거)."""
+    text = content.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        text = text[start : end + 1]
+    return text
+
+
 def _parse_llm_messages(content: str) -> list[dict]:
-    data = json.loads(content)
+    # strict=False: 모델이 문자열 값 안에 raw 줄바꿈 등 제어문자를 넣어도 허용한다.
+    data = json.loads(_extract_json(content), strict=False)
     msgs = data["messages"] if isinstance(data, dict) else data
     if not isinstance(msgs, list) or len(msgs) < 2:
         raise ValueError("messages must be a list of >=2 turns")

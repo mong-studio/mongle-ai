@@ -40,6 +40,15 @@ def test_internal_includes_all():
     assert provs == {"exam-crawl", "daily-latte"}
 
 
+def test_public_excludes_unknown_provenance():
+    """fail-closed: 허용목록(daily-latte)에 없는 출처(오타/누락 포함)는 public에서 제외."""
+    mystery = {"messages": _daily()["messages"], "meta": {"provenance": "mystery"}}
+    no_prov = {"messages": _daily()["messages"], "meta": {}}
+    out = mix([_daily(), mystery, no_prov], release="public")
+    assert len(out) == 1
+    assert out[0]["meta"]["provenance"] == "daily-latte"
+
+
 def test_mixed_output_validates(tmp_path):
     """믹스 결과가 통일 validate 스키마를 통과한다."""
     out = mix([_exam(), _daily()], release="internal")
