@@ -28,7 +28,7 @@ sft_pipeline/
 ├── crawl/         robots.py · fetcher.py · extractor.py · run_crawl.py
 ├── structure/     exam_types.py · normalize.py · fields.py · run_structure.py
 ├── latte/         download.py · parse.py · localize.py · synthesize.py   # 일상(MS-LaTTE)
-├── build/         templates.py · rephrase.py · build_sft_dataset.py · mix_dataset.py · validate_dataset.py
+├── build/         templates.py · rephrase.py · build_sft_dataset.py · distractor.py · mix_dataset.py · validate_dataset.py
 ├── reports/       preprocessing_report_template.md · batch_meta_template.yaml
 └── tests/
 ```
@@ -95,6 +95,27 @@ uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
 export LLM_BASE_URL=http://localhost:11434/v1
 uv run python -m sft_pipeline.latte.synthesize --in $G/daily_seeds.csv --out $G/daily.jsonl --limit 1000 --use-llm --model qwen2.5
 ```
+
+## distractor(네거티브) 데이터
+
+플랜만 학습하면 모델이 잡담·거절·되묻기 상황에도 플랜 JSON을 토해냅니다. 이를 막기 위해 **"플랜을 만들면 안 되는 경계 사례"**(잡담/감사, 과약속 거절, 모호한 의도 되묻기, 프롬프트 인젝션 방어, 범위 밖·위험 요청 거절 등)를 일정 비율 섞습니다.
+
+- distractor 의 assistant 출력은 **평문 대화**라 `meta.provenance="distractor"` 로 표시되며, `validate` 2층(플랜 정합성)을 건너뛰고 **1층(형식 위생)만** 받습니다.
+- distractor 는 우리가 만든 데이터(저작권 이슈 없음)라 **공개판에도 포함**됩니다(`_PUBLIC_ALLOWED`).
+- `mix` 가 distractor 를 플랜 샘플 사이에 **균등 인터리브**(끝에 몰리지 않게)합니다.
+
+```bash
+# 1) 원본(network 불필요, 외부 파일) → SFT 포맷으로 유형 비율 보존 30% 서브샘플
+uv run python -m sft_pipeline.build.distractor --in path/to/mongle_distractor_v2.jsonl --out $G/distractor.jsonl --fraction 0.30
+
+# 2) 플랜(daily/exam) + distractor 믹스 (distractor 는 균등 인터리브됨)
+uv run python -m sft_pipeline.build.mix_dataset \
+  --daily $G/daily.jsonl --exam $G/exam.jsonl --distractor $G/distractor.jsonl \
+  --release internal --out $G/sft_dataset.jsonl
+uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
+```
+
+권장 비율은 **약 30%**(일상 1000건 기준 distractor ≈ 300건)입니다. 너무 높으면 과생성을 막는 대신 모델이 과도하게 거절(과거절)할 수 있습니다.
 
 ## 테스트
 
