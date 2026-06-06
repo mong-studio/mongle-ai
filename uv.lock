@@ -1084,6 +1084,7 @@ dependencies = [
     { name = "peft" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "rembg", extra = ["cpu"] },
     { name = "torch" },
     { name = "torchvision" },
@@ -1100,7 +1101,6 @@ dev = [
 ui = [
     { name = "langchain-openai" },
     { name = "openai" },
-    { name = "python-dotenv" },
     { name = "streamlit" },
 ]
 
@@ -1128,7 +1128,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
-    { name = "python-dotenv", marker = "extra == 'ui'", specifier = ">=1.0" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "rembg", extras = ["cpu"], specifier = ">=2.0.75" },
     { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.36" },
     { name = "torch", specifier = ">=2.12.0" },

@@ -10,7 +10,7 @@ multi 경로는 `message` / `history` / `parsed_goal` / `plan` / `summary_text` 
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 from agents.todo_creation.schemas import TaskCandidate
 
@@ -21,9 +21,14 @@ class Turn(TypedDict):
 
 
 class ParsedGoal(TypedDict, total=False):
+    intent: Literal["plan", "out_of_scope"]
     goal_text: str
+    goal_tag: str
     deadline: date | None
     daily_capacity_minutes: int | None
+    revision_request: str | None
+    previous_plan: list[dict[str, Any]]
+    user_profile_memory: dict[str, Any]
 
 
 class PlanDay(TypedDict):
@@ -45,6 +50,9 @@ class GenerateState(TypedDict, total=False):
     # multi path
     message: str
     history: list[Turn]
+    memory_summary: dict[str, Any] | None
+    recent_turns: list[Turn]
+    revision_request: str | None
     parsed_goal: ParsedGoal | None
     sufficiency: bool | None
     missing_aspects: list[str]

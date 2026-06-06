@@ -27,6 +27,7 @@ from adapters.todo_creation.quest_dispatch_adapter import QuestDispatchAdapter
 from agents.character_creation.pipeline import Ports
 from agents.quest_generation.protocols import LLMPort as QuestLLMPort
 from agents.todo_creation.commit.pipeline import CommitPorts
+from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts
 from agents.todo_creation.single_turn.pipeline import GeneratePorts as TodoGeneratePorts
 
 _VALID_QUEST_LLM_PROVIDERS = ("fake", "qwen")
@@ -65,6 +66,7 @@ class AppConfig:
     qwen_api_key: str             # vLLM 등은 더미 키 허용 → 기본 "EMPTY"
     qwen_temperature: float
     qwen_max_tokens: int
+    qwen_timeout_seconds: float
     lora_dir: str                 # LoRA 가중치 폴더 경로
 
     @classmethod
@@ -97,6 +99,7 @@ class AppConfig:
         qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
         qwen_temperature = float(os.environ.get("QWEN_TEMPERATURE", "0.1"))
         qwen_max_tokens = int(os.environ.get("QWEN_MAX_TOKENS", "800"))
+        qwen_timeout_seconds = float(os.environ.get("QWEN_TIMEOUT_SECONDS", "90"))
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
         if not lora_dir:
@@ -109,6 +112,7 @@ class AppConfig:
             qwen_api_key=qwen_api_key,
             qwen_temperature=qwen_temperature,
             qwen_max_tokens=qwen_max_tokens,
+            qwen_timeout_seconds=qwen_timeout_seconds,
             lora_dir=lora_dir,
         )
 
@@ -156,6 +160,7 @@ def _build_character_llm(cfg: AppConfig) -> QwenCharacterLLM:
         api_key=cfg.qwen_api_key,
         temperature=cfg.qwen_temperature,
         max_tokens=cfg.qwen_max_tokens,
+        timeout_seconds=cfg.qwen_timeout_seconds,
     )
 
 
@@ -167,8 +172,22 @@ def build_todo_generate_ports(cfg: AppConfig) -> TodoGeneratePorts:
         api_key=cfg.qwen_api_key,
         temperature=cfg.qwen_temperature,
         max_tokens=cfg.qwen_max_tokens,
+        timeout_seconds=cfg.qwen_timeout_seconds,
     )
     return TodoGeneratePorts(llm=llm)
+
+
+def build_todo_multi_turn_ports(cfg: AppConfig) -> MultiTurnPorts:
+    assert cfg.qwen_base_url
+    llm = QwenTodoLLM(
+        base_url=cfg.qwen_base_url,
+        model=cfg.qwen_model,
+        api_key=cfg.qwen_api_key,
+        temperature=cfg.qwen_temperature,
+        max_tokens=cfg.qwen_max_tokens,
+        timeout_seconds=cfg.qwen_timeout_seconds,
+    )
+    return MultiTurnPorts(llm=llm)
 
 
 @functools.lru_cache(maxsize=1)
@@ -219,6 +238,7 @@ def _build_quest_llm(cfg: AppConfig | None) -> QuestLLMPort:
             api_key=cfg.qwen_api_key,
             temperature=cfg.qwen_temperature,
             max_tokens=cfg.qwen_max_tokens,
+            timeout_seconds=cfg.qwen_timeout_seconds,
         )
     return FakeQuestLLM()
 

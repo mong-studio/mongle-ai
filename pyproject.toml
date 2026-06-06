@@ -19,6 +19,7 @@ dependencies = [
     "accelerate>=1.13.0",
     "peft>=0.19.1",
     "opencv-python-headless>=4.13.0.92",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,6 @@ ui = [
     "streamlit>=1.36",
     "openai>=1.50",
     "langchain-openai>=0.3,<1",
-    "python-dotenv>=1.0",
 ]
 
 [tool.pytest.ini_options]

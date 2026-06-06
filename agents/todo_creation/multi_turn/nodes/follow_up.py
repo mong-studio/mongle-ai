@@ -21,11 +21,12 @@ async def follow_up_node(state: dict[str, Any], config: dict[str, Any]) -> dict[
     )
     user_answer = interrupt(question)
     history = state.get("history", [])
+    appended = [
+        {"role": "assistant", "content": question},
+        {"role": "user", "content": user_answer},
+    ]
     return {
         "follow_up_question": question,
-        "history": history
-        + [
-            {"role": "assistant", "content": question},
-            {"role": "user", "content": user_answer},
-        ],
+        "history": history + appended,
+        "recent_turns": (state.get("recent_turns", []) + appended)[-6:],
     }

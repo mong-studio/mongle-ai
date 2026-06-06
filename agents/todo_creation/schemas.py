@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -32,6 +32,7 @@ class GenerateResult(BaseModel):
     todos: list[TaskCandidate]
     calendar_events: list[TaskCandidate]
     summary_text: str | None = None
+    profile_memory_patch: dict[str, Any] | None = None
 
 
 class CommitInput(BaseModel):
@@ -73,6 +74,7 @@ class MultiGenerateInput(BaseModel):
     message: Annotated[str, Field(min_length=1, max_length=600)]
     today: date
     thread_id: str | None = None  # 첫 호출은 None, 서버가 발급
+    user_profile_memory: dict[str, Any] | None = None
 
 
 GenerateInput = Annotated[
@@ -90,7 +92,15 @@ class FollowUpResult(BaseModel):
     missing_aspects: list[str]
 
 
+class OutOfScopeResult(BaseModel):
+    """multi 플래너 범위를 벗어난 입력에 대한 안내 응답."""
+
+    kind: Literal["out_of_scope"] = "out_of_scope"
+    thread_id: str
+    message: str
+
+
 TurnResult = Annotated[
-    GenerateResult | FollowUpResult,
+    GenerateResult | FollowUpResult | OutOfScopeResult,
     Field(discriminator="kind"),
 ]

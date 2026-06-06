@@ -13,8 +13,25 @@ from agents.todo_creation.schemas import (
     FollowUpResult,
     GenerateResult,
     MultiGenerateInput,
+    OutOfScopeResult,
     TurnResult,
 )
+
+
+_ACCEPT_MESSAGES = {
+    "좋아",
+    "좋아요",
+    "응",
+    "네",
+    "예",
+    "그렇게 할게",
+    "그렇게 할게요",
+    "이대로 할게",
+    "이대로 할게요",
+    "확정",
+    "확정할게",
+    "확정할게요",
+}
 
 
 @dataclass
@@ -40,6 +57,10 @@ async def run(
         if snapshot.next:
             # graph paused at follow_up interrupt — resume with user's answer
             graph_input = Command(resume=input.message)
+        elif snapshot.values.get("plan"):
+            if _is_acceptance(input.message):
+                return _result_from_snapshot(thread_id, snapshot.values)
+            graph_input = _revision_state(input, now, snapshot.values)
         else:
             graph_input = _initial_state(input, now)
     else:
@@ -65,11 +86,37 @@ async def run(
             missing_aspects=state_after.values.get("missing_aspects") or [],
         )
 
+    if final.get("out_of_scope_message"):
+        return OutOfScopeResult(
+            thread_id=thread_id,
+            message=final.get("out_of_scope_message") or "",
+        )
+
     return GenerateResult(
         thread_id=thread_id,
         todos=final.get("todos") or [],
         calendar_events=final.get("calendar_events") or [],
         summary_text=final.get("summary_text"),
+        profile_memory_patch=final.get("profile_memory_patch"),
+    )
+
+
+def _is_acceptance(message: str) -> bool:
+    """사용자가 직전 후보를 그대로 수락하면 LLM 재생성을 생략한다."""
+
+    normalized = message.strip().replace(".", "").replace("!", "").replace("~", "")
+    return normalized in _ACCEPT_MESSAGES
+
+
+def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> GenerateResult:
+    """MemorySaver 에 남아 있는 직전 후보를 다시 반환한다."""
+
+    return GenerateResult(
+        thread_id=thread_id,
+        todos=values.get("todos") or [],
+        calendar_events=values.get("calendar_events") or [],
+        summary_text=values.get("summary_text"),
+        profile_memory_patch=values.get("profile_memory_patch"),
     )
 
 
@@ -79,4 +126,45 @@ def _initial_state(input: MultiGenerateInput, now: datetime) -> dict[str, Any]:
         "today": input.today,
         "now": now,
         "user_id": input.user_id,
+        "history": [],
+        "recent_turns": [],
+        "user_profile_memory": input.user_profile_memory or {},
+    }
+
+
+def _revision_state(
+    input: MultiGenerateInput, now: datetime, previous: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        **previous,
+        "message": input.message,
+        "today": input.today,
+        "now": now,
+        "user_id": input.user_id,
+        "history": list(previous.get("history") or []),
+        "recent_turns": list(previous.get("recent_turns") or []),
+        "revision_request": input.message,
+        "user_profile_memory": input.user_profile_memory
+        or previous.get("user_profile_memory")
+        or {},
+    }
+
+
+def get_debug_state(*, thread_id: str, ports: MultiTurnPorts) -> dict[str, Any]:
+    """콘솔/테스트에서 현재 MemorySaver 상태를 확인하기 위한 읽기 전용 헬퍼."""
+
+    config = {"configurable": {"ports": ports, "thread_id": thread_id}}
+    snapshot = _GRAPH.get_state(config)
+    values = snapshot.values or {}
+    parsed_goal = values.get("parsed_goal") or {}
+    return {
+        "thread_id": thread_id,
+        "next": tuple(snapshot.next or ()),
+        "history_turns": len(values.get("history") or []),
+        "recent_turns": values.get("recent_turns") or [],
+        "parsed_goal": parsed_goal,
+        "missing_aspects": values.get("missing_aspects") or [],
+        "has_previous_plan": bool(values.get("plan")),
+        "todo_count": len(values.get("todos") or []),
+        "calendar_count": len(values.get("calendar_events") or []),
     }

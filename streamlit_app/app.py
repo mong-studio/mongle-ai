@@ -57,6 +57,7 @@ from streamlit_app.ports_factory import (  # noqa: E402
     MissingEnvError,
     build_ports,
     build_todo_generate_ports,
+    build_todo_multi_turn_ports,
 )
 
 st.set_page_config(
@@ -1928,70 +1929,94 @@ def _calendar_modal(characters: list, cfg: AppConfig | None) -> None:
                     st.rerun()
 
 
-def _extract_plan(text: str) -> tuple[list[dict], str] | None:
-    """응답에서 ===PLAN=== ... ===END=== 블록을 파싱 → (events, summary) 반환."""
-    import re  # noqa: PLC0415
+def _calendar_event_from_task(task) -> dict:
+    """TaskCandidate 를 Streamlit 캘린더 이벤트 dict 로 변환한다."""
 
-    match = re.search(r"===PLAN===\s*(.*?)\s*===END===", text, re.DOTALL)
-    if not match:
-        return None
-    try:
-        data      = json.loads(match.group(1))
-        summary   = data.get("summary", "")
-        raw_evs   = data.get("events", [])
-        events: list[dict] = []
-        for ev in raw_evs:
-            start = ev.get("start_date", date.today().isoformat())
-            end   = ev.get("end_date", start)
-            tag   = ev.get("tag", "일반")
-            if tag not in _CAL_TAG_COLOR:
-                tag = "일반"
-            events.append({
-                "event_id":    str(uuid4()),
-                "title":       str(ev.get("title", ""))[:20],
-                "description": "",
-                "start_date":  start,
-                "end_date":    end,
-                "tag":         tag,
-                "created_at":  datetime.now().strftime("%-m월 %-d일 %H:%M"),
-            })
-        return events, summary
-    except (json.JSONDecodeError, KeyError, TypeError):
-        return None
+    tag = (task.tags or ["일반"])[0]
+    if tag not in _CAL_TAG_COLOR:
+        tag = "일반"
+    day = task.due_date.isoformat()
+    return {
+        "event_id": str(uuid4()),
+        "title": task.title[:20],
+        "description": "",
+        "start_date": day,
+        "end_date": day,
+        "tag": tag,
+        "created_at": datetime.now().strftime("%-m월 %-d일 %H:%M"),
+    }
 
 
-def _call_plan_llm(history: list[dict], today: date, api_key: str) -> str:
-    """이장님 LLM 멀티턴 호출 — 정보 충분 시 ===PLAN=== 블록 포함 응답 반환."""
-    from langchain_openai import ChatOpenAI  # noqa: PLC0415
+def _todo_item_from_task(task) -> dict:
+    """TaskCandidate 를 오늘 TODO 세션 항목으로 변환한다."""
 
-    system = (
-        "당신은 몽글마을의 다정하고 지혜로운 이장님입니다. "
-        "사용자가 목표나 장기 일정을 이야기하면 함께 플랜을 만들어드려요.\n\n"
-        "대화 규칙:\n"
-        "- 목표·기한·하루 가용 시간 등 정보가 부족하면 자연스럽게 추가 질문을 하세요.\n"
-        "- 충분한 정보가 모이면 구체적인 일자별 플랜을 만들고 아래 포맷으로 답변하세요.\n"
-        "- 평소에는 친근하고 따뜻한 이장님 말투로 대화하세요.\n"
-        "- 답변은 1500자를 넘지 않게 하세요.\n\n"
-        "플랜 생성 포맷 (정보가 충분할 때만):\n"
-        "===PLAN===\n"
-        "{\n"
-        '  "summary": "플랜 요약 (200자 이내)",\n'
-        '  "events": [\n'
-        '    {"title": "일정 제목 (20자 이내)", "start_date": "YYYY-MM-DD", '
-        '"end_date": "YYYY-MM-DD", "tag": "학습"},\n'
-        "    ...\n"
-        "  ]\n"
-        "}\n"
-        "===END===\n\n"
-        f"tag 가능 값: 일반·업무·건강·학습·취미\n"
-        f"오늘 날짜: {today.isoformat()}"
-    )
-    llm  = ChatOpenAI(model="gpt-4o-mini", api_key=api_key, max_tokens=1000)
-    msgs = [{"role": "system", "content": system}] + [
-        {"role": m["role"], "content": m["content"]} for m in history
-    ]
-    resp = llm.invoke(msgs)
-    return str(resp.content).strip()[:1500]
+    return {
+        "todo_id": str(uuid4()),
+        "title": task.title[:20],
+        "tags": task.tags or [],
+        "created_at": datetime.now().strftime("%-m월 %-d일 %H:%M"),
+    }
+
+
+def _merge_profile_memory(base: dict | None, patch: dict | None) -> dict:
+    """개인화 JSON 메모리를 얕게 병합한다.
+
+    리스트 필드는 중복을 제거해 누적하고, 스칼라 필드는 최신 값으로 교체한다.
+    """
+
+    merged = dict(base or {})
+    for key, value in (patch or {}).items():
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, list):
+            current = merged.get(key, [])
+            if not isinstance(current, list):
+                current = [current]
+            merged[key] = list(dict.fromkeys([*current, *value]))
+        elif isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = {**merged[key], **value}
+        else:
+            merged[key] = value
+    return merged
+
+
+def _promote_calendar_events_for_today() -> None:
+    """오늘 날짜의 캘린더 일정을 TODO 세션 목록에 한 번만 등록한다."""
+
+    today_str = date.today().isoformat()
+    events: list[dict] = st.session_state.get("calendar_events", [])
+    if not events:
+        return
+
+    todo_list: list[dict] = st.session_state.get("todo_list", [])
+    promoted_ids = {
+        item.get("source_event_id")
+        for item in todo_list
+        if item.get("source_event_id")
+    }
+    changed = False
+    for event in events:
+        event_id = event.get("event_id")
+        if (
+            event.get("start_date") == today_str
+            and event_id
+            and event_id not in promoted_ids
+        ):
+            todo_list.append(
+                {
+                    "todo_id": str(uuid4()),
+                    "title": str(event.get("title", ""))[:20],
+                    "tags": [event.get("tag", "일반")],
+                    "created_at": datetime.now().strftime("%-m월 %-d일 %H:%M"),
+                    "source_event_id": event_id,
+                }
+            )
+            promoted_ids.add(event_id)
+            changed = True
+
+    if changed:
+        st.session_state["todo_list"] = todo_list
+        st.session_state["todo_list_date"] = today_str
 
 
 @st.dialog("< LONG-TERM PLAN >  장기 플랜 짜기", width="large")
@@ -2003,6 +2028,7 @@ def _plan_modal(cfg: AppConfig | None) -> None:
 
     history: list[dict]    = st.session_state.get("plan_history", [])
     pending: list[dict] | None = st.session_state.get("plan_pending_events")
+    pending_todos: list[dict] = st.session_state.get("plan_pending_todos", [])
     summary: str           = st.session_state.get("plan_summary", "")
 
     # ── 채팅 말풍선 ───────────────────────────────────────────────────────────
@@ -2054,7 +2080,13 @@ def _plan_modal(cfg: AppConfig | None) -> None:
                 cal_events: list[dict] = st.session_state.get("calendar_events", [])
                 cal_events.extend(pending)
                 st.session_state["calendar_events"] = cal_events
+                if pending_todos:
+                    todo_list: list[dict] = st.session_state.get("todo_list", [])
+                    todo_list.extend(pending_todos)
+                    st.session_state["todo_list"] = todo_list
+                    st.session_state["todo_list_date"] = date.today().isoformat()
                 st.session_state.pop("plan_pending_events", None)
+                st.session_state.pop("plan_pending_todos", None)
                 st.session_state.pop("plan_summary", None)
                 st.session_state["modal"] = None
                 st.toast("📅 플랜이 캘린더에 추가됐어요!")
@@ -2062,6 +2094,7 @@ def _plan_modal(cfg: AppConfig | None) -> None:
         with reject_col:
             if st.button("↩ 다시 작성", key="plan_reject", use_container_width=True):
                 st.session_state.pop("plan_pending_events", None)
+                st.session_state.pop("plan_pending_todos", None)
                 st.session_state.pop("plan_summary", None)
                 st.rerun()
 
@@ -2085,7 +2118,9 @@ def _plan_modal(cfg: AppConfig | None) -> None:
         if st.button("대화 초기화", key="plan_reset", use_container_width=True):
             st.session_state["plan_history"] = []
             st.session_state.pop("plan_pending_events", None)
+            st.session_state.pop("plan_pending_todos", None)
             st.session_state.pop("plan_summary", None)
+            st.session_state.pop("plan_thread_id", None)
             st.rerun()
     with send_col:
         if st.button(
@@ -2100,24 +2135,69 @@ def _plan_modal(cfg: AppConfig | None) -> None:
             if cfg:
                 with st.spinner("이장님이 생각 중이에요..."):
                     try:
-                        response = _call_plan_llm(new_history, date.today(), cfg.openai_api_key)
-                    except Exception:  # noqa: BLE001
-                        response = "죄송해요, 잠시 연결이 어렵네요. 다시 시도해볼까요? 🏡"
-            else:
-                response = "AI 설정이 필요해요. 환경변수를 확인해주세요."
+                        from agents.todo_creation.multi_turn.pipeline import run as plan_run  # noqa: PLC0415
+                        from agents.todo_creation.schemas import (  # noqa: PLC0415
+                            FollowUpResult,
+                            GenerateResult,
+                            MultiGenerateInput,
+                            OutOfScopeResult,
+                        )
 
-            # 플랜 블록 추출
-            plan_result = _extract_plan(response)
-            if plan_result:
-                events, plan_summary = plan_result
-                clean_text = response[:response.find("===PLAN===")].strip()
-                if not clean_text:
-                    clean_text = "플랜을 완성했어요! 아래 일정을 캘린더에 추가해볼까요? 📅"
-                new_history.append({"role": "assistant", "content": clean_text})
-                st.session_state["plan_pending_events"] = events
-                st.session_state["plan_summary"]        = plan_summary
+                        result = asyncio.run(
+                            plan_run(
+                                MultiGenerateInput(
+                                    user_id="streamlit-user",
+                                    message=msg.strip(),
+                                    today=date.today(),
+                                    thread_id=st.session_state.get("plan_thread_id"),
+                                    user_profile_memory=st.session_state.get(
+                                        "planner_profile_memory", {}
+                                    ),
+                                ),
+                                ports=build_todo_multi_turn_ports(cfg),
+                                now=datetime.now(),
+                            )
+                        )
+                    except Exception:  # noqa: BLE001
+                        result = None
             else:
-                new_history.append({"role": "assistant", "content": response})
+                result = None
+
+            if result is None:
+                new_history.append(
+                    {"role": "assistant", "content": "AI 설정 또는 연결 상태를 확인해주세요."}
+                )
+            elif isinstance(result, FollowUpResult):
+                st.session_state["plan_thread_id"] = result.thread_id
+                new_history.append({"role": "assistant", "content": result.question})
+            elif isinstance(result, OutOfScopeResult):
+                st.session_state["plan_thread_id"] = result.thread_id
+                new_history.append({"role": "assistant", "content": result.message})
+            elif isinstance(result, GenerateResult):
+                st.session_state["plan_thread_id"] = result.thread_id
+                todos = [_todo_item_from_task(task) for task in result.todos]
+                events = [
+                    _calendar_event_from_task(task)
+                    for task in result.calendar_events
+                ]
+                if todos:
+                    st.session_state["plan_pending_todos"] = todos
+                st.session_state["plan_pending_events"] = events
+                st.session_state["plan_summary"] = result.summary_text or ""
+                st.session_state["planner_profile_memory"] = _merge_profile_memory(
+                    st.session_state.get("planner_profile_memory", {}),
+                    result.profile_memory_patch,
+                )
+                new_history.append(
+                    {
+                        "role": "assistant",
+                        "content": "플랜을 완성했어요. 아래 내용을 확인하고 캘린더에 추가해주세요.",
+                    }
+                )
+            else:
+                new_history.append(
+                    {"role": "assistant", "content": "응답 형식을 처리하지 못했어요."}
+                )
 
             st.session_state["plan_history"] = new_history
             st.session_state["plan_msg_counter"] = st.session_state.get("plan_msg_counter", 0) + 1
@@ -2440,6 +2520,7 @@ def main() -> None:
         return
     repo = _get_repo()
     user_id, is_regen = _sidebar(repo)
+    _promote_calendar_events_for_today()
 
     # 확인된 TODO → 영구 목록에 누적 + 퀘스트 배정
     if "last_todo_committed" in st.session_state:

@@ -29,9 +29,11 @@ class _FakeResponse:
 class _FakeAsyncClient:
     responses: list[_FakeResponse | Exception] = []
     calls: list[dict] = []
+    last_kwargs: dict = {}
 
     def __init__(self, *args, **kwargs) -> None:
         self.kwargs = kwargs
+        type(self).last_kwargs = kwargs
 
     async def __aenter__(self) -> _FakeAsyncClient:
         return self
@@ -52,6 +54,7 @@ def fake_httpx(monkeypatch):
     """기능별 공통 준비: 모든 Qwen HTTP 호출을 메모리 fake 로 대체한다."""
     _FakeAsyncClient.responses = []
     _FakeAsyncClient.calls = []
+    _FakeAsyncClient.last_kwargs = {}
     monkeypatch.setattr("adapters.todo_creation.qwen_llm.httpx.AsyncClient", _FakeAsyncClient)
 
 
@@ -93,6 +96,22 @@ async def test_split_tasks_parses_valid_json() -> None:
     assert len(out) == 2
     assert out[0].title == "코테"
     assert out[0].tags == ["학습"]
+
+
+async def test_complete_raw_uses_configured_timeout() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload('{"ok": true}'))
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1", timeout_seconds=120)
+    await llm.complete_raw(
+        messages=[{"role": "user", "content": "테스트"}],
+        label="timeout_test",
+    )
+
+    assert _FakeAsyncClient.last_kwargs["timeout"] == 120
 
 
 # 프롬프트 계약: today 와 사용자 입력은 user message 에 포함된다.
@@ -180,3 +199,167 @@ async def test_split_tasks_raises_output_error_after_retry() -> None:
     llm = QwenLLM(base_url="http://qwen.test/v1")
     with pytest.raises(LLMOutputError):
         await llm.split_tasks(prompt="x", today=date(2026, 5, 24))
+
+
+async def test_judge_sufficiency_parses_plan_intent() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": True,
+                        "missing_aspects": [],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "goal_text": "코딩테스트 준비",
+                            "goal_tag": "코딩테스트",
+                            "deadline": "2026-05-27",
+                            "daily_capacity_minutes": 120,
+                            "profile_memory_patch": {
+                                "preferences": ["실전 문제 선호"]
+                            },
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, goal = await llm.judge_sufficiency(
+        history=[],
+        message="3일 뒤 코테 준비",
+        today=date(2026, 5, 24),
+        user_profile_memory={"preferences": ["저녁 선호"]},
+    )
+
+    assert sufficient is True
+    assert missing == []
+    assert goal["deadline"] == date(2026, 5, 27)
+    assert goal["goal_tag"] == "코딩테스트"
+    assert goal["profile_memory_patch"]["preferences"] == ["실전 문제 선호"]
+    serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
+    assert "저녁 선호" in serialized
+
+
+async def test_judge_sufficiency_parses_out_of_scope() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                '{"intent":"out_of_scope","is_sufficient":false,'
+                '"missing_aspects":[],"parsed_goal":{"intent":"out_of_scope"}}'
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, _, goal = await llm.judge_sufficiency(
+        history=[], message="오늘 날씨가 뭐야?", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is False
+    assert goal["intent"] == "out_of_scope"
+
+
+async def test_generate_follow_up_question_parses_json() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload('{"question":"언제까지 준비해야 하나요?"}'))
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    question = await llm.generate_follow_up_question(
+        missing_aspects=["deadline"], history=[]
+    )
+
+    assert question == "언제까지 준비해야 하나요?"
+    serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
+    assert "이장님" in serialized
+    assert "한 번에 하나" in serialized
+
+
+async def test_generate_plan_parses_days_and_profile_patch() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "3일 플랜",
+                        "profile_memory_patch": {"planning_style": ["짧은 TODO"]},
+                        "days": [
+                            {
+                                "date": "2026-05-24",
+                                "tasks": [
+                                    {
+                                        "title": "개념 복습",
+                                        "due_date": "2026-05-24",
+                                        "tags": ["학습"],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    parsed_goal = {"goal_text": "코테 준비"}
+    summary, days = await llm.generate_plan(
+        parsed_goal=parsed_goal, today=date(2026, 5, 24)
+    )
+
+    assert summary == "3일 플랜"
+    assert days[0]["tasks"][0].title == "개념 복습"
+    assert parsed_goal["profile_memory_patch"] == {"planning_style": ["짧은 TODO"]}
+    serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
+    assert "전체 tasks 는 12개 이하" in serialized
+
+
+async def test_generate_goal_tag_parses_structured_tag() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload('{"goal_tag":"회계자격증필기"}'))
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    tag = await llm.generate_goal_tag(
+        parsed_goal={"goal_text": "회계 자격증 필기 시험 준비"},
+        history=[],
+    )
+
+    assert tag == "회계자격증필기"
+    serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
+    assert "전체 대화 목표" in serialized
+    assert "task 별 태그" in serialized
+
+
+async def test_tag_plan_does_not_call_qwen_and_applies_goal_tag() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+    from agents.todo_creation.schemas import TaskCandidate
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    days = await llm.tag_plan(
+        plan=[
+            {
+                "date": date(2026, 5, 24),
+                "tasks": [TaskCandidate(title="개념 복습", due_date=date(2026, 5, 24))],
+            }
+        ],
+        parsed_goal={"goal_text": "코테 준비", "goal_tag": "코테"},
+    )
+
+    assert days[0]["tasks"][0].tags == ["코테"]
+    assert _FakeAsyncClient.calls == []
