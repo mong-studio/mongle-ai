@@ -117,6 +117,33 @@ uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
 
 권장 비율은 **약 30%**(일상 1000건 기준 distractor ≈ 300건)입니다. 너무 높으면 과생성을 막는 대신 모델이 과도하게 거절(과거절)할 수 있습니다.
 
+## RunPod 본생성 (Docker 올인원)
+
+대규모(1000건+) 합성은 GPU가 필요해 **RunPod GPU Pod**에서 돌립니다. `sft_pipeline/docker/` 의 올인원 이미지가 한 컨테이너에서 **vLLM(Qwen 서빙) + 합성 + S3 업로드**를 모두 수행합니다. 엔트리포인트(`run_synthesis.sh`)가 `vLLM 기동 → /health 대기 → download → parse → localize → synthesize → S3 업로드` 를 자동 실행합니다.
+
+이미지는 GitHub Actions(`.github/workflows/sft-docker.yml`)가 GHCR로 빌드·푸시합니다 → `ghcr.io/mong-studio/mongle-ai/sft-synthesis`. (수동 빌드: `docker build -f sft_pipeline/docker/Dockerfile -t sft-synthesis .`)
+
+### 실행 절차
+
+1. **GPU Pod 생성** — 14B 기준 **A100 40GB**(또는 L40S). 컨테이너 이미지에 위 GHCR 태그 지정.
+2. **환경변수 설정** (RunPod Pod의 Environment Variables):
+
+   | 변수 | 기본값 | 설명 |
+   | --- | --- | --- |
+   | `MODEL` | `Qwen/Qwen2.5-14B-Instruct` | 서빙·합성 모델(HF에서 런타임 다운로드) |
+   | `SAMPLE_LIMIT` | `1000` | 합성할 시드 수 |
+   | `REQUEST_TIMEOUT` | `60` | 단일 LLM 요청 타임아웃(초) |
+   | `TODAY` | (빈값=오늘) | due_date 기준일. **재현 빌드 시 `YYYY-MM-DD` 고정 권장** |
+   | `S3_BUCKET` | (없으면 업로드 생략) | 산출물 업로드 버킷 |
+   | `S3_PREFIX` | `sft/daily` | 업로드 키 prefix |
+   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | — | AWS 자격증명(시크릿) |
+   | `GPU_MEMORY_UTILIZATION` | `0.90` | vLLM VRAM 사용률 |
+   | `MAX_MODEL_LEN` | `8192` | vLLM 최대 컨텍스트 |
+
+3. Pod가 시작되면 자동으로 전 과정을 수행하고 `s3://$S3_BUCKET/$S3_PREFIX/daily.jsonl` 로 업로드합니다. `S3_BUCKET` 미설정 시 컨테이너 볼륨의 `data/generated/daily.jsonl` 에 남으니 수동 회수하세요.
+
+> 합성은 한 줄씩 증분 기록(flush)되고 요청 타임아웃이 걸려 있어, 중간에 Pod가 죽어도 진행분은 보존됩니다.
+
 ## 테스트
 
 ```bash

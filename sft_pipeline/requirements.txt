@@ -3,5 +3,7 @@ beautifulsoup4>=4.12
 lxml>=5.0
 pyyaml>=6.0
 python-dotenv>=1.0
-# 선택: build --use-llm 사용 시에만 필요
-# openai>=1.50
+# latte synthesize --use-llm (로컬 vLLM/Ollama) 호출용
+openai>=1.50
+# latte upload (산출물 S3 업로드)용
+boto3>=1.34
