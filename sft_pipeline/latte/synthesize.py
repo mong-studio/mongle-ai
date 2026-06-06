@@ -24,7 +24,6 @@ from sft_pipeline.build.plan_schemas import (
     _extract_json,
     check_plan_consistency,
 )
-from sft_pipeline.io_utils import write_jsonl
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +87,9 @@ def _parse_llm_sample(content: str, *, today: date) -> tuple[str, PlanOutput]:
     return user, plan
 
 
+DEFAULT_REQUEST_TIMEOUT = 60.0  # 단일 LLM 요청 상한(초). hang 시 무한대기 방지.
+
+
 def synthesize_sample(
     seed: dict,
     *,
@@ -95,6 +97,7 @@ def synthesize_sample(
     client=None,
     model: str = "qwen2.5",
     temperature: float = 0.7,
+    request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
 ) -> dict:
     by = "template"
     user, plan = _fallback_parts(seed, today)
@@ -107,6 +110,7 @@ def synthesize_sample(
                     {"role": "user", "content": build_synthesis_prompt(seed, today=today)},
                 ],
                 temperature=temperature,
+                timeout=request_timeout,
             )
             user, plan = _parse_llm_sample(resp.choices[0].message.content, today=today)
             by = "llm"
@@ -134,6 +138,40 @@ def synthesize_sample(
             "synthesized_by": by,
         },
     }
+
+
+def synthesize_to_file(
+    seeds: list[dict],
+    out_path: Path,
+    *,
+    today: date,
+    client=None,
+    model: str = "qwen2.5",
+    request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
+) -> tuple[int, dict]:
+    """시드를 합성해 한 줄씩 즉시 기록(flush)한다.
+
+    리스트에 전부 모았다가 끝에 한 번에 쓰지 않는다. 그래서 중단(KeyboardInterrupt,
+    프로세스 종료 등)되어도 그 시점까지의 진행분은 파일에 남는다 — 장시간 본생성에서
+    중단 시 전량 유실을 막는다. (총 기록 수, {"llm": n, "template": n})를 반환한다.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    counts = {"llm": 0, "template": 0}
+    total = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for seed in seeds:
+            sample = synthesize_sample(
+                seed,
+                today=today,
+                client=client,
+                model=model,
+                request_timeout=request_timeout,
+            )
+            f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+            f.flush()
+            counts[sample["meta"]["synthesized_by"]] += 1
+            total += 1
+    return total, counts
 
 
 def make_local_client(base_url: str | None = None, api_key: str | None = None):
@@ -189,6 +227,12 @@ def main() -> None:
         default=None,
         help="due_date 산술 기준일(YYYY-MM-DD). 미지정 시 오늘. 재현 빌드 시 고정 권장.",
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_REQUEST_TIMEOUT,
+        help=f"단일 LLM 요청 타임아웃(초). 기본 {DEFAULT_REQUEST_TIMEOUT}.",
+    )
     args = parser.parse_args()
 
     today = args.today or date.today()
@@ -196,12 +240,15 @@ def main() -> None:
     client = make_local_client() if args.use_llm else None
     if args.use_llm and client is None:
         print("[synthesize] warning: --use-llm 지정됐지만 모델 서버 설정이 없어 템플릿으로 대체합니다.")
-    samples = [
-        synthesize_sample(s, today=today, client=client, model=args.model) for s in seeds
-    ]
-    write_jsonl(samples, args.out_path)
-    llm_n = sum(1 for s in samples if s["meta"]["synthesized_by"] == "llm")
-    print(f"[synthesize] {len(samples)} samples ({llm_n} llm / {len(samples) - llm_n} template) -> {args.out_path}")
+    total, counts = synthesize_to_file(
+        seeds,
+        args.out_path,
+        today=today,
+        client=client,
+        model=args.model,
+        request_timeout=args.timeout,
+    )
+    print(f"[synthesize] {total} samples ({counts['llm']} llm / {counts['template']} template) -> {args.out_path}")
 
 
 if __name__ == "__main__":
