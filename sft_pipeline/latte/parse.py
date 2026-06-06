@@ -108,7 +108,7 @@ def main() -> None:
     args = parser.parse_args()
     seeds = load_and_parse(args.in_path)
     write_csv(seeds, args.out_path)
-    print(f"parsed {len(seeds)} tasks -> {args.out_path}")
+    print(f"[parse] {len(seeds)} tasks -> {args.out_path}")
 
 
 if __name__ == "__main__":
