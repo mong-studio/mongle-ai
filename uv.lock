@@ -1050,17 +1050,13 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "vulture" },
 ]
 ui = [
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "python-dotenv" },
     { name = "streamlit" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "vulture" },
 ]
 
 [package.metadata]
