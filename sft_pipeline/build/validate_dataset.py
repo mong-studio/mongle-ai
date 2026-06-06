@@ -46,7 +46,7 @@ DAILY_HORIZON_DAYS = 7
 # 마지막 assistant 출력이 "구조화 플랜 JSON"이어야 하는 출처들.
 # 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
 # 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
-PLAN_PROVENANCES = {"exam-crawl", "daily-latte"}
+PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
 
 
 def _validate_messages(messages, idx: int) -> list[str]:
@@ -127,6 +127,12 @@ def _validate_meta(meta: dict, idx: int) -> list[str]:
         missing = EXAM_REQUIRED_META - set(meta)
         if missing:
             errors.append(f"line {idx}: meta missing {sorted(missing)}")
+    # 합성 시험(exam-synth)은 원문 출처가 없으니 source_url/result 는 요구하지 않고,
+    # 플랜 정합성에 필요한 exam_type/time_left_days 만 강제한다.
+    elif meta.get("provenance") == "exam-synth":
+        missing = {"exam_type", "time_left_days"} - set(meta)
+        if missing:
+            errors.append(f"line {idx}: meta missing {sorted(missing)}")
     return errors
 
 
@@ -137,7 +143,7 @@ def _horizon_days(meta: dict) -> int | None:
       (숫자가 아니거나 0 이하면 None → 날짜 범위 검사를 건너뜀)
     - 일상(daily-latte) 등 나머지: 항상 7일(DAILY_HORIZON_DAYS)
     """
-    if meta.get("provenance") == "exam-crawl":
+    if meta.get("provenance") in {"exam-crawl", "exam-synth"}:
         days = meta.get("time_left_days")
         return int(days) if isinstance(days, (int, float)) and days > 0 else None
     return DAILY_HORIZON_DAYS

@@ -105,6 +105,20 @@ def test_public_includes_distractor():
     assert provs == ["daily-latte", "distractor"]
 
 
+def _exam_synth():
+    return {
+        "messages": _daily()["messages"],
+        "meta": {"provenance": "exam-synth", "exam_type": "토익", "time_left_days": 14, "today": "2026-06-06"},
+    }
+
+
+def test_public_includes_exam_synth():
+    """exam-synth(우리 합성)는 공개판 포함, exam-crawl은 제외."""
+    out = mix([_daily(), _exam_synth(), _exam()], release="public")
+    provs = sorted(s["meta"]["provenance"] for s in out)
+    assert provs == ["daily-latte", "exam-synth"]
+
+
 def test_distractor_mix_validates(tmp_path):
     """plan(daily) + distractor 혼합이 통일 validate 를 통과한다(2층 분기 확인)."""
     out = mix([_daily(), _distractor()], release="internal")
