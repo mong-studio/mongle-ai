@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from sft_pipeline.build.mix_dataset import mix
+from sft_pipeline.build.mix_dataset import interleave, mix
 from sft_pipeline.build.validate_dataset import validate_samples
 
 
@@ -74,6 +74,21 @@ def test_public_excludes_unknown_provenance():
     assert out[0]["meta"]["provenance"] == "daily-latte"
 
 
+def _distractor():
+    return {
+        "messages": [
+            {"role": "user", "content": "고마워"},
+            {"role": "assistant", "content": "도움이 됐다면 다행이야. 더 말해줘."},
+        ],
+        "meta": {
+            "provenance": "distractor",
+            "distractor_type": "thanks_chitchat",
+            "is_distractor": True,
+            "source_id": "1",
+        },
+    }
+
+
 def test_mixed_output_validates(tmp_path):
     """믹스 결과가 통일 validate 스키마를 통과한다."""
     out = mix([_exam(), _daily()], release="internal")
@@ -81,3 +96,36 @@ def test_mixed_output_validates(tmp_path):
     path.write_text("\n".join(json.dumps(s, ensure_ascii=False) for s in out) + "\n", encoding="utf-8")
     report = validate_samples(path)
     assert report["ok"] == 2, report["errors"]
+
+
+def test_public_includes_distractor():
+    """distractor 는 우리 IP 라 공개판에도 포함된다(화이트리스트 추가)."""
+    out = mix([_daily(), _distractor()], release="public")
+    provs = sorted(s["meta"]["provenance"] for s in out)
+    assert provs == ["daily-latte", "distractor"]
+
+
+def test_distractor_mix_validates(tmp_path):
+    """plan(daily) + distractor 혼합이 통일 validate 를 통과한다(2층 분기 확인)."""
+    out = mix([_daily(), _distractor()], release="internal")
+    path: Path = tmp_path / "ds.jsonl"
+    path.write_text("\n".join(json.dumps(s, ensure_ascii=False) for s in out) + "\n", encoding="utf-8")
+    report = validate_samples(path)
+    assert report["ok"] == 2, report["errors"]
+
+
+def test_interleave_spreads_extra_and_preserves_order():
+    base = [{"i": i, "k": "b"} for i in range(6)]
+    extra = [{"i": i, "k": "e"} for i in range(2)]
+    out = interleave(base, extra)
+    assert len(out) == 8
+    assert [x["i"] for x in out if x["k"] == "b"] == [0, 1, 2, 3, 4, 5]  # base 순서 보존
+    assert sum(1 for x in out if x["k"] == "e") == 2
+    epos = [idx for idx, x in enumerate(out) if x["k"] == "e"]
+    assert epos[0] < 4  # 끝에 몰리지 않고 앞쪽부터 분산
+    assert interleave(base, extra) == out  # 결정론적
+
+
+def test_interleave_handles_empty():
+    assert interleave([], [{"a": 1}]) == [{"a": 1}]
+    assert interleave([{"a": 1}], []) == [{"a": 1}]
