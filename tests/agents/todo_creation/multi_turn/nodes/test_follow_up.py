@@ -46,7 +46,7 @@ async def test_history_preserves_prior_turns() -> None:
     prior = [
         {"role": "user", "content": "내일 시험"},
         {"role": "assistant", "content": "어떤 시험?"},
-        {"role": "user", "content": "토익"},
+        {"role": "user", "content": "영어 말하기 시험"},
     ]
     llm = AsyncMock()
     llm.generate_follow_up_question = AsyncMock(return_value="목표 점수?")

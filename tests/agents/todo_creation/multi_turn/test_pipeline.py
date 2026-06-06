@@ -6,8 +6,14 @@ from datetime import date, datetime
 import pytest
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts, run
-from agents.todo_creation.schemas import FollowUpResult, GenerateResult, MultiGenerateInput
+from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts, get_debug_state, run
+from agents.todo_creation.schemas import (
+    FollowUpResult,
+    GenerateResult,
+    MultiGenerateInput,
+    OutOfScopeResult,
+    TaskCandidate,
+)
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 
 
@@ -22,10 +28,15 @@ class _FakeLLM:
         default_factory=list
     )
     follow_up_responses: list[str] = field(default_factory=list)
+    plan_responses: list[tuple[str, list[PlanDay]]] = field(default_factory=list)
+    seen_history: list[list[Turn]] = field(default_factory=list)
+    seen_parsed_goals: list[ParsedGoal] = field(default_factory=list)
+    goal_tag_response: str = "계획"
 
     async def judge_sufficiency(
-        self, *, history: list[Turn], message: str, today: date
+        self, *, history: list[Turn], message: str, today: date, user_profile_memory=None
     ) -> tuple[bool, list[str], ParsedGoal]:
+        self.seen_history.append(history)
         return self.sufficiency_responses.pop(0)
 
     async def generate_follow_up_question(
@@ -36,7 +47,15 @@ class _FakeLLM:
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
+        self.seen_parsed_goals.append(parsed_goal)
+        if self.plan_responses:
+            return self.plan_responses.pop(0)
         return "", []
+
+    async def generate_goal_tag(
+        self, *, parsed_goal: ParsedGoal, history: list[Turn]
+    ) -> str:
+        return str(parsed_goal.get("goal_tag") or self.goal_tag_response)
 
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
@@ -112,7 +131,7 @@ async def test_resume_after_follow_up_returns_generate_result() -> None:
 
 
 async def test_sufficient_immediately_returns_generate_result() -> None:
-    goal: ParsedGoal = {"goal_text": "코테 준비"}
+    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
     )
@@ -120,6 +139,91 @@ async def test_sufficient_immediately_returns_generate_result() -> None:
 
     assert isinstance(result, GenerateResult)
     assert result.thread_id
+    assert llm.seen_history[0] == [{"role": "user", "content": "이번 주까지 코테 준비"}]
+
+
+async def test_out_of_scope_returns_guidance() -> None:
+    llm = _FakeLLM(
+        sufficiency_responses=[
+            (False, [], {"intent": "out_of_scope", "goal_text": ""})
+        ],
+    )
+
+    result = await run(_input(message="오늘 날씨가 뭐야?"), ports=_ports(llm), now=_NOW)
+
+    assert isinstance(result, OutOfScopeResult)
+    assert "이장님" in result.message
+
+
+async def test_revision_after_generated_plan_uses_previous_plan() -> None:
+    first_task = TaskCandidate(title="개념 복습", due_date=_TODAY)
+    second_task = TaskCandidate(title="실전 문제", due_date=_TODAY)
+    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    llm = _FakeLLM(
+        sufficiency_responses=[(True, [], goal)],
+        plan_responses=[
+            ("첫 플랜", [{"date": _TODAY, "tasks": [first_task]}]),
+            ("수정 플랜", [{"date": _TODAY, "tasks": [second_task]}]),
+        ],
+    )
+
+    first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
+    assert isinstance(first, GenerateResult)
+
+    second = await run(
+        _input(message="실전 문제를 더 많이 넣어줘", thread_id=first.thread_id),
+        ports=_ports(llm),
+        now=_NOW,
+    )
+
+    assert isinstance(second, GenerateResult)
+    assert second.todos[0].title == second_task.title
+    assert second.todos[0].tags == ["코테"]
+    assert llm.seen_parsed_goals[-1]["revision_request"] == "실전 문제를 더 많이 넣어줘"
+    assert llm.seen_parsed_goals[-1]["previous_plan"]
+
+
+async def test_acceptance_after_generated_plan_returns_previous_candidates_without_llm() -> None:
+    task = TaskCandidate(title="개념 복습", due_date=_TODAY)
+    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    llm = _FakeLLM(
+        sufficiency_responses=[(True, [], goal)],
+        plan_responses=[("첫 플랜", [{"date": _TODAY, "tasks": [task]}])],
+    )
+
+    first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
+    assert isinstance(first, GenerateResult)
+
+    second = await run(
+        _input(message="그렇게 할게", thread_id=first.thread_id),
+        ports=_ports(llm),
+        now=_NOW,
+    )
+
+    assert isinstance(second, GenerateResult)
+    assert second.todos == first.todos
+    assert second.summary_text == first.summary_text
+    assert len(llm.seen_parsed_goals) == 1
+    assert llm.seen_parsed_goals[0]["goal_tag"] == "코테"
+
+
+async def test_debug_state_exposes_thread_memory_summary() -> None:
+    task = TaskCandidate(title="개념 복습", due_date=_TODAY)
+    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    llm = _FakeLLM(
+        sufficiency_responses=[(True, [], goal)],
+        plan_responses=[("요약", [{"date": _TODAY, "tasks": [task]}])],
+    )
+    ports = _ports(llm)
+
+    result = await run(_input(message="3일 뒤 코테 준비"), ports=ports, now=_NOW)
+    assert isinstance(result, GenerateResult)
+    state = get_debug_state(thread_id=result.thread_id, ports=ports)
+
+    assert state["history_turns"] >= 1
+    assert state["parsed_goal"]["goal_tag"] == "코테"
+    assert state["has_previous_plan"] is True
+    assert state["todo_count"] == 1
 
 
 async def test_validation_error_propagates() -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.schemas import TaskCandidate
@@ -16,16 +16,31 @@ class _FakeLLM:
     plan_response: tuple[str, list[PlanDay]] = field(
         default_factory=lambda: ("", [])
     )
+    goal_tag_response: str = "목표"
     tag_response: list[PlanDay] | None = None
+    tag_error: Exception | None = None
+    generate_calls: int = 0
+    goal_tag_calls: int = 0
+    tag_calls: int = 0
 
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
+        self.generate_calls += 1
         return self.plan_response
+
+    async def generate_goal_tag(
+        self, *, parsed_goal: ParsedGoal, history: list
+    ) -> str:
+        self.goal_tag_calls += 1
+        return self.goal_tag_response
 
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
     ) -> list[PlanDay]:
+        self.tag_calls += 1
+        if self.tag_error:
+            raise self.tag_error
         return self.tag_response if self.tag_response is not None else plan
 
     async def judge_sufficiency(self, **_): ...
@@ -43,7 +58,7 @@ def _config(llm: _FakeLLM) -> dict:
 
 
 def _state(parsed_goal: ParsedGoal | None = None) -> dict:
-    return {"today": _TODAY, "parsed_goal": parsed_goal}
+    return {"today": _TODAY, "parsed_goal": parsed_goal or {"goal_tag": "목표"}}
 
 
 async def test_splits_today_tasks_into_todos() -> None:
@@ -53,9 +68,10 @@ async def test_splits_today_tasks_into_todos() -> None:
 
     result = await plan_generator_node(_state(), _config(llm))
 
-    assert result["todos"] == [task]
+    assert result["todos"][0].title == task.title
     assert result["calendar_events"] == []
     assert result["summary_text"] == "오늘 코테 준비"
+    assert result["todos"][0].tags == ["목표"]
 
 
 async def test_splits_future_tasks_into_calendar_events() -> None:
@@ -66,7 +82,8 @@ async def test_splits_future_tasks_into_calendar_events() -> None:
     result = await plan_generator_node(_state(), _config(llm))
 
     assert result["todos"] == []
-    assert result["calendar_events"] == [task]
+    assert result["calendar_events"][0].title == task.title
+    assert result["calendar_events"][0].tags == ["목표"]
 
 
 async def test_mixed_plan_splits_correctly() -> None:
@@ -80,8 +97,10 @@ async def test_mixed_plan_splits_correctly() -> None:
 
     result = await plan_generator_node(_state(), _config(llm))
 
-    assert result["todos"] == [today_task]
-    assert result["calendar_events"] == [future_task]
+    assert result["todos"][0].title == today_task.title
+    assert result["calendar_events"][0].title == future_task.title
+    assert result["todos"][0].tags == ["목표"]
+    assert result["calendar_events"][0].tags == ["목표"]
 
 
 async def test_empty_plan_returns_empty_lists() -> None:
@@ -92,3 +111,58 @@ async def test_empty_plan_returns_empty_lists() -> None:
     assert result["todos"] == []
     assert result["calendar_events"] == []
     assert result["plan"] == []
+
+
+async def test_spreads_duplicate_plan_dates_across_days() -> None:
+    first = TaskCandidate(title="단어 복습", due_date=_TODAY)
+    second = TaskCandidate(title="듣기 연습", due_date=_TODAY)
+    plan: list[PlanDay] = [
+        {"date": _TODAY, "tasks": [first]},
+        {"date": _TODAY, "tasks": [second]},
+    ]
+    llm = _FakeLLM(plan_response=("요약", plan))
+
+    result = await plan_generator_node(_state({"goal_tag": "영어말하기"}), _config(llm))
+
+    assert result["plan"][0]["date"] == _TODAY
+    assert result["plan"][1]["date"] == _TODAY + timedelta(days=1)
+    assert result["todos"][0].due_date == _TODAY
+    assert result["calendar_events"][0].due_date == _TODAY + timedelta(days=1)
+
+
+async def test_truncates_summary_after_retry() -> None:
+    llm = _FakeLLM(plan_response=("가" * 1600, []))
+
+    result = await plan_generator_node(_state(), _config(llm))
+
+    assert len(result["summary_text"]) <= 1500
+    assert llm.generate_calls == 2
+
+
+async def test_applies_same_goal_tag_without_tag_llm_call() -> None:
+    task = TaskCandidate(title="발음 연습", due_date=_TODAY, tags=["학습"])
+    plan: list[PlanDay] = [{"date": _TODAY, "tasks": [task]}]
+    llm = _FakeLLM(
+        plan_response=("요약", plan),
+        goal_tag_response="영어말하기시험",
+        tag_error=RuntimeError("fail"),
+    )
+
+    result = await plan_generator_node(_state({"goal_tag": "영어말하기"}), _config(llm))
+
+    assert result["todos"][0].tags == ["영어말하기시험"]
+    assert llm.goal_tag_calls == 1
+    assert llm.tag_calls == 0
+
+
+async def test_sanitizes_goal_tag_without_domain_word_lists() -> None:
+    task = TaskCandidate(title="여권 확인", due_date=_TODAY)
+    plan: list[PlanDay] = [{"date": _TODAY, "tasks": [task]}]
+    llm = _FakeLLM(plan_response=("요약", plan), goal_tag_response="나부산가족여행")
+
+    result = await plan_generator_node(
+        _state({"goal_tag": "부산 가족여행 준비"}),
+        _config(llm),
+    )
+
+    assert result["todos"][0].tags == ["부산가족여행"]

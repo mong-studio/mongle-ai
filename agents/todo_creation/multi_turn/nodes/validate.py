@@ -36,4 +36,8 @@ async def multi_validate_node(state: dict[str, Any], config: dict[str, Any]) -> 
             code="C2", message="multi_validate: korean syllable ratio < 0.5"
         )
     history = state.get("history", [])
-    return {"history": history + [{"role": "user", "content": message}]}
+    turn = {"role": "user", "content": message}
+    return {
+        "history": history + [turn],
+        "recent_turns": (state.get("recent_turns", []) + [turn])[-6:],
+    }

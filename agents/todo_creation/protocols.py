@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from agents.todo_creation.schemas import (
@@ -19,7 +19,12 @@ class LLMPort(Protocol):
 
     # multi
     async def judge_sufficiency(
-        self, *, history: list[Turn], message: str, today: date
+        self,
+        *,
+        history: list[Turn],
+        message: str,
+        today: date,
+        user_profile_memory: dict[str, Any] | None = None,
     ) -> tuple[bool, list[str], ParsedGoal]: ...
 
     async def generate_follow_up_question(
@@ -29,6 +34,10 @@ class LLMPort(Protocol):
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]: ...
+
+    async def generate_goal_tag(
+        self, *, parsed_goal: ParsedGoal, history: list[Turn]
+    ) -> str: ...
 
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal

@@ -6,6 +6,7 @@ from langgraph.types import RetryPolicy
 
 from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
+from agents.todo_creation.multi_turn.nodes.out_of_scope import out_of_scope_node
 from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.multi_turn.nodes.planner import planner_node
 from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
@@ -22,7 +23,7 @@ def build_multi_turn_graph():
         "planner",
         planner_node,
         retry=RetryPolicy(max_attempts=3, retry_on=LLMFailedError),
-        destinations=("plan_generator", "follow_up"),
+        destinations=("plan_generator", "follow_up", "out_of_scope"),
     )
     g.add_node(
         "follow_up",
@@ -34,11 +35,13 @@ def build_multi_turn_graph():
         plan_generator_node,
         retry=RetryPolicy(max_attempts=3, retry_on=LLMFailedError),
     )
+    g.add_node("out_of_scope", out_of_scope_node)
 
     g.add_edge(START, "validate")
     g.add_edge("validate", "planner")
     # follow_up resumes after interrupt() and returns to planner for re-evaluation
     g.add_edge("follow_up", "planner")
     g.add_edge("plan_generator", END)
+    g.add_edge("out_of_scope", END)
 
     return g.compile(checkpointer=_checkpointer)
