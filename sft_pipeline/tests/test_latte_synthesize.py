@@ -1,11 +1,14 @@
 import json
 from datetime import date
 
+import pytest
+
 from sft_pipeline.build.plan_schemas import check_plan_consistency, parse_plan
 from sft_pipeline.latte.synthesize import (
     build_synthesis_prompt,
     dedup_seeds,
     synthesize_sample,
+    synthesize_to_file,
 )
 
 TODAY = date(2026, 6, 6)
@@ -124,3 +127,72 @@ def test_dedup_seeds_by_task_title():
     ]
     out = dedup_seeds(seeds)
     assert len(out) == 2
+
+
+def _resp(content: str):
+    """OpenAI 응답 shape(resp.choices[0].message.content)을 흉내내는 객체."""
+    class _Msg:
+        pass
+
+    _Msg.content = content
+
+    class _Choice:
+        message = _Msg()
+
+    class _Resp:
+        choices = [_Choice()]
+
+    return _Resp()
+
+
+def test_synthesize_passes_request_timeout_to_client():
+    """한 요청이 무한 hang 하지 않도록 create()에 timeout 이 전달돼야 한다."""
+    captured: dict = {}
+
+    class _Client:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    captured.update(kwargs)
+                    return _resp(_llm_payload())
+
+    synthesize_sample(_SEED, today=TODAY, client=_Client(), request_timeout=12.5)
+    assert captured.get("timeout") == 12.5
+
+
+def test_synthesize_to_file_writes_all_and_returns_counts(tmp_path):
+    """모든 시드를 파일로 합성하고 (총개수, {llm,template} 카운트)를 돌려준다."""
+    seeds = [dict(_SEED, id=str(i), task_title=f"task {i}") for i in range(2)]
+    out = tmp_path / "daily.jsonl"
+    total, counts = synthesize_to_file(seeds, out, today=TODAY, client=None, model="x")
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert total == 2
+    assert len(lines) == 2
+    assert counts["template"] == 2
+    assert counts["llm"] == 0
+
+
+def test_synthesize_to_file_preserves_progress_on_interrupt(tmp_path):
+    """3번째 시드 처리 중 KeyboardInterrupt로 죽어도 앞 2건은 파일에 남는다(증분 flush)."""
+    seeds = [dict(_SEED, id=str(i), task_title=f"task {i}") for i in range(3)]
+    calls = {"n": 0}
+
+    class _Client:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    calls["n"] += 1
+                    if calls["n"] == 3:
+                        raise KeyboardInterrupt
+                    return _resp(_llm_payload())
+
+    out = tmp_path / "daily.jsonl"
+    with pytest.raises(KeyboardInterrupt):
+        synthesize_to_file(seeds, out, today=TODAY, client=_Client(), model="x")
+
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2  # 중단 시점까지의 진행분 보존
+    first = json.loads(lines[0])
+    assert first["meta"]["synthesized_by"] == "llm"
