@@ -1,0 +1,7 @@
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pyyaml>=6.0
+python-dotenv>=1.0
+# 선택: build --use-llm 사용 시에만 필요
+# openai>=1.50

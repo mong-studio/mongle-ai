@@ -1,0 +1,13 @@
+default:
+  - article
+  - main
+  - "#content"
+"blog.naver.com":
+  - "div.se-main-container"
+  - "#postViewArea"
+"*.tistory.com":
+  - ".entry-content"
+  - ".article_view"
+"example.com":
+  - "article.post"
+min_length: 100

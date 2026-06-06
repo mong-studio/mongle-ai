@@ -1,0 +1,5 @@
+# 크롤 원문 등 중간 산출물은 커밋하지 않는다 (저작권 안전)
+data/generated/
+*.pyc
+__pycache__/
+.env

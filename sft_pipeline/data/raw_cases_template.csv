@@ -1,0 +1,2 @@
+source_url,exam_type,time_left,daily_hours,start_level,goal,special_notes,actual_plan_summary,result,evidence_spans
+# source_url: 출처 URL | exam_type: 시험명(별칭 허용) | time_left: D-7/일주일/2주 등 | daily_hours: 하루 4시간/3~5시간 등 | start_level: 시작 수준 | goal: 목표 | special_notes: 특이사항 | actual_plan_summary: 실제 계획 요약(원문 복붙 금지, 재서술) | result: 합격/불합격 | evidence_spans: 근거 짧은 인용(<=200자) 또는 offset
