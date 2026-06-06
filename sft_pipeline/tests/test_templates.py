@@ -1,5 +1,8 @@
+from datetime import date
+
 from sft_pipeline.build.templates import build_input, build_instruction, build_output
 
+TODAY = date(2026, 6, 6)
 
 CASE = {
     "exam_type": "정보처리기사_필기",
@@ -15,11 +18,12 @@ CASE = {
 
 
 def test_build_input_contains_fields():
-    """input 텍스트에 시험명·남은 기간·학습시간 등 핵심 필드가 포함되는지 확인."""
-    text = build_input(CASE)
+    """input 텍스트에 시험명·남은 기간·학습시간·기준일이 포함되는지 확인."""
+    text = build_input(CASE, TODAY)
     assert "정보처리기사_필기" in text
     assert "D-7" in text
     assert "하루 4시간" in text
+    assert "2026-06-06" in text  # due_date 산술 앵커
 
 
 def test_build_instruction_nonempty():
@@ -39,8 +43,8 @@ def test_build_instruction_deterministic_per_index():
 
 
 def test_build_output_reframes_not_rawcopy():
-    """output이 계획 요약을 반영하되 원문 복붙이 아니라 재구성된 형태인지 확인."""
-    out = build_output(CASE)
-    assert "기출 5개년 3회독" in out  # 계획 요약 반영
+    """output이 계획 요약을 반영하되 원문 복붙이 아니라 구조화 JSON으로 재구성되는지 확인."""
+    out = build_output(CASE, TODAY)
+    assert "기출 5개년 3회독" in out  # 계획 요약 반영 (summary_text)
     assert out != CASE["actual_plan_summary"]  # 단순 복붙 아님
     assert "정보처리기사_필기" in out

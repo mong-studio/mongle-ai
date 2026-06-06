@@ -21,6 +21,18 @@
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
+- **sft_pipeline 구조화 플랜 출력 전환 (정합성 우선)**:
+  - SFT 목표를 멀티턴 대화력 → **출력 구조·정합성**으로 재정의. assistant 출력을 자유 텍스트에서 런타임 `GenerateResult` 미러 JSON(`summary_text`/`todos`/`calendar_events`)으로 전환.
+  - `build/plan_schemas.py` 신설: `PlanTask`/`PlanOutput`(런타임 `agents/todo_creation/schemas.py` 미러 + 동기화 테스트) + `parse_plan`/`check_plan_consistency`(날짜 범위·C5 분기·분량·'N단원/N일차' 단조 분해 과반 reject).
+  - exam 빌드(`build/templates.py`): 페이즈 구조(개념→기출→오답→총정리) 분해 + 크롤 전략(`actual_plan_summary`)을 `summary_text` 에 그라운딩. `--today` 기준일 앵커를 input·meta 에 기록. LLM 재서술은 `summary_text` 만 대상.
+  - latte 합성(`latte/synthesize.py`): 멀티턴 잡담 → **단일턴 '요청→구조화 플랜'** 재설계. LLM 출력이 스키마·정합성 검증 실패 시 템플릿 폴백(reject & fallback).
+  - `build/validate_dataset.py`: 1층 형식 검사(messages) + 2층 플랜 정합성(스키마 파싱·`meta.today` 앵커·horizon·분기·단조 분해) 2단 검증으로 확장.
+  - 오프라인 end-to-end(structure → build → synthesize → mix internal/public → validate, 32건 ok=32 errors=0) 통과.
+- **sft_pipeline 일상(MS-LaTTE) 멀티턴 확장 + messages 포맷 통일**:
+  - SFT 출력 스키마를 단일턴(`instruction/input/output`)에서 `{messages:[...], meta}` 로 통일. 시험 단일턴은 user→assistant 2턴으로 마이그레이션, `meta.provenance`(`exam-crawl`/`daily-latte`)·`turn_type` 추가. `validate_dataset` 은 messages 스키마 + provenance 조건부 메타 검증으로 갱신.
+  - `sft_pipeline/latte/` 신설: `download`(MS-LaTTE.json SHA 고정 취득, MIT) → `parse`(어노테이터 다수결 집계) → `localize`(위치 59종·시간대 한국어 결정론 매핑) → `synthesize`(한국어 멀티턴 합성, OpenAI 호환 base_url 로 로컬 오픈모델 + 템플릿 폴백).
+  - `build/mix_dataset.py`: release 정책 믹스. **저작권상 시험-크롤(라이선스 없는 블로그 기반)은 `public` 배포판에서 provenance 기준 자동 제외**, 일상(MIT)만 공개. `internal` 은 전체 포함.
+  - `data/sources/` gitignore(외부 원본 비커밋). 오프라인 end-to-end(parse 10,101 → localize → synthesize 템플릿 → mix → validate) 통과.
 - `adapters/todo_creation/qwen_llm`: `Qwen/Qwen2.5-7B-Instruct` 전용 TODO 생성 어댑터. OpenAI-compatible 서버는 HTTP로 직접 호출하고, raw JSON 파싱·코드펜스 제거·스키마 재강화 1회 재시도를 제공.
 - `tools/todo_qwen_console.py`: Streamlit 없이 Qwen TODO 프롬프트를 입력하고 messages/raw/parsed 출력을 확인하는 콘솔 도구.
 - `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.
