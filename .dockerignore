@@ -1,0 +1,20 @@
+# Docker 빌드 컨텍스트에서 제외. 시크릿/대용량/불필요 파일이 이미지에 들어가지 않게 한다.
+.git
+.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+**/.mypy_cache
+
+# 시크릿 — 절대 이미지에 포함 금지
+**/.env
+.env
+
+# 대용량/중간 산출물 (런타임에 download 로 재취득)
+sft_pipeline/data/
+
+# 빌드와 무관
+*.bak
+docs/
+notebooks/
