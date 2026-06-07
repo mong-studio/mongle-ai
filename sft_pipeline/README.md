@@ -143,6 +143,8 @@ uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
 3. Pod가 시작되면 자동으로 전 과정을 수행하고 `s3://$S3_BUCKET/$S3_PREFIX/daily.jsonl` 로 업로드합니다. `S3_BUCKET` 미설정 시 컨테이너 볼륨의 `data/generated/daily.jsonl` 에 남으니 수동 회수하세요.
 
 > 합성은 한 줄씩 증분 기록(flush)되고 요청 타임아웃이 걸려 있어, 중간에 Pod가 죽어도 진행분은 보존됩니다.
+>
+> 작업이 끝나면 컨테이너는 종료하지 않고 대기 상태로 들어갑니다. RunPod이 컨테이너 종료를 재시작으로 받아들여 합성을 처음부터 다시 돌리고 결과물을 덮어쓰는 것을 막기 위함입니다. vLLM도 계속 떠 있으니, 같은 Pod에 `exec`로 접속해 exam-synth 같은 후속 작업을 바로 이어서 돌릴 수 있습니다. 다 끝나면 Pod를 직접 STOP 하세요. (업로드가 실패해도 결과물은 컨테이너 안에 남으며, 권한·버킷을 고친 뒤 다시 올리면 됩니다.)
 
 ## 테스트
 
