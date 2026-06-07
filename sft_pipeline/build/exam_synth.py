@@ -18,7 +18,8 @@ from pathlib import Path
 from sft_pipeline.build.plan_schemas import (
     PlanOutput,
     PlanTask,
-    _extract_json,
+    _loads_lenient,
+    _normalize_plan_dict,
     check_plan_consistency,
 )
 from sft_pipeline.latte.synthesize import make_local_client
@@ -145,8 +146,9 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
 
 
 def _parse_llm_plan(content: str, *, today: date, horizon: int) -> PlanOutput:
-    data = json.loads(_extract_json(content), strict=False)
-    plan = PlanOutput.model_validate(data)
+    # 관용 로드+정규화: 트레일링 잡설/제어문자 허용, calendar_events 누락→[], due_date 별칭 매핑.
+    data = _loads_lenient(content)
+    plan = PlanOutput.model_validate(_normalize_plan_dict(data))
     errors = check_plan_consistency(plan, today=today, horizon_days=horizon)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))

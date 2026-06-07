@@ -21,7 +21,8 @@ from pathlib import Path
 from sft_pipeline.build.plan_schemas import (
     PlanOutput,
     PlanTask,
-    _extract_json,
+    _loads_lenient,
+    _normalize_plan_dict,
     check_plan_consistency,
 )
 
@@ -73,14 +74,15 @@ def _fallback_parts(seed: dict, today: date) -> tuple[str, PlanOutput]:
 
 
 def _parse_llm_sample(content: str, *, today: date) -> tuple[str, PlanOutput]:
-    # strict=False: 모델이 문자열 값 안에 raw 줄바꿈 등 제어문자를 넣어도 허용한다.
-    data = json.loads(_extract_json(content), strict=False)
+    # 관용 로드: 펜스/트레일링 잡설/제어문자 허용, 'Extra data'면 첫 객체만.
+    data = _loads_lenient(content)
     if not isinstance(data, dict):
         raise ValueError("output must be a JSON object")
     user = str(data.get("user", "")).strip()
     if not user:
         raise ValueError("empty user request")
-    plan = PlanOutput.model_validate(data.get("plan"))
+    # 관용 정규화: calendar_events/todos 누락→[], due_date 별칭 매핑, tags 기본값.
+    plan = PlanOutput.model_validate(_normalize_plan_dict(data.get("plan")))
     errors = check_plan_consistency(plan, today=today, horizon_days=HORIZON_DAYS)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))
