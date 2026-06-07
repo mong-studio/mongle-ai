@@ -113,3 +113,14 @@ def test_synthesize_to_file_writes_and_counts(tmp_path):
     assert total == len(seeds)
     assert len(lines) == len(seeds)
     assert counts["template"] == len(seeds)
+
+
+def test_synthesize_to_file_concurrent_writes_all(tmp_path):
+    seeds = build_seeds(12)
+    out = tmp_path / "exam_synth.jsonl"
+    total, counts = synthesize_to_file(
+        seeds, out, today=TODAY, client=_fake_client(_plan_payload()), model="x", concurrency=4
+    )
+    assert total == len(seeds)
+    assert counts["llm"] == len(seeds)
+    assert len(out.read_text(encoding="utf-8").splitlines()) == len(seeds)

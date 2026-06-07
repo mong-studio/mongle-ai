@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -223,25 +224,42 @@ def synthesize_to_file(
     model: str = "qwen2.5",
     exemplars: list[dict] | None = None,
     request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
+    concurrency: int = 1,
 ) -> tuple[int, dict]:
-    """시드를 합성해 한 줄씩 즉시 기록(flush). 중단돼도 진행분 보존."""
+    """시드를 합성해 한 줄씩 즉시 기록(flush). 중단돼도 진행분 보존.
+
+    concurrency>1 이고 client 가 있으면 LLM 요청을 스레드로 동시 처리(기록은 메인 단일).
+    순서는 보장하지 않는다(SFT는 셔플).
+    """
     out_path.parent.mkdir(parents=True, exist_ok=True)
     counts = {"llm": 0, "template": 0}
     total = 0
+
+    def _one(seed: dict) -> dict:
+        return synthesize_sample(
+            seed,
+            today=today,
+            client=client,
+            model=model,
+            exemplars=exemplars,
+            request_timeout=request_timeout,
+        )
+
     with open(out_path, "w", encoding="utf-8") as f:
-        for seed in seeds:
-            sample = synthesize_sample(
-                seed,
-                today=today,
-                client=client,
-                model=model,
-                exemplars=exemplars,
-                request_timeout=request_timeout,
-            )
+        def _record(sample: dict) -> None:
+            nonlocal total
             f.write(json.dumps(sample, ensure_ascii=False) + "\n")
             f.flush()
             counts[sample["meta"]["synthesized_by"]] += 1
             total += 1
+
+        if client is None or concurrency <= 1:
+            for seed in seeds:
+                _record(_one(seed))
+        else:
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                for fut in as_completed([pool.submit(_one, s) for s in seeds]):
+                    _record(fut.result())
     return total, counts
 
 
@@ -268,6 +286,7 @@ def main() -> None:
     parser.add_argument("--exemplars", type=Path, default=None, help="few-shot 그라운딩용 exam.jsonl")
     parser.add_argument("--exemplar-n", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=DEFAULT_REQUEST_TIMEOUT)
+    parser.add_argument("--concurrency", type=int, default=1, help="LLM 동시요청 수(기본 1). 16~32 권장.")
     parser.add_argument(
         "--today",
         type=date.fromisoformat,
@@ -292,6 +311,7 @@ def main() -> None:
         model=args.model,
         exemplars=exemplars,
         request_timeout=args.timeout,
+        concurrency=args.concurrency,
     )
     print(
         f"[exam_synth] {total} samples "
