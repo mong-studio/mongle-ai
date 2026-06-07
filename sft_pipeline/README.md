@@ -146,6 +146,76 @@ uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
 >
 > 작업이 끝나면 컨테이너는 종료하지 않고 대기 상태로 들어갑니다. RunPod이 컨테이너 종료를 재시작으로 받아들여 합성을 처음부터 다시 돌리고 결과물을 덮어쓰는 것을 막기 위함입니다. vLLM도 계속 떠 있으니, 같은 Pod에 `exec`로 접속해 exam-synth 같은 후속 작업을 바로 이어서 돌릴 수 있습니다. 다 끝나면 Pod를 직접 STOP 하세요. (업로드가 실패해도 결과물은 컨테이너 안에 남으며, 권한·버킷을 고친 뒤 다시 올리면 됩니다.)
 
+## 파인튜닝 파이프라인 (exam-synth → distractor → mix → split → train)
+
+데이터가 모이면 아래 순서로 **풀 믹스 → stratified 분할 → LoRA 학습**까지 잇습니다.
+
+### 1. exam-synth 합성 (RunPod GPU)
+
+같은 Pod에 `exec`로 접속해 합성합니다(teacher = 14B). 예시 그라운딩용 `exam.jsonl`이 있으면 `--exemplars`로 넘기고, 없으면 생략해도 됩니다(내장 few-shot).
+
+```bash
+python3 -m sft_pipeline.build.exam_synth \
+  --out $G/exam_synth.jsonl \
+  --total 1000 --use-llm --model Qwen/Qwen2.5-14B-Instruct \
+  --exemplars exam.jsonl --exemplar-n 2 --concurrency 16
+```
+
+### 2. distractor 서브샘플 (네거티브)
+
+원본 distractor를 30% stratified 서브샘플 + provenance 태깅합니다(원본을 mix에 직접 넣지 말 것 — 태깅 안 된 1000건 전부 들어갑니다).
+
+```bash
+uv run python -m sft_pipeline.build.distractor \
+  --in path/to/mongle_distractor_v2.jsonl --out $G/distractor.jsonl --fraction 0.30
+```
+
+### 3. 풀 믹스
+
+```bash
+uv run python -m sft_pipeline.build.mix_dataset \
+  --exam $G/exam.jsonl --exam-synth $G/exam_synth.jsonl \
+  --daily $G/daily.jsonl --distractor $G/distractor.jsonl \
+  --release internal --out $G/sft_dataset.jsonl
+```
+
+> distractor 비율: 30% 서브샘플(≈300)은 **일상 1000건 기준**으로 잡은 값입니다. exam-synth 1000건이 더해지면 전체 대비 네거티브 비중이 ≈13%로 희석되니, 더 높은 네거티브 비율을 원하면 `--fraction`을 올리세요.
+
+### 4. stratified 셔플/분할
+
+provenance(시험/일상/distractor)별 비율을 보존하며 셔플 후 train/valid로 나눕니다. 내용 SHA256 dedup으로 train↔valid 누수를 막습니다.
+
+```bash
+uv run python -m sft_pipeline.build.split_dataset \
+  --in $G/sft_dataset.jsonl \
+  --out-train $G/sft_train.jsonl --out-valid $G/sft_valid.jsonl \
+  --ratio 0.9 --seed 42
+```
+
+### 5. LoRA 학습 (unsloth, Qwen2.5-7B)
+
+제품 서빙 모델(7B)을 LoRA 파인튜닝합니다(student). 토큰화·마스킹·EOS·responses-only loss는 unsloth/trl에 위임합니다. RunPod PyTorch 템플릿에서:
+
+```bash
+pip install "unsloth[colab-new]" trl peft accelerate bitsandbytes datasets
+python -m sft_pipeline.train.train_lora \
+  --train $G/sft_train.jsonl --valid $G/sft_valid.jsonl \
+  --out outputs/qwen7b-planner-lora --epochs 2 --lr 2e-4
+```
+
+### 6. 학습 후 점검 (자동, sft-coherence phase 6)
+
+학습 직후 어댑터를 받아 **EOS 끝맺음률 · 과적합 경고(val loss<0.2) · 파싱 성공률**(생성물을 `plan_schemas.parse_plan`으로 파싱 — SFT의 진짜 목표)을 자동 측정합니다.
+
+```bash
+python -m sft_pipeline.train.postcheck \
+  --valid $G/sft_valid.jsonl \
+  --adapter outputs/qwen7b-planner-lora \
+  --n-samples 20 --out outputs/postcheck_report.json
+```
+
+EOS률이 1.0 미만이면 무한 생성/잘림, 파싱 성공률이 낮으면 구조화 플랜 학습 실패, eval_loss<0.2면 과적합 신호입니다.
+
 ## 테스트
 
 ```bash
