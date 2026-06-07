@@ -32,7 +32,7 @@ trap cleanup EXIT
 echo "[run] waiting for vLLM health (max ~20m) ..."
 HEALTH_OK=0
 for i in $(seq 1 120); do
-  if python -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:${PORT}/health',timeout=2)" >/dev/null 2>&1; then
+  if python3 -c "import urllib.request,sys; urllib.request.urlopen('http://localhost:${PORT}/health',timeout=2)" >/dev/null 2>&1; then
     echo "[run] vLLM is up after ~$((i*10))s"; HEALTH_OK=1; break
   fi
   sleep 10
@@ -47,16 +47,16 @@ export OPENAI_API_KEY="${OPENAI_API_KEY:-not-needed}"
 
 cd /app
 echo "[run] 1/4 download MS-LaTTE"
-python -m sft_pipeline.latte.download --out "$SOURCES"
+python3 -m sft_pipeline.latte.download --out "$SOURCES"
 echo "[run] 2/4 parse"
-python -m sft_pipeline.latte.parse --in "$SOURCES" --out "$PARSED"
+python3 -m sft_pipeline.latte.parse --in "$SOURCES" --out "$PARSED"
 echo "[run] 3/4 localize"
-python -m sft_pipeline.latte.localize --in "$PARSED" --out "$SEEDS"
+python3 -m sft_pipeline.latte.localize --in "$PARSED" --out "$SEEDS"
 
 echo "[run] 4/4 synthesize ($SAMPLE_LIMIT samples, timeout=${REQUEST_TIMEOUT}s)"
 TODAY_ARG=()
 [ -n "$TODAY" ] && TODAY_ARG=(--today "$TODAY")
-python -m sft_pipeline.latte.synthesize \
+python3 -m sft_pipeline.latte.synthesize \
   --in "$SEEDS" --out "$OUT" \
   --use-llm --model "$MODEL" \
   --limit "$SAMPLE_LIMIT" \
@@ -65,7 +65,7 @@ python -m sft_pipeline.latte.synthesize \
 
 if [ -n "${S3_BUCKET:-}" ]; then
   echo "[run] uploading to s3://${S3_BUCKET}/${S3_PREFIX:-sft/daily}"
-  python -m sft_pipeline.latte.upload --in "$OUT" --bucket "$S3_BUCKET" --prefix "${S3_PREFIX:-sft/daily}"
+  python3 -m sft_pipeline.latte.upload --in "$OUT" --bucket "$S3_BUCKET" --prefix "${S3_PREFIX:-sft/daily}"
 else
   echo "[run] S3_BUCKET 미설정 — 업로드 건너뜀. 산출물: $OUT (RunPod 볼륨에서 수동 회수)"
 fi
