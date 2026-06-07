@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from pathlib import Path
@@ -24,6 +25,7 @@ from sft_pipeline.build.plan_schemas import (
     check_plan_consistency,
 )
 from sft_pipeline.latte.synthesize import make_local_client
+from sft_pipeline.structure.exam_structure import concreteness_ratio, structure_for
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ EXAM_GOALS: dict[str, list[str]] = {
     "SQLD": ["60점 합격", "80점", "90점 고득점"],
     "컴활1급": ["필기 합격", "필기+실기 합격", "실기 고득점"],
     "컴활2급": ["필기 합격", "실기 합격", "필기+실기 합격"],
+    "오픽": ["IM2", "IH", "AL"],
+    "토플": ["80점", "90점", "100점 이상"],
+    "JLPT": ["N3 합격", "N2 합격", "N1 합격"],
 }
 EXAM_TYPES: list[str] = list(EXAM_GOALS)
 
@@ -48,9 +53,12 @@ _NOTES = ["직장 병행", "학업 병행", "전업 준비"]
 
 _SYSTEM = (
     "너는 몽글마을의 현실적인 시험 준비 코치야. 주어진 조건에 맞춰 합격에 직결되는 "
-    "구체적 전략 플랜을 JSON 으로 만들어줘. '1단원, 2단원' 식 기계적 분해 대신 "
-    "기출 회독·약점 보완·모의고사 배치 같은 전략을 담아."
+    "구체적 전략 플랜을 JSON 으로 만들어줘. 각 항목 제목에는 시험의 실제 "
+    "과목·파트·영역명을 넣어 공부 범위가 분명히 드러나게 해."
 )
+
+# LLM 플랜 채택 최소 구체성(구조 키워드 포함 title 비율). 미달 시 reject → 템플릿 폴백.
+CONCRETENESS_MIN = 0.6
 
 
 def _pick_even(seq: list[dict], k: int) -> list[dict]:
@@ -102,26 +110,46 @@ def to_user_text(seed: dict, *, today: date) -> str:
     )
 
 
+def _strip_item_count(section: str) -> str:
+    """과목/파트명에서 '(20문항)' 류 문항수 주석만 떼고 명칭은 보존한다."""
+    return re.sub(r"\s*\(\d+문항[^)]*\)", "", section).strip()
+
+
+def _fit_title(section: str) -> str:
+    """PlanTask.title 20자 제약에 맞춰 행동 접미사를 줄여가며 제목을 만든다."""
+    for suffix in (" 집중 학습", " 학습", ""):
+        title = f"{section}{suffix}"
+        if len(title) <= 20:
+            return title
+    return section[:20]
+
+
 def _fallback_plan(seed: dict, today: date) -> PlanOutput:
-    """LLM 실패 시 쓰는 결정론적·비단조 전략 템플릿(정합성 통과 보장)."""
+    """LLM 실패 시 쓰는 결정론적 폴백: 시험 구조(과목/파트) 기반 전략 템플릿."""
     horizon = int(seed["days_left"])
+    structure = structure_for(seed["exam_type"]) or {}
+    sections = [_strip_item_count(s) for s in structure.get("sections", [])]
+    if not sections:  # 구조 미등록 시험은 일반 전략으로 안전 폴백
+        sections = ["핵심 개념"]
     summary = (
         f"[{seed['exam_type']} · D-{horizon} · 하루 {seed['daily_hours']}시간] "
         f"시작 {seed['level']}, 목표 '{seed['goal']}'. "
-        "전략: 기출 회독으로 출제 감 잡고, 약점 영역을 집중 보완한 뒤 모의고사로 점검하세요."
+        "전략: 과목·파트별 기출로 출제 감을 잡고, 약한 영역을 집중 보완한 뒤 모의고사로 점검하세요."
     )
-    todos = [PlanTask(title="핵심 개념 빠르게 훑기", due_date=today, tags=["공부"])]
-    plan_events = [
-        ("기출 풀이와 오답 점검", 2),
-        ("약점 영역 집중 보완", 4),
-        ("실전 모의고사 점검", 7),
-        ("총정리·핵심 암기", 10),
-    ]
+    todos = [PlanTask(title=_fit_title(sections[0]), due_date=today, tags=["공부"])]
+    rest = sections[1:]
     events = [
-        PlanTask(title=title, due_date=today + timedelta(days=off), tags=["공부"])
-        for title, off in plan_events
-        if off <= horizon
+        PlanTask(
+            title=_fit_title(sec),
+            # 내일~D-(horizon-1) 사이에 균등 배치(결정론적), 마지막 날은 모의고사용으로 비움
+            due_date=today + timedelta(days=1 + (i * (horizon - 2)) // max(len(rest) - 1, 1)),
+            tags=["공부"],
+        )
+        for i, sec in enumerate(rest)
     ]
+    events.append(
+        PlanTask(title="실전 모의고사 점검", due_date=today + timedelta(days=horizon), tags=["공부"])
+    )
     return PlanOutput(summary_text=summary, todos=todos, calendar_events=events)
 
 
@@ -130,13 +158,21 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
     shots = ""
     for ex in exemplars:
         shots += f"\n[예시 플랜]\n{ex}\n"
+    structure = structure_for(seed["exam_type"]) or {}
+    section_lines = "\n".join(f"- {s}" for s in structure.get("sections", []))
+    structure_block = (
+        f"\n시험 구조(공식 출제기준):\n{section_lines}\n" if section_lines else ""
+    )
     return (
-        f"{to_user_text(seed, today=today)}\n\n"
+        f"{to_user_text(seed, today=today)}\n"
+        f"{structure_block}\n"
         "요구사항:\n"
         f"1) plan.todos 에는 오늘({today.isoformat()}) 할 일만, "
         f"plan.calendar_events 에는 내일부터 D-{horizon}({(today + timedelta(days=horizon)).isoformat()}) "
         "이내 일만 담아.\n"
-        "2) '1단원/2단원/N일차' 식 기계적 분해 금지. 기출 회독·약점 보완·모의고사 등 전략으로.\n"
+        "2) 항목 제목 대부분에 위 시험 구조의 실제 과목/파트/영역명을 넣어 공부 범위를 분명히 해 "
+        "(예: '3과목 데이터베이스 구축 기출 풀이', 'RC Part5 문법 집중'). "
+        "번호만 있는 기계적 분해('1단원 풀기')와 범위 없는 추상 표현('약점 보완'만)은 금지.\n"
         "3) title 은 20자 이하 한국어, due_date 는 YYYY-MM-DD.\n"
         "4) summary_text 에 목표·기간 맞춤 전략을 1~2문장.\n"
         f"{shots}\n"
@@ -146,13 +182,20 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
     )
 
 
-def _parse_llm_plan(content: str, *, today: date, horizon: int) -> PlanOutput:
+def _parse_llm_plan(
+    content: str, *, today: date, horizon: int, exam_type: str
+) -> PlanOutput:
     # 관용 로드+정규화: 트레일링 잡설/제어문자 허용, calendar_events 누락→[], due_date 별칭 매핑.
     data = _loads_lenient(content)
     plan = PlanOutput.model_validate(_normalize_plan_dict(data))
     errors = check_plan_consistency(plan, today=today, horizon_days=horizon)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))
+    # 구체성 게이트: 과목/파트 키워드 없는 추상 플랜('약점 보완'만 나열) 거부 → 폴백.
+    titles = [t.title for t in plan.todos] + [e.title for e in plan.calendar_events]
+    ratio = concreteness_ratio(titles, exam_type)
+    if ratio < CONCRETENESS_MIN:
+        raise ValueError(f"abstract plan: concreteness {ratio:.2f} < {CONCRETENESS_MIN}")
     return plan
 
 
@@ -187,7 +230,10 @@ def synthesize_sample(
                 timeout=request_timeout,
             )
             plan = _parse_llm_plan(
-                resp.choices[0].message.content, today=today, horizon=horizon
+                resp.choices[0].message.content,
+                today=today,
+                horizon=horizon,
+                exam_type=seed["exam_type"],
             )
             by = "llm"
         except Exception as exc:  # noqa: BLE001 - 어떤 실패든 안전하게 템플릿 폴백

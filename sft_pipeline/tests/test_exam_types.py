@@ -19,6 +19,16 @@ def test_level_disambiguation():
     assert canonicalize_exam_type("컴활 2급") == "컴활2급"
 
 
+def test_language_exam_aliases():
+    """어학 시험(오픽·토플·JLPT) 별칭이 정규 명칭으로 매핑되는지 확인."""
+    assert canonicalize_exam_type("OPIc") == "오픽"
+    assert canonicalize_exam_type("오픽") == "오픽"
+    assert canonicalize_exam_type("TOEFL") == "토플"
+    assert canonicalize_exam_type("토플 iBT") == "토플"
+    assert canonicalize_exam_type("jlpt") == "JLPT"
+    assert canonicalize_exam_type("일본어능력시험") == "JLPT"
+
+
 def test_unknown_returns_none():
     """미등록 시험명·빈 문자열은 None을 반환하는지 확인."""
     assert canonicalize_exam_type("정체불명시험") is None

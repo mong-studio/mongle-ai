@@ -1,0 +1,203 @@
+# 시험별 구조(과목/파트/영역) 큐레이션.
+# - sections: 시행기관 공식 출처에서 수동 큐레이션한 구조 골격 (합성 프롬프트 주입용)
+# - keywords: 구체성 게이트 매칭 토큰. 공식 명칭 + 크롤 코퍼스(crawl_results.jsonl)에서
+#   마이닝한 현실 표현(노랭이, 시대별 흐름 등). 정규화(소문자·공백제거) 후 부분일치로 매칭.
+# - 표준코드는 exam_types.yaml 과 일치해야 한다.
+# - 오픽/토플/JLPT 는 크롤 문서가 없어 keywords 가 공식 구조 기반만임 → 합성 품질 모니터링 대상.
+
+정보처리기사_필기:
+  source: "큐넷 정보처리기사 출제기준 (https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1320)"
+  verified_at: "2026-06-07"
+  sections:
+    - "1과목 소프트웨어 설계 (20문항)"
+    - "2과목 소프트웨어 개발 (20문항)"
+    - "3과목 데이터베이스 구축 (20문항)"
+    - "4과목 프로그래밍 언어 활용 (20문항)"
+    - "5과목 정보시스템 구축 관리 (20문항)"
+  keywords:
+    - 소프트웨어 설계
+    - 소프트웨어 개발
+    - 데이터베이스
+    - DB구축
+    - 프로그래밍 언어
+    - 정보시스템
+    - 1과목
+    - 2과목
+    - 3과목
+    - 4과목
+    - 5과목
+    - CBT
+
+토익:
+  source: "ETS TOEIC Listening & Reading 구성 (https://www.etsglobal.org/dz/en/help-center/test-content/format-questions-toeic-listening-reading)"
+  verified_at: "2026-06-07"
+  sections:
+    - "LC Part1 사진 묘사 (6문항)"
+    - "LC Part2 질의응답 (25문항)"
+    - "LC Part3 짧은 대화 (39문항)"
+    - "LC Part4 설명문 (30문항)"
+    - "RC Part5 문법·어휘 (30문항)"
+    - "RC Part6 빈칸 추론 (16문항)"
+    - "RC Part7 독해 (54문항)"
+  keywords:
+    - LC
+    - RC
+    - Part1
+    - Part2
+    - Part3
+    - Part4
+    - Part5
+    - Part6
+    - Part7
+    - 파트1
+    - 파트2
+    - 파트3
+    - 파트4
+    - 파트5
+    - 파트6
+    - 파트7
+    - 리스닝
+    - 리딩
+    - 쉐도잉
+
+한국사능력검정시험:
+  source: "한국사능력검정시험 시험 안내 (https://www.historyexam.go.kr/) — 심화 50문항, 전근대:근현대 ≈ 60:40"
+  verified_at: "2026-06-07"
+  sections:
+    - "선사·초기 국가"
+    - "삼국·남북국 시대"
+    - "고려 시대"
+    - "조선 시대"
+    - "근대 개항기"
+    - "일제강점기"
+    - "현대사"
+  keywords:
+    - 선사
+    - 삼국
+    - 남북국
+    - 고려
+    - 조선
+    - 개항기
+    - 근대
+    - 근현대
+    - 일제
+    - 현대사
+    - 시대별
+    - 흐름
+    - 연표
+
+SQLD:
+  source: "한국데이터산업진흥원 SQLD 시험 안내 (https://www.dataq.or.kr/www/sub/a_04.do)"
+  verified_at: "2026-06-07"
+  sections:
+    - "1과목 데이터 모델링의 이해 (10문항 20점)"
+    - "2과목 SQL 기본 및 활용 (40문항 80점)"
+  keywords:
+    - 데이터 모델링
+    - SQL 기본
+    - SQL 활용
+    - 1과목
+    - 2과목
+    - 노랭이
+    - 조인
+    - 서브쿼리
+    - 그룹 함수
+    - 정규화
+
+컴활1급:
+  source: "대한상공회의소 자격평가사업단 컴퓨터활용능력 시험 안내 (https://license.korcham.net/co/examguide.do?mm=21&cd=0103)"
+  verified_at: "2026-06-07"
+  sections:
+    - "필기 1과목 컴퓨터 일반"
+    - "필기 2과목 스프레드시트 일반"
+    - "필기 3과목 데이터베이스 일반"
+    - "실기 스프레드시트(엑셀)"
+    - "실기 데이터베이스(액세스)"
+  keywords:
+    - 컴퓨터 일반
+    - 스프레드시트
+    - 데이터베이스
+    - 엑셀
+    - 액세스
+    - 함수
+    - 매크로
+    - 쿼리
+    - 피벗
+
+컴활2급:
+  source: "대한상공회의소 자격평가사업단 컴퓨터활용능력 시험 안내 (https://license.korcham.net/co/examguide.do?mm=21&cd=0103)"
+  verified_at: "2026-06-07"
+  sections:
+    - "필기 1과목 컴퓨터 일반"
+    - "필기 2과목 스프레드시트 일반"
+    - "실기 스프레드시트(엑셀)"
+  keywords:
+    - 컴퓨터 일반
+    - 스프레드시트
+    - 엑셀
+    - 함수
+    - 차트
+    - 매크로
+
+오픽:
+  source: "OPIc 공식 사이트 시험 안내 (https://www.opic.or.kr/) — 등급 NL~AL, 서베이 기반 인터뷰"
+  verified_at: "2026-06-07"
+  sections:
+    - "자기소개"
+    - "서베이 주제 (취미·여가·일상)"
+    - "롤플레이"
+    - "돌발 주제"
+  keywords:
+    - 자기소개
+    - 서베이
+    - 롤플레이
+    - 돌발
+    - 스크립트
+    - 콤보
+    - 말하기
+    - 녹음
+    - IM
+    - IH
+    - AL
+
+토플:
+  source: "ETS TOEFL iBT 구성 (https://www.ets.org/toefl/test-takers/ibt/about/content.html) — 2026-01-21부터 신형식(약 85분, 1~6점 스케일, 0~120 환산 병기)"
+  verified_at: "2026-06-07"
+  sections:
+    - "Reading (적응형 독해)"
+    - "Listening (적응형 듣기)"
+    - "Speaking (말하기)"
+    - "Writing (쓰기)"
+  keywords:
+    - Reading
+    - Listening
+    - Speaking
+    - Writing
+    - 리딩
+    - 리스닝
+    - 스피킹
+    - 라이팅
+    - 템플릿
+    - 노트테이킹
+    - 쉐도잉
+
+JLPT:
+  source: "JLPT 공식 시험 과목 구성 (https://www.jlpt.jp/sp/e/guideline/testsections.html) — 180점 만점, N1·N2 는 언어지식·독해 통합"
+  verified_at: "2026-06-07"
+  sections:
+    - "언어지식 (문자·어휘)"
+    - "언어지식 (문법)"
+    - "독해"
+    - "청해"
+  keywords:
+    - 문자
+    - 어휘
+    - 문법
+    - 독해
+    - 청해
+    - 한자
+    - 단어장
+    - 기출 어휘
+    - N1
+    - N2
+    - N3
