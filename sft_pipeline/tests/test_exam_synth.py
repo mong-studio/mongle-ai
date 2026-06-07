@@ -105,6 +105,77 @@ def test_synthesize_falls_back_on_out_of_horizon_plan():
     assert sample["meta"]["synthesized_by"] == "template"
 
 
+def test_synthesize_recovers_nonalias_date_key():
+    """LLM이 due_date 대신 비별칭 키(due_at)로 날짜를 줘도 ISO 스캔으로 복구 → llm."""
+    payload = json.dumps(
+        {
+            "summary_text": "전략",
+            "todos": [{"title": "오늘 파트5", "due_date": "2026-06-06", "tags": []}],
+            "calendar_events": [{"title": "기출 1회", "due_at": "2026-06-09", "tags": []}],
+        },
+        ensure_ascii=False,
+    )
+    sample = synthesize_sample(_SEED, today=TODAY, client=_fake_client(payload))
+    assert sample["meta"]["synthesized_by"] == "llm"
+    plan = parse_plan(sample["messages"][-1]["content"])
+    assert any(e.title == "기출 1회" for e in plan.calendar_events)
+
+
+def test_synthesize_autoroutes_future_item_from_todos():
+    """미래 항목을 todos에 잘못 넣어도 C5 자동 재배치로 calendar로 이동 → llm."""
+    payload = json.dumps(
+        {
+            "summary_text": "전략",
+            "todos": [{"title": "기출 1회", "due_date": "2026-06-10", "tags": []}],
+            "calendar_events": [],
+        },
+        ensure_ascii=False,
+    )
+    sample = synthesize_sample(_SEED, today=TODAY, client=_fake_client(payload))
+    assert sample["meta"]["synthesized_by"] == "llm"
+    plan = parse_plan(sample["messages"][-1]["content"])
+    assert plan.todos == []
+    assert any(e.title == "기출 1회" for e in plan.calendar_events)
+
+
+def test_synthesize_retries_then_marks_llm():
+    """첫 출력이 깨지면 1회 재시도해 두 번째 정상 출력으로 llm 기록."""
+    good = json.dumps(
+        {
+            "summary_text": "x",
+            "todos": [],
+            "calendar_events": [{"title": "기출", "due_date": "2026-06-09", "tags": []}],
+        },
+        ensure_ascii=False,
+    )
+    calls = {"n": 0}
+
+    class _C:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kw):
+                    calls["n"] += 1
+                    content = "깨진 출력" if calls["n"] == 1 else good
+
+                    class _M:
+                        pass
+
+                    _M.content = content
+
+                    class _Ch:
+                        message = _M()
+
+                    class _R:
+                        choices = [_Ch()]
+
+                    return _R()
+
+    sample = synthesize_sample(_SEED, today=TODAY, client=_C())
+    assert calls["n"] == 2  # 재시도 발생
+    assert sample["meta"]["synthesized_by"] == "llm"
+
+
 def test_synthesize_to_file_writes_and_counts(tmp_path):
     seeds = build_seeds(12)
     out = tmp_path / "exam_synth.jsonl"

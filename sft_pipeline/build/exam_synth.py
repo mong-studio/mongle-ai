@@ -13,7 +13,7 @@ import argparse
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from sft_pipeline.build.plan_schemas import (
@@ -146,10 +146,35 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
     )
 
 
+def _autoroute_c5(data: dict, today: date) -> dict:
+    """날짜 기준으로 항목을 재배치(C5): due_date==today → todos, 그 외 → calendar_events.
+
+    LLM 이 버킷(todos/calendar)을 틀리게 넣어도 날짜(소스 오브 트루스)대로 결정론적으로
+    옮긴다. 이는 의미 변경이 아니라 배치 규칙 적용(정규화)이다. 날짜 파싱 불가 항목은
+    calendar 로 두어 check_plan_consistency 가 걸러내게 한다.
+    """
+    todos: list = []
+    cal: list = []
+    for bucket in ("todos", "calendar_events"):
+        for item in data.get(bucket, []) or []:
+            d = None
+            if isinstance(item, dict) and isinstance(item.get("due_date"), str):
+                try:
+                    d = datetime.strptime(item["due_date"][:10], "%Y-%m-%d").date()
+                except ValueError:
+                    d = None
+            (todos if d == today else cal).append(item)
+    out = dict(data)
+    out["todos"], out["calendar_events"] = todos, cal
+    return out
+
+
 def _parse_llm_plan(content: str, *, today: date, horizon: int) -> PlanOutput:
-    # 관용 로드+정규화: 트레일링 잡설/제어문자 허용, calendar_events 누락→[], due_date 별칭 매핑.
-    data = _loads_lenient(content)
-    plan = PlanOutput.model_validate(_normalize_plan_dict(data))
+    # 관용 로드+정규화: 트레일링 잡설/제어문자 허용, calendar_events 누락→[], due_date 별칭·
+    # ISO 날짜 스캔 매핑. 이후 C5 로 버킷을 날짜 기준 자동 재배치(LLM 오배치 교정).
+    data = _normalize_plan_dict(_loads_lenient(content))
+    data = _autoroute_c5(data, today)
+    plan = PlanOutput.model_validate(data)
     errors = check_plan_consistency(plan, today=today, horizon_days=horizon)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))
@@ -171,27 +196,39 @@ def synthesize_sample(
     by = "template"
     plan = _fallback_plan(seed, today)
     if client is not None:
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM},
-                    {
-                        "role": "user",
-                        "content": build_exam_prompt(
-                            seed, today=today, exemplars=exemplars or []
-                        ),
-                    },
-                ],
-                temperature=temperature,
-                timeout=request_timeout,
-            )
-            plan = _parse_llm_plan(
-                resp.choices[0].message.content, today=today, horizon=horizon
-            )
-            by = "llm"
-        except Exception as exc:  # noqa: BLE001 - 어떤 실패든 안전하게 템플릿 폴백
-            log.warning("exam 합성 LLM 실패, 템플릿 폴백 (%s): %s", seed.get("exam_type"), exc)
+        prompt = build_exam_prompt(seed, today=today, exemplars=exemplars or [])
+        last_exc: Exception | None = None
+        for attempt in range(2):  # 1회 재시도: 검증 실패 시 교정 지시를 되먹여 자가수정
+            messages = [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": prompt},
+            ]
+            if attempt == 1:
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "직전 출력이 검증에 실패했어. 반드시 모든 항목에 "
+                        '"due_date":"YYYY-MM-DD" 키를 넣고, 오늘 할 일만 todos, '
+                        "내일 이후는 calendar_events 에 담아. JSON만 출력."
+                    ),
+                })
+            try:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    timeout=request_timeout,
+                )
+                plan = _parse_llm_plan(
+                    resp.choices[0].message.content, today=today, horizon=horizon
+                )
+                by = "llm"
+                last_exc = None
+                break
+            except Exception as exc:  # noqa: BLE001 - 실패 시 재시도→템플릿 폴백
+                last_exc = exc
+        if last_exc is not None:
+            log.warning("exam 합성 LLM 실패, 템플릿 폴백 (%s): %s", seed.get("exam_type"), last_exc)
             plan = _fallback_plan(seed, today)
             by = "template"
 
