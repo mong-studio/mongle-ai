@@ -183,3 +183,40 @@ def test_monotonic_decomposition_flagged(tmp_path):
     )
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("단조 분해" in e for e in report["errors"])
+
+
+# === distractor(네거티브) - 평문 대화라 2층(플랜 정합성)을 건너뛴다 ===
+
+
+def _good_distractor():
+    """distractor 단일턴: assistant 가 플랜 JSON 이 아니라 평문 대화. today 없음."""
+    return {
+        "messages": [
+            {"role": "user", "content": "고마워"},
+            {
+                "role": "assistant",
+                "content": "도움이 됐다면 다행이야. 더 정리할 일 생기면 이어서 말해줘.",
+            },
+        ],
+        "meta": {
+            "provenance": "distractor",
+            "distractor_type": "thanks_chitchat",
+            "is_distractor": True,
+            "source_id": "1",
+        },
+    }
+
+
+def test_distractor_passes_layer1_only(tmp_path):
+    """평문 assistant·meta.today 없음이어도 distractor 는 1층만 통과하면 OK."""
+    report = validate_samples(_write(tmp_path, [_good_distractor()]))
+    assert report["ok"] == 1
+    assert report["errors"] == []
+
+
+def test_distractor_still_gets_layer1_hygiene(tmp_path):
+    """distractor 라도 1층(형식) 검사는 적용 - 빈 content 는 잡힌다."""
+    bad = _good_distractor()
+    bad["messages"][1]["content"] = "   "
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("empty" in e for e in report["errors"])
