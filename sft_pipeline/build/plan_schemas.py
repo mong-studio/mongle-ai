@@ -59,6 +59,8 @@ def parse_plan(content: str) -> PlanOutput:
 
 # 모델이 due_date 대신 흔히 쓰는 키 별칭들(관용 정규화 대상).
 _DATE_ALIASES = ("date", "due", "dueDate", "deadline", "day", "when")
+# 별칭에도 없을 때, 항목 값에서 직접 찾을 ISO 날짜(YYYY-MM-DD) 패턴(키 이름 무관 robust).
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def _loads_lenient(content: str) -> dict:
@@ -104,6 +106,14 @@ def _normalize_plan_dict(data: dict) -> dict:
                         if alias in item:
                             item["due_date"] = item.pop(alias)
                             break
+                    else:
+                        # 별칭에도 없으면 값 중 ISO 날짜를 찾아 채택(키 이름이 뭐든 robust)
+                        for _v in item.values():
+                            if isinstance(_v, str):
+                                _m = _ISO_DATE.search(_v)
+                                if _m:
+                                    item["due_date"] = _m.group(0)
+                                    break
                 item.setdefault("tags", [])
             norm.append(item)
         out[key] = norm
