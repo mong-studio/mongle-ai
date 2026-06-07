@@ -1,7 +1,7 @@
-"""mixed sft_dataset.jsonl → train/valid 층화 분할.
+"""mixed sft_dataset.jsonl → train/valid stratified 분할.
 
 설계 근거:
-- **층화(stratified)**: provenance(daily-latte/exam-synth/distractor/exam-crawl) 별로
+- **stratified**: provenance(daily-latte/exam-synth/distractor/exam-crawl) 별로
   비율을 보존해 train·valid 모두 골고루 섞이게 한다. 단순 head/tail 분할은 한쪽에
   특정 출처가 쏠릴 수 있어 부적합.
 - **결정론적 셔플**: seed 고정으로 재현 가능.
@@ -45,7 +45,7 @@ def _provenance(sample: dict) -> str:
 def stratified_split(
     samples: list[dict], *, ratio: float = 0.9, seed: int = 42
 ) -> tuple[list[dict], list[dict]]:
-    """provenance 층화 + 결정론적 셔플로 train/valid 분할.
+    """provenance stratified + 결정론적 셔플로 train/valid 분할.
 
     각 출처별로 셔플 후 ratio 지점에서 잘라 train/valid 에 비례 배분한다.
     출처 표본이 1건뿐이면 전부 train 으로 보낸다(valid 손실 방지).
@@ -84,7 +84,7 @@ def _write_jsonl(samples: list[dict], path: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="mixed jsonl → 층화 train/valid 분할")
+    parser = argparse.ArgumentParser(description="mixed jsonl → stratified train/valid 분할")
     parser.add_argument("--in", dest="in_path", required=True, type=Path)
     parser.add_argument("--out-train", dest="out_train", required=True, type=Path)
     parser.add_argument("--out-valid", dest="out_valid", required=True, type=Path)

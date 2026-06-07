@@ -148,7 +148,7 @@ uv run python -m sft_pipeline.build.validate_dataset --in $G/sft_dataset.jsonl
 
 ## 파인튜닝 파이프라인 (exam-synth → distractor → mix → split → train)
 
-데이터가 모이면 아래 순서로 **풀 믹스 → 층화 분할 → LoRA 학습**까지 잇습니다.
+데이터가 모이면 아래 순서로 **풀 믹스 → stratified 분할 → LoRA 학습**까지 잇습니다.
 
 ### 1. exam-synth 합성 (RunPod GPU)
 
@@ -163,7 +163,7 @@ python3 -m sft_pipeline.build.exam_synth \
 
 ### 2. distractor 서브샘플 (네거티브)
 
-원본 distractor를 30% 층화 서브샘플 + provenance 태깅합니다(원본을 mix에 직접 넣지 말 것 — 태깅 안 된 1000건 전부 들어갑니다).
+원본 distractor를 30% stratified 서브샘플 + provenance 태깅합니다(원본을 mix에 직접 넣지 말 것 — 태깅 안 된 1000건 전부 들어갑니다).
 
 ```bash
 uv run python -m sft_pipeline.build.distractor \
@@ -181,7 +181,7 @@ uv run python -m sft_pipeline.build.mix_dataset \
 
 > distractor 비율: 30% 서브샘플(≈300)은 **일상 1000건 기준**으로 잡은 값입니다. exam-synth 1000건이 더해지면 전체 대비 네거티브 비중이 ≈13%로 희석되니, 더 높은 네거티브 비율을 원하면 `--fraction`을 올리세요.
 
-### 4. 층화 셔플/분할
+### 4. stratified 셔플/분할
 
 provenance(시험/일상/distractor)별 비율을 보존하며 셔플 후 train/valid로 나눕니다. 내용 SHA256 dedup으로 train↔valid 누수를 막습니다.
 
