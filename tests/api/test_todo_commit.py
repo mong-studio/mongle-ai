@@ -26,6 +26,16 @@ def test_commit_triggers_quest_when_quota_available(api_client):
     assert len(data["result"]["todo_ids"]) == 1
 
 
+def test_commit_compat_alias_triggers_quest_when_quota_available(api_client):
+    """Django 내부 호출용 /todo/commit alias도 기존 commit 결과를 반환한다."""
+    resp = api_client.post("/todo/commit", json=_commit_body(5), headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "done"
+    assert data["result"]["quest_distribution_triggered"] is True
+    assert len(data["result"]["todo_ids"]) == 1
+
+
 def test_commit_no_quest_when_quota_zero(api_client):
     """할당량이 0이면 커밋해도 quest_distribution_triggered가 False다."""
     resp = api_client.post("/v1/todo/commit", json=_commit_body(0), headers=AUTH)
@@ -36,3 +46,4 @@ def test_commit_no_quest_when_quota_zero(api_client):
 def test_commit_requires_api_key(api_client):
     """API 키 없이 /v1/todo/commit 호출 시 401을 반환한다."""
     assert api_client.post("/v1/todo/commit", json=_commit_body(5)).status_code == 401
+    assert api_client.post("/todo/commit", json=_commit_body(5)).status_code == 401

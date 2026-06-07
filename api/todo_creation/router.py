@@ -24,6 +24,32 @@ from api.security import require_api_key
 from api.todo_creation.schemas import CommitRequest
 
 router = APIRouter(prefix="/v1/todo", dependencies=[Depends(require_api_key)])
+compat_router = APIRouter(prefix="/todo", dependencies=[Depends(require_api_key)])
+
+
+async def _generate(
+    body: SingleTurnInput,
+    ports: GeneratePorts,
+) -> Envelope[GenerateResult]:
+    result = await single_pipeline.run(body, ports=ports, now=datetime.now())
+    return done(result)
+
+
+async def _chat(
+    body: MultiGenerateInput,
+    ports: MultiTurnPorts,
+) -> Envelope[TurnResult]:
+    result = await multi_pipeline.run(body, ports=ports, now=datetime.now())
+    return done(result)
+
+
+async def _commit(
+    body: CommitRequest,
+    cfg: AppConfig,
+) -> Envelope[CommitResult]:
+    ports = build_commit_ports(cfg, remaining_daily_quota=body.remaining_daily_quota)
+    result = await commit_pipeline.run(body.input, ports=ports, now=datetime.now())
+    return done(result)
 
 
 @router.post("/generate", response_model=Envelope[GenerateResult])
@@ -31,17 +57,31 @@ async def generate(
     body: SingleTurnInput,
     ports: GeneratePorts = Depends(get_todo_generate_ports),
 ) -> Envelope[GenerateResult]:
-    result = await single_pipeline.run(body, ports=ports, now=datetime.now())
-    return done(result)
+    return await _generate(body, ports)
 
 
-@router.post("/chat", response_model=Envelope[GenerateResult | FollowUpResult])
+@compat_router.post("/generate", response_model=Envelope[GenerateResult])
+async def generate_compat(
+    body: SingleTurnInput,
+    ports: GeneratePorts = Depends(get_todo_generate_ports),
+) -> Envelope[GenerateResult]:
+    return await _generate(body, ports)
+
+
+@router.post("/chat", response_model=Envelope[TurnResult])
 async def chat(
     body: MultiGenerateInput,
     ports: MultiTurnPorts = Depends(get_todo_multiturn_ports),
 ) -> Envelope[TurnResult]:
-    result = await multi_pipeline.run(body, ports=ports, now=datetime.now())
-    return done(result)
+    return await _chat(body, ports)
+
+
+@compat_router.post("/chat", response_model=Envelope[TurnResult])
+async def chat_compat(
+    body: MultiGenerateInput,
+    ports: MultiTurnPorts = Depends(get_todo_multiturn_ports),
+) -> Envelope[TurnResult]:
+    return await _chat(body, ports)
 
 
 @router.post("/commit", response_model=Envelope[CommitResult])
@@ -49,6 +89,12 @@ async def commit(
     body: CommitRequest,
     cfg: AppConfig = Depends(get_config),
 ) -> Envelope[CommitResult]:
-    ports = build_commit_ports(cfg, remaining_daily_quota=body.remaining_daily_quota)
-    result = await commit_pipeline.run(body.input, ports=ports, now=datetime.now())
-    return done(result)
+    return await _commit(body, cfg)
+
+
+@compat_router.post("/commit", response_model=Envelope[CommitResult])
+async def commit_compat(
+    body: CommitRequest,
+    cfg: AppConfig = Depends(get_config),
+) -> Envelope[CommitResult]:
+    return await _commit(body, cfg)
