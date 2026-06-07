@@ -14,6 +14,8 @@ import pytest
 
 from sft_pipeline.build.plan_schemas import (
     PlanOutput,
+    _loads_lenient,
+    _normalize_plan_dict,
     check_plan_consistency,
     parse_plan,
 )
@@ -190,3 +192,39 @@ def test_mirror_matches_runtime_schema():
     runtime_len = [m.max_length for m in runtime_meta if hasattr(m, "max_length")]
     mirror_len = [m.max_length for m in mirror_meta if hasattr(m, "max_length")]
     assert runtime_len == mirror_len == [20]
+
+
+# === LLM 출력 관용 정규화(합성 파서용) ===
+
+
+def test_normalize_fills_missing_lists_and_tags():
+    n = _normalize_plan_dict(
+        {"summary_text": "x", "todos": [{"title": "a", "due_date": "2026-06-06"}]}
+    )
+    assert n["calendar_events"] == []  # 누락 키 → []
+    assert n["todos"][0]["tags"] == []  # tags 기본값
+
+
+def test_normalize_maps_date_alias_to_due_date():
+    n = _normalize_plan_dict(
+        {"todos": [], "calendar_events": [{"title": "a", "date": "2026-06-08"}]}
+    )
+    ev = n["calendar_events"][0]
+    assert ev["due_date"] == "2026-06-08"
+    assert "date" not in ev
+
+
+def test_loads_lenient_takes_first_object_on_extra_data():
+    text = '{"a": 1}\n{"b": 2}\n뒤에 붙은 설명'
+    assert _loads_lenient(text) == {"a": 1}
+
+
+def test_loads_lenient_strips_code_fence():
+    assert _loads_lenient('```json\n{"a": 1}\n```') == {"a": 1}
+
+
+def test_normalize_then_validate_recovers_missing_calendar_events():
+    raw = '{"summary_text":"x","todos":[{"title":"오늘 할 일","due_date":"2026-06-06"}]} 추가설명'
+    plan = PlanOutput.model_validate(_normalize_plan_dict(_loads_lenient(raw)))
+    assert plan.calendar_events == []
+    assert plan.todos[0].tags == []

@@ -18,7 +18,8 @@ from sft_pipeline.io_utils import write_jsonl
 # 저작권 안전을 위해 기본 제외한다.
 #   - daily-latte: MS-LaTTE(MIT) 유래 일상 플랜
 #   - distractor : 우리가 직접 만든 네거티브(경계) 데이터 → 저작권 이슈 없음
-_PUBLIC_ALLOWED = {"daily-latte", "distractor"}
+#   - exam-synth : 우리가 합성한 시험 플랜(원문 인용 없음) → 공개 가능
+_PUBLIC_ALLOWED = {"daily-latte", "distractor", "exam-synth"}
 RELEASES = ("public", "internal")
 
 
@@ -62,6 +63,7 @@ def load_jsonl(path: Path) -> list[dict]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="exam/daily messages → sft_dataset.jsonl (release 믹스)")
     parser.add_argument("--exam", type=Path, default=None, help="시험 jsonl(exam-crawl)")
+    parser.add_argument("--exam-synth", dest="exam_synth", type=Path, default=None, help="합성 시험 jsonl(exam-synth)")
     parser.add_argument("--daily", type=Path, default=None, help="일상 jsonl(daily-latte)")
     parser.add_argument(
         "--distractor",
@@ -75,7 +77,7 @@ def main() -> None:
 
     # 플랜 샘플(exam/daily)과 distractor 를 따로 모은다 — 인터리브를 위해 분리.
     plan_samples: list[dict] = []
-    for src in (args.exam, args.daily):
+    for src in (args.exam, args.exam_synth, args.daily):
         if src is not None:
             plan_samples.extend(load_jsonl(src))
     distractor_samples = load_jsonl(args.distractor) if args.distractor else []

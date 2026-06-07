@@ -220,3 +220,49 @@ def test_distractor_still_gets_layer1_hygiene(tmp_path):
     bad["messages"][1]["content"] = "   "
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("empty" in e for e in report["errors"])
+
+
+# === exam-synth(합성 시험) - 플랜 정합성 검사(horizon=time_left_days) ===
+
+
+def _good_exam_synth():
+    return {
+        "messages": [
+            {
+                "role": "user",
+                "content": "다음 조건에 맞는 단기 시험 준비 계획을 세워줘.\n\n"
+                "시험: 토익 / 남은 기간: D-14 / 목표: 900점 / 기준일(오늘): 2026-06-06",
+            },
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "summary_text": "기출 회독 후 약점 보완에 집중하는 전략이에요.",
+                        "todos": [{"title": "핵심 개념 훑기", "due_date": "2026-06-06", "tags": ["공부"]}],
+                        "calendar_events": [
+                            {"title": "기출 풀이와 오답 점검", "due_date": "2026-06-10", "tags": ["공부"]}
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ],
+        "meta": {
+            "provenance": "exam-synth",
+            "exam_type": "토익",
+            "time_left_days": 14,
+            "today": "2026-06-06",
+        },
+    }
+
+
+def test_exam_synth_validates_as_plan(tmp_path):
+    report = validate_samples(_write(tmp_path, [_good_exam_synth()]))
+    assert report["ok"] == 1, report["errors"]
+
+
+def test_exam_synth_missing_meta_flagged(tmp_path):
+    bad = _good_exam_synth()
+    del bad["meta"]["exam_type"]
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("exam_type" in e for e in report["errors"])

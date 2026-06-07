@@ -57,6 +57,59 @@ def parse_plan(content: str) -> PlanOutput:
         raise ValueError(f"[파싱] 플랜 출력 파싱 실패: {exc}") from exc
 
 
+# 모델이 due_date 대신 흔히 쓰는 키 별칭들(관용 정규화 대상).
+_DATE_ALIASES = ("date", "due", "dueDate", "deadline", "day", "when")
+
+
+def _loads_lenient(content: str) -> dict:
+    """LLM 출력에서 JSON 객체 하나를 관용적으로 읽는다.
+
+    - ```json 펜스·앞뒤 잡설 제거(_extract_json)
+    - 제어문자 허용(strict=False)
+    - 'Extra data'(객체 뒤 설명/추가 객체)면 첫 유효 객체만 취함(raw_decode)
+    """
+    text = _extract_json(content)
+    try:
+        return json.loads(text, strict=False)
+    except json.JSONDecodeError:
+        start = content.find("{")
+        if start == -1:
+            raise
+        obj, _ = json.JSONDecoder(strict=False).raw_decode(content[start:])
+        return obj
+
+
+def _normalize_plan_dict(data: dict) -> dict:
+    """LLM 출력의 흔한 스키마 일탈을 정규화한다(포맷 정규화 — 의미 변경 아님).
+
+    - todos/calendar_events 키 누락·비리스트 → []
+    - 항목의 due_date 누락 시 흔한 별칭(date/due 등)을 due_date 로 매핑
+    - tags 누락 → []
+    의미 위반(날짜범위·C5·단조분해)은 건드리지 않는다 — check_plan_consistency 의 몫.
+    """
+    if not isinstance(data, dict):
+        return data
+    out = dict(data)
+    for key in ("todos", "calendar_events"):
+        items = out.get(key)
+        if not isinstance(items, list):
+            out[key] = []
+            continue
+        norm: list = []
+        for item in items:
+            if isinstance(item, dict):
+                item = dict(item)
+                if "due_date" not in item:
+                    for alias in _DATE_ALIASES:
+                        if alias in item:
+                            item["due_date"] = item.pop(alias)
+                            break
+                item.setdefault("tags", [])
+            norm.append(item)
+        out[key] = norm
+    return out
+
+
 # 'N단원 풀기'처럼 숫자+분할단위로 시작하는 기계적 분해 제목 패턴
 _MONOTONIC_RE = re.compile(r"^\s*\d+\s*(단원|일차|장|챕터|파트|과)\b")
 
