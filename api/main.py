@@ -17,8 +17,10 @@ def create_app() -> FastAPI:
     # 피처별 라우터 등록
     from api.todo_creation.router import router as todo_router
     app.include_router(todo_router)
+    from api.quest_generation.router import compat_router as quest_compat_router
     from api.quest_generation.router import router as quest_router
     app.include_router(quest_router)
+    app.include_router(quest_compat_router)
     from api.character_creation.router import router as character_router
     app.include_router(character_router)
     return app

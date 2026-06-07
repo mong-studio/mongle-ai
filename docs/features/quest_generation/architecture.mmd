@@ -3,9 +3,19 @@ config:
   layout: elk
 ---
 flowchart TB
-    A[/"Input
+    HTTP[/"FastAPI
+    POST /v1/quest/generate
+    POST /quest"/]
+
+    API["API adapter
+    persona 호환 입력 → Character
+    todos 는 todo_id only"]
+
+    A[/"Agent Input
     QuestGenerationInput
     (todos, characters, remaining_daily_quota, shuffle_seed?)"/]
+
+    HTTP --> API --> A
 
     A --> CAP["pipeline.run
     cap = min(len(todos), remaining_daily_quota)
@@ -41,6 +51,8 @@ flowchart TB
     classDef gate fill:#fed7aa,stroke:#ea580c,color:#7c2d12
     classDef skip fill:#fecaca,stroke:#dc2626,color:#7f1d1d
 
+    HTTP:::input
+    API:::process
     A:::input
     OUT:::input
     CAP:::process

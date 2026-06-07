@@ -9,8 +9,8 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
-_VALID_LLM_PROVIDERS = ("openai", "midm")
+_VALID_QUEST_LLM_PROVIDERS = ("fake", "qwen")
+_VALID_LLM_PROVIDERS = ("openai", "qwen")
 
 
 def _split_s3_uri(value: str) -> tuple[str, str]:
@@ -35,9 +35,9 @@ class AppConfig:
     aws_s3_bucket: str | None
     quest_llm_provider: str
     llm_provider: str
-    midm_base_url: str | None
-    midm_model: str | None
-    midm_api_key: str
+    qwen_base_url: str | None
+    qwen_model: str | None
+    qwen_api_key: str
     lora_dir: str
 
     @classmethod
@@ -71,12 +71,12 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
 
-        midm_base_url: str | None = None
-        midm_model: str | None = None
-        midm_api_key = os.environ.get("MIDM_API_KEY", "").strip() or "EMPTY"
-        if quest_llm_provider == "midm" or llm_provider == "midm":
-            midm_base_url = need("MIDM_BASE_URL")
-            midm_model = need("MIDM_MODEL")
+        qwen_base_url: str | None = None
+        qwen_model: str | None = None
+        qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
+        if quest_llm_provider == "qwen" or llm_provider == "qwen":
+            qwen_base_url = need("QWEN_BASE_URL")
+            qwen_model = need("QWEN_MODEL")
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
         if not lora_dir:
@@ -87,9 +87,9 @@ class AppConfig:
             openai_api_key=openai_api_key,
             quest_llm_provider=quest_llm_provider,
             llm_provider=llm_provider,
-            midm_base_url=midm_base_url,
-            midm_model=midm_model,
-            midm_api_key=midm_api_key,
+            qwen_base_url=qwen_base_url,
+            qwen_model=qwen_model,
+            qwen_api_key=qwen_api_key,
             lora_dir=lora_dir,
         )
 
