@@ -28,6 +28,14 @@
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
+- **sft_pipeline 언어 게이트 (중국어 응답 근본 원인 수정)**:
+  - 파인튜닝 모델이 간헐적으로 중국어로 응답하던 문제의 원인 확정: teacher(Qwen 14B) 합성분의
+    code-switching 혼입 — exam_synth 17.6%(176/1000)·daily ~2%(각 1000행 중 20행 내외)가
+    `"…획득为目标，聚焦高频考点…"` 식으로 한국어→중국어 전환된 채 학습됨(학습셋의 ~8.5%).
+  - `build/validate_dataset.py` 1층에 언어 게이트 신설: 금지 스크립트(가나·키릴·태국 문자) 즉시 오류,
+    한자는 한국어 병기 허용을 위해 비율 임계(공백 제외 문자의 2% 초과) 적용. 침묵 패치 없이 드롭 + 사유 로그.
+  - S3 합성분 3종을 게이트로 드롭해 클린셋 생성(daily 979/980행, exam_synth 821행, 위반 0건 재검증).
+    원본 보존, `*_clean.jsonl` 별도 보관.
 - **sft_pipeline 구조화 플랜 출력 전환 (정합성 우선)**:
   - SFT 목표를 멀티턴 대화력 → **출력 구조·정합성**으로 재정의. assistant 출력을 자유 텍스트에서 런타임 `GenerateResult` 미러 JSON(`summary_text`/`todos`/`calendar_events`)으로 전환.
   - `build/plan_schemas.py` 신설: `PlanTask`/`PlanOutput`(런타임 `agents/todo_creation/schemas.py` 미러 + 동기화 테스트) + `parse_plan`/`check_plan_consistency`(날짜 범위·C5 분기·분량·'N단원/N일차' 단조 분해 과반 reject).

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -47,6 +48,21 @@ DAILY_HORIZON_DAYS = 7
 # 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
 # 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
 PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
+
+# === 언어 게이트: 한국어 서비스 데이터에 섞이면 안 되는 외국어 문자 ===
+# 한 글자만 있어도 오류인 "금지 스크립트". 합성 모델(Qwen 등)이 흘리는
+# 일본어 가나·키릴·태국 문자를 잡는다.
+FORBIDDEN_SCRIPTS = {
+    "kana": re.compile(r"[぀-ヿ]"),  # 히라가나·가타카나
+    "cyrillic": re.compile(r"[Ѐ-ӿ]"),
+    "thai": re.compile(r"[฀-๿]"),
+}
+
+# 한자(CJK Han)는 한국어 문장의 자연스러운 병기(讃美, 現 등)가 있어
+# 전면 금지 대신 "비율 임계"로 잡는다. 공백 제외 문자 중 2% 초과면
+# 중국어 문장 혼입으로 본다.
+_HAN_RE = re.compile(r"[一-鿿㐀-䶿]")
+HAN_RATIO_MAX = 0.02
 
 
 def _validate_messages(messages, idx: int) -> list[str]:
@@ -107,6 +123,31 @@ def _validate_messages(messages, idx: int) -> list[str]:
     # AI 답변이 사용자 질문을 글자 그대로 복사(복붙)한 것이면 학습에 해로우니 걸러냄
     if last and last == prev_user:
         errors.append(f"line {idx}: raw_copy (assistant == preceding user)")
+    return errors
+
+
+def _validate_language(messages: list, idx: int) -> list[str]:
+    """모든 턴의 내용에 비한국어 스크립트가 섞였는지 검사한다 (1층: 언어 게이트)
+
+    - 금지 스크립트(가나·키릴·태국 문자): 한 글자라도 있으면 오류
+    - 한자: 한국어 병기는 허용하되, 공백 제외 문자의 2% 초과면 중국어 혼입으로 판정
+    """
+    errors: list[str] = []
+    for j, m in enumerate(messages):
+        # 모양이 깨진 메시지는 _validate_messages 가 이미 잡으므로 건너뜀
+        if not isinstance(m, dict):
+            continue
+        text = str(m.get("content", ""))
+        for name, pat in FORBIDDEN_SCRIPTS.items():
+            if pat.search(text):
+                errors.append(f"line {idx}: message {j} non-korean script ({name})")
+        chars = re.sub(r"\s", "", text)
+        if chars:
+            han_ratio = len(_HAN_RE.findall(chars)) / len(chars)
+            if han_ratio > HAN_RATIO_MAX:
+                errors.append(
+                    f"line {idx}: message {j} han ratio {han_ratio:.3f} > {HAN_RATIO_MAX}"
+                )
     return errors
 
 
@@ -190,8 +231,10 @@ def _validate_one(sample: dict, idx: int) -> list[str]:
     missing = REQUIRED_KEYS - set(sample)
     if missing:
         return [f"line {idx}: missing keys {sorted(missing)}"]
-    # 1층 검사: 대화 모양 + 부가 정보
+    # 1층 검사: 대화 모양 + 언어 게이트 + 부가 정보
     errors = _validate_messages(sample.get("messages"), idx)
+    if isinstance(sample.get("messages"), list):
+        errors += _validate_language(sample["messages"], idx)
     errors += _validate_meta(sample.get("meta") or {}, idx)
     if not errors:
         # 형식 검사를 통과한 샘플만 2층(플랜 정합성)으로 내려보냄

@@ -266,3 +266,49 @@ def test_exam_synth_missing_meta_flagged(tmp_path):
     del bad["meta"]["exam_type"]
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("exam_type" in e for e in report["errors"])
+
+
+# === 언어 게이트(비한국어 스크립트 혼입) - 모든 출처의 1층 검사 ===
+
+
+def test_kana_in_assistant_flagged(tmp_path):
+    """가나(일본어)가 한 글자라도 있으면 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(summary="모의고사를 풀고 オ답을 정리해요.")
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("non-korean script" in e and "kana" in e for e in report["errors"])
+
+
+def test_cyrillic_in_assistant_flagged(tmp_path):
+    """키릴 문자가 섞이면 오류로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(summary="기출 위주 반복 стратегия 전략이에요.")
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("non-korean script" in e and "cyrillic" in e for e in report["errors"])
+
+
+def test_han_heavy_content_flagged(tmp_path):
+    """한자 비율이 임계(2%)를 넘으면 중국어 혼입으로 잡는지 확인."""
+    bad = _good()
+    bad["messages"][1]["content"] = _plan_json(summary="先做模拟考试然后整理错题并且反复复习重要的概念")
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("han ratio" in e for e in report["errors"])
+
+
+def test_natural_hanja_annotation_passes(tmp_path):
+    """한국어 문장 속 소량 한자 병기(讃美 등)는 통과하는지 확인."""
+    ok = _good()
+    ok["messages"][1]["content"] = _plan_json(
+        summary="찬미(讃美)의 뜻을 짚고 기출 위주로 반복하는 전략이에요. "
+        "오답 정리와 복습을 매일 이어가면 부담이 적어요."
+    )
+    report = validate_samples(_write(tmp_path, [ok]))
+    assert report["ok"] == 1, report["errors"]
+
+
+def test_user_turn_language_also_checked(tmp_path):
+    """user 턴(합성 입력)에 섞인 비한국어도 잡는지 확인."""
+    bad = _good_distractor()
+    bad["messages"][0]["content"] = "ありがとう 고마워"
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("non-korean script" in e and "kana" in e for e in report["errors"])
