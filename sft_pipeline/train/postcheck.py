@@ -23,6 +23,7 @@ from pathlib import Path
 
 from sft_pipeline.build.plan_schemas import parse_plan
 from sft_pipeline.build.validate_dataset import PLAN_PROVENANCES
+from sft_pipeline.train.train_lora import MAX_SEQ_LEN
 
 # Qwen2.5 chat template 의 턴 종료/문서 종료 마커(EOS 계열).
 _EOS_MARKERS = ("<|im_end|>", "<|endoftext|>")
@@ -108,7 +109,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(f"[postcheck] PLAN_PROVENANCES 샘플이 없습니다: {args.valid}")
 
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=str(args.adapter), max_seq_length=4096, dtype=None, load_in_4bit=True
+        model_name=str(args.adapter), max_seq_length=MAX_SEQ_LEN, dtype=None, load_in_4bit=True
     )
     tokenizer = get_chat_template(tokenizer, chat_template="qwen-2.5")
     FastLanguageModel.for_inference(model)
@@ -119,7 +120,10 @@ def main(argv: list[str] | None = None) -> None:
         inputs = tokenizer.apply_chat_template(
             msgs, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         ).to(model.device)
-        gen = model.generate(input_ids=inputs, max_new_tokens=args.max_new_tokens, use_cache=True)
+        # do_sample=False(greedy): 점검 재현성 확보 — 같은 어댑터·입력엔 같은 결과.
+        gen = model.generate(
+            input_ids=inputs, max_new_tokens=args.max_new_tokens, do_sample=False, use_cache=True
+        )
         new_tokens = gen[0][inputs.shape[1]:]
         raw_outputs.append(tokenizer.decode(new_tokens, skip_special_tokens=False))
         clean_outputs.append(tokenizer.decode(new_tokens, skip_special_tokens=True))
