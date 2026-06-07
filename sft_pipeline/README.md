@@ -197,7 +197,8 @@ uv run python -m sft_pipeline.build.split_dataset \
 제품 서빙 모델(7B)을 LoRA 파인튜닝합니다(student). 토큰화·마스킹·EOS·responses-only loss는 unsloth/trl에 위임합니다. RunPod PyTorch 템플릿에서:
 
 ```bash
-pip install "unsloth[colab-new]" trl peft accelerate bitsandbytes datasets
+# 학습 의존성은 GPU 박스에서만 설치(unsloth/bitsandbytes는 CUDA 전용 → pyproject/uv.lock에 넣지 않음)
+uv pip install -r sft_pipeline/train/requirements.txt
 python -m sft_pipeline.train.train_lora \
   --train $G/sft_train.jsonl --valid $G/sft_valid.jsonl \
   --out outputs/qwen7b-planner-lora --epochs 2 --lr 2e-4
