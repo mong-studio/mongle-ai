@@ -173,6 +173,18 @@ def test_synthesize_to_file_writes_all_and_returns_counts(tmp_path):
     assert counts["llm"] == 0
 
 
+def test_synthesize_to_file_concurrent_writes_all(tmp_path):
+    """동시처리(concurrency>1)로도 전체를 빠짐없이 기록하고 카운트한다."""
+    seeds = [dict(_SEED, id=str(i), task_title=f"task {i}") for i in range(10)]
+    out = tmp_path / "daily.jsonl"
+    total, counts = synthesize_to_file(
+        seeds, out, today=TODAY, client=_fake_client(_llm_payload()), model="x", concurrency=4
+    )
+    assert total == 10
+    assert counts["llm"] == 10
+    assert len(out.read_text(encoding="utf-8").splitlines()) == 10
+
+
 def test_synthesize_to_file_preserves_progress_on_interrupt(tmp_path):
     """3번째 시드 처리 중 KeyboardInterrupt로 죽어도 앞 2건은 파일에 남는다(증분 flush)."""
     seeds = [dict(_SEED, id=str(i), task_title=f"task {i}") for i in range(3)]

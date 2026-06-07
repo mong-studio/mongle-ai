@@ -9,6 +9,7 @@ MODEL="${MODEL:-Qwen/Qwen2.5-14B-Instruct}"
 PORT="${VLLM_PORT:-8000}"
 SAMPLE_LIMIT="${SAMPLE_LIMIT:-1000}"
 REQUEST_TIMEOUT="${REQUEST_TIMEOUT:-60}"
+CONCURRENCY="${CONCURRENCY:-16}"               # LLM 동시요청 수(vLLM 배치 활용). 순차=1
 TODAY="${TODAY:-}"                              # 비우면 컨테이너의 오늘 날짜 사용
 GPU_MEM_UTIL="${GPU_MEMORY_UTILIZATION:-0.90}"
 MAX_LEN="${MAX_MODEL_LEN:-8192}"
@@ -61,6 +62,7 @@ python3 -m sft_pipeline.latte.synthesize \
   --use-llm --model "$MODEL" \
   --limit "$SAMPLE_LIMIT" \
   --timeout "$REQUEST_TIMEOUT" \
+  --concurrency "$CONCURRENCY" \
   "${TODAY_ARG[@]}"
 
 if [ -n "${S3_BUCKET:-}" ]; then
