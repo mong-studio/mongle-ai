@@ -28,7 +28,7 @@ from sft_pipeline.train.dataset import load_messages
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_SEQ_LEN = 4096
-# Qwen2.5 chat template 의 턴 마커 — responses-only 마스킹 기준(문자열 아닌 템플릿 마커 기반).
+# Qwen2.5 chat template 의 턴 마커 - responses-only 마스킹 기준(문자열 아닌 템플릿 마커 기반).
 QWEN_INSTRUCTION_PART = "<|im_start|>user\n"
 QWEN_RESPONSE_PART = "<|im_start|>assistant\n"
 
@@ -55,11 +55,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
-    # GPU 없는 환경(테스트·import)에서 모듈이 깨지지 않도록 무거운 의존성은 함수 안에서 import.
-    from datasets import Dataset
-    from trl import SFTConfig, SFTTrainer
+    # GPU 없는 환경(테스트·import)에서 모듈이 깨지지 않도록 무거운 의존성은 함수 안에서 import
+    # ! unsloth must be import before trl/transformers
+    # - trl 먼저 import 시 패치 순서가 맞지 않아서 eos_token이 '<EOS_TOKEN>' placeholder로 간주되어 학습이 거부되는 문제 발생
     from unsloth import FastLanguageModel
     from unsloth.chat_templates import train_on_responses_only
+    from datasets import Dataset
+    from trl import SFTConfig, SFTTrainer
 
     train_rows = load_messages(args.train)
     if not train_rows:

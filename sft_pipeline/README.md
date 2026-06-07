@@ -196,6 +196,8 @@ uv run python -m sft_pipeline.build.split_dataset \
 
 제품 서빙 모델(7B)을 LoRA 파인튜닝합니다(student). 토큰화·마스킹·EOS·responses-only loss는 unsloth/trl에 위임합니다. RunPod PyTorch 템플릿에서:
 
+> ⚠️ `train_lora.py`는 **unsloth를 trl보다 먼저 import**합니다(필수). 순서가 바뀌면 `eos_token ('<EOS_TOKEN>')` 에러로 학습이 죽습니다 - 자세한 진단·재현 절차는 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+
 ```bash
 # 학습 의존성은 GPU 박스에서만 설치(unsloth/bitsandbytes는 CUDA 전용 → pyproject/uv.lock에 넣지 않음)
 uv pip install -r sft_pipeline/train/requirements.txt
@@ -233,6 +235,7 @@ uv run pytest sft_pipeline/tests -o addopts="" -q
 | pytest가 coverage로 실패 | `-o addopts=""` 빠짐 |
 | 크롤 결과 본문 비어 있음 | JS 렌더링 페이지. `config/extractors.yaml`에 도메인 선택자 추가 또는 제외 |
 | `error=robots_disallow` | 정상 동작 - robots가 막은 URL은 수집하지 않음 |
+| 학습 시 `eos_token ('<EOS_TOKEN>') is not found` | unsloth를 trl보다 늦게 import. `train_lora.py`처럼 **unsloth 먼저** import → [`TROUBLESHOOTING.md`](train/TROUBLESHOOTING.md) |
 
 ## 저작권 · robots · 광고성 글 주의
 

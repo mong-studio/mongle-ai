@@ -14,6 +14,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- **SFT LoRA 학습 `<EOS_TOKEN>` 반복 실패 해결**: `train_lora.py`가 `trl`을 `unsloth`보다 먼저 import해
+  unsloth의 trl 몽키패치가 어긋나며 `eos_token`이 `<EOS_TOKEN>` placeholder로 새어 학습이 죽던 문제.
+  **import 순서를 unsloth 우선으로 재배치**해 근본 해결(transformers 5.5.0 그대로, 다운그레이드 불필요).
+  진단·오판 경로·재현 절차는 `sft_pipeline/train/TROUBLESHOOTING.md`. 근거: unsloth#2797 (maintainer:
+  "always import unsloth first"). 검증: RTX 4090에서 Qwen2.5-7B QLoRA 2epoch 정상 수렴(loss 1.33→0.21).
+
 ### Changed
 - **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 stateless FastAPI AI 엔진(`api/`)으로 대체.
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
