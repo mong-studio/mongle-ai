@@ -1,0 +1,24 @@
+{
+  "n_samples": 20,
+  "eos_rate": 1.0,
+  "parse_success_rate": 0.85,
+  "parse_failures": [
+    {
+      "index": 1,
+      "error": "[파싱] 플랜 출력 파싱 실패: 1 validation error for PlanOutput\ntodos.0.title\n  String should have at most 20 characters [type=strin",
+      "preview": "{\"summary_text\":\"평일 저녁이나 주말 오후에는 마트가 덜 붐비기 때문에 쇼핑하기 좋습니다.\",\""
+    },
+    {
+      "index": 4,
+      "error": "[파싱] 플랜 출력 파싱 실패: 1 validation error for PlanOutput\ncalendar_events.5.title\n  String should have at most 20 characters [",
+      "preview": "{\"summary_text\":\"컴활 2급 필기 합격을 위해 기출 문제를 중심으로 공부하고 약점을 보완하며 모"
+    },
+    {
+      "index": 9,
+      "error": "[파싱] 플랜 출력 파싱 실패: 1 validation error for PlanOutput\ncalendar_events.1.due_date\n  Input should be a valid date or datetim",
+      "preview": "{\"summary_text\":\"한국사능력검정시험 1급 합격을 위해 기출 문제를 중심으로 공부하고 약점을 보완"
+    }
+  ],
+  "eval_loss": 0.21607884764671326,
+  "overfit_warning": null
+}

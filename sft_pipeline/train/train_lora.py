@@ -28,7 +28,7 @@ from sft_pipeline.train.dataset import load_messages
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_SEQ_LEN = 4096
-# Qwen2.5 chat template 의 턴 마커 — responses-only 마스킹 기준(문자열 아닌 템플릿 마커 기반).
+# Qwen2.5 chat template 의 턴 마커 - responses-only 마스킹 기준(문자열 아닌 템플릿 마커 기반).
 QWEN_INSTRUCTION_PART = "<|im_start|>user\n"
 QWEN_RESPONSE_PART = "<|im_start|>assistant\n"
 
@@ -55,11 +55,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
-    # GPU 없는 환경(테스트·import)에서 모듈이 깨지지 않도록 무거운 의존성은 함수 안에서 import.
+    # GPU 없는 환경(테스트·import)에서 모듈이 깨지지 않도록 무거운 의존성은 함수 안에서 import
+    # ! unsloth must be import before trl/transformers
+    # - trl 먼저 import 시 패치 순서가 맞지 않아서 eos_token이 '<EOS_TOKEN>' placeholder로 간주되어 학습이 거부되는 문제 발생
+    from unsloth import FastLanguageModel
+    from unsloth.chat_templates import train_on_responses_only
     from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
-    from unsloth import FastLanguageModel
-    from unsloth.chat_templates import get_chat_template, train_on_responses_only
 
     train_rows = load_messages(args.train)
     if not train_rows:
@@ -72,7 +74,8 @@ def main(argv: list[str] | None = None) -> None:
         dtype=None,  # 자동(bf16/fp16)
         load_in_4bit=args.load_in_4bit,
     )
-    tokenizer = get_chat_template(tokenizer, chat_template="qwen-2.5")
+    # Qwen2.5-Instruct 토크나이저는 chat template 을 이미 포함 → get_chat_template 불필요.
+    # (불러오면 일부 unsloth 버전에서 eos 를 '<EOS_TOKEN>' 플레이스홀더로 남겨 trl 이 거부함)
 
     model = FastLanguageModel.get_peft_model(
         model,
@@ -99,29 +102,48 @@ def main(argv: list[str] | None = None) -> None:
     train_ds = Dataset.from_list(train_rows).map(_format, batched=True)
     valid_ds = Dataset.from_list(valid_rows).map(_format, batched=True) if valid_rows else None
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=train_ds,
-        eval_dataset=valid_ds,
-        args=SFTConfig(
-            dataset_text_field="text",
-            max_seq_length=args.max_seq_len,
-            per_device_train_batch_size=args.batch,
-            gradient_accumulation_steps=args.grad_accum,
-            warmup_ratio=0.05,
-            num_train_epochs=args.epochs,
-            learning_rate=args.lr,
-            logging_steps=10,
-            optim="adamw_8bit",
-            weight_decay=0.01,
-            lr_scheduler_type="linear",
-            seed=args.seed,
-            output_dir=str(args.out / "checkpoints"),
-            report_to="none",
-            **({"eval_strategy": "epoch"} if valid_ds is not None else {}),
-        ),
+    sft_common = dict(
+        dataset_text_field="text",
+        per_device_train_batch_size=args.batch,
+        gradient_accumulation_steps=args.grad_accum,
+        warmup_ratio=0.05,
+        num_train_epochs=args.epochs,
+        learning_rate=args.lr,
+        logging_steps=10,
+        optim="adamw_8bit",
+        weight_decay=0.01,
+        lr_scheduler_type="linear",
+        seed=args.seed,
+        output_dir=str(args.out / "checkpoints"),
+        report_to="none",
+        **({"eval_strategy": "epoch"} if valid_ds is not None else {}),
     )
+    # trl 버전별: 신버전은 max_length + eos_token, 구버전은 max_seq_length.
+    # eos_token 을 명시해야 unsloth 의 '<EOS_TOKEN>' 플레이스홀더가 그대로 새어
+    # trl 이 거부하는 것을 막는다(Qwen2.5 종료 토큰 = <|im_end|>).
+    try:
+        sft_config = SFTConfig(
+            max_length=args.max_seq_len, eos_token="<|im_end|>", **sft_common
+        )
+    except TypeError:
+        sft_config = SFTConfig(max_seq_length=args.max_seq_len, **sft_common)
+
+    # unsloth 가 eos_token 을 '<EOS_TOKEN>' sentinel 로 두고 실제 토큰으로 해소하지 못하는
+    # 버전 조합 버그 회피: 생성 후(=unsloth 패치 이후) Qwen2.5 종료 토큰으로 직접 덮어쓴다.
+    if getattr(sft_config, "eos_token", None) in (None, "<EOS_TOKEN>"):
+        try:
+            sft_config.eos_token = "<|im_end|>"
+        except Exception:  # noqa: BLE001
+            pass
+
+    # trl 버전별 토크나이저 인자명: 신버전 processing_class, 구버전 tokenizer.
+    trainer_kwargs = dict(
+        model=model, train_dataset=train_ds, eval_dataset=valid_ds, args=sft_config
+    )
+    try:
+        trainer = SFTTrainer(processing_class=tokenizer, **trainer_kwargs)
+    except TypeError:
+        trainer = SFTTrainer(tokenizer=tokenizer, **trainer_kwargs)
 
     # responses-only loss: assistant 토큰에만 학습(user 발화 모방 방지).
     trainer = train_on_responses_only(
