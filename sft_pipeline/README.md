@@ -203,7 +203,18 @@ python -m sft_pipeline.train.train_lora \
   --out outputs/qwen7b-planner-lora --epochs 2 --lr 2e-4
 ```
 
-학습 후 점검(sft-coherence phase 6): validation loss 확인(0.2 미만이면 과적합 경고), EOS 스모크 테스트, 생성물을 `plan_schemas.parse_plan`으로 파싱해 성공률 측정.
+### 6. 학습 후 점검 (자동, sft-coherence phase 6)
+
+학습 직후 어댑터를 받아 **EOS 끝맺음률 · 과적합 경고(val loss<0.2) · 파싱 성공률**(생성물을 `plan_schemas.parse_plan`으로 파싱 — SFT의 진짜 목표)을 자동 측정합니다.
+
+```bash
+python -m sft_pipeline.train.postcheck \
+  --valid $G/sft_valid.jsonl \
+  --adapter outputs/qwen7b-planner-lora \
+  --n-samples 20 --out outputs/postcheck_report.json
+```
+
+EOS률이 1.0 미만이면 무한 생성/잘림, 파싱 성공률이 낮으면 구조화 플랜 학습 실패, eval_loss<0.2면 과적합 신호입니다.
 
 ## 테스트
 
