@@ -67,9 +67,21 @@ python3 -m sft_pipeline.latte.synthesize \
 
 if [ -n "${S3_BUCKET:-}" ]; then
   echo "[run] uploading to s3://${S3_BUCKET}/${S3_PREFIX:-sft/daily}"
-  python3 -m sft_pipeline.latte.upload --in "$OUT" --bucket "$S3_BUCKET" --prefix "${S3_PREFIX:-sft/daily}"
+  # 업로드가 실패해도 작업 전체를 멈추지 않는다. 권한이나 네트워크 오류로 스크립트가 죽으면
+  # RunPod 가 컨테이너를 재시작해 합성을 처음부터 다시 돌리고, 같은 키를 덮어써 결과물을 잃게 된다.
+  if python3 -m sft_pipeline.latte.upload --in "$OUT" --bucket "$S3_BUCKET" --prefix "${S3_PREFIX:-sft/daily}"; then
+    echo "[run] upload OK"
+  else
+    echo "[run] WARNING: S3 업로드에 실패했습니다 — 결과물은 $OUT 에 그대로 있습니다. 권한·버킷을 확인한 뒤 컨테이너에 exec 로 접속해 다시 올리세요." >&2
+  fi
 else
   echo "[run] S3_BUCKET 미설정 — 업로드 건너뜀. 산출물: $OUT (RunPod 볼륨에서 수동 회수)"
 fi
 
-echo "[run] done."
+# 스크립트가 정상 종료하면 RunPod 가 컨테이너를 재시작해 합성을 처음부터 다시 돌리고,
+# 같은 S3 키를 덮어쓴다(합성 결과는 매번 조금씩 달라진다). 이를 막으려고 작업이 끝나면
+# 일부러 대기 상태로 둔다. vLLM 도 계속 떠 있어 exec 로 접속해 exam-synth 같은 후속 작업을
+# 바로 이어서 돌릴 수 있다. 종료하려면 Pod 를 직접 STOP 한다.
+echo "[run] done — 작업을 마쳤습니다. 재시작 루프를 막기 위해 컨테이너를 종료하지 않고 대기합니다."
+echo "[run] 후속 작업은 exec 로 접속해 이어서 돌리고, 끝나면 Pod 를 직접 STOP 하세요."
+sleep infinity
