@@ -102,7 +102,6 @@ def main(argv: list[str] | None = None) -> None:
 
     # 무거운 의존성은 함수 안에서 import(GPU 없는 환경 보호).
     from unsloth import FastLanguageModel
-    from unsloth.chat_templates import get_chat_template
 
     prompts = _plan_prompts(args.valid, args.n_samples)
     if not prompts:
@@ -111,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=str(args.adapter), max_seq_length=MAX_SEQ_LEN, dtype=None, load_in_4bit=True
     )
-    tokenizer = get_chat_template(tokenizer, chat_template="qwen-2.5")
+    # 저장된 어댑터의 토크나이저는 chat template 을 이미 포함 → get_chat_template 불필요.
     FastLanguageModel.for_inference(model)
 
     raw_outputs: list[str] = []
