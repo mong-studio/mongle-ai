@@ -9,6 +9,7 @@ JSON 파싱 실패 등 LLMOutputError 는 그대로 raise.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from langgraph.types import Command
@@ -39,7 +40,8 @@ async def planner_node(state: dict[str, Any], config: dict[str, Any]) -> Command
     if _follow_up_count(state.get("history", [])) >= 2:
         return _plan_command(parsed_goal=build_recovery_goal(state), sufficient=True, missing=[])
 
-    sufficient, missing, parsed = await llm.judge_sufficiency(
+    sufficient, missing, parsed = await _judge_sufficiency(
+        llm,
         history=state.get("history", []),
         message=state.get("message", ""),
         today=state.get("today"),
@@ -98,7 +100,36 @@ async def planner_node(state: dict[str, Any], config: dict[str, Any]) -> Command
 def _follow_up_count(history: list[dict[str, Any]]) -> int:
     """assistant 질문 수를 기준으로 꼬리질문 반복 횟수를 계산한다."""
 
-    return sum(1 for turn in history if turn.get("role") == "assistant" and turn.get("type") == "follow_up")
+    return sum(
+        1
+        for turn in history
+        if turn.get("role") == "assistant"
+        and (
+            turn.get("type") == "follow_up"
+            or (turn.get("type") is None and str(turn.get("content") or "").endswith("?"))
+        )
+    )
+
+
+async def _judge_sufficiency(
+    llm: Any,
+    *,
+    history: list[dict[str, Any]],
+    message: str,
+    today: Any,
+    user_profile_memory: dict[str, Any] | None,
+) -> tuple[bool, list[str], dict[str, Any]]:
+    params = inspect.signature(llm.judge_sufficiency).parameters
+    kwargs: dict[str, Any] = {
+        "history": history,
+        "message": message,
+        "today": today,
+    }
+    if "user_profile_memory" in params or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    ):
+        kwargs["user_profile_memory"] = user_profile_memory
+    return await llm.judge_sufficiency(**kwargs)
 
 
 def _plan_command(

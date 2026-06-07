@@ -49,7 +49,7 @@ TASK_SPLITTER_SYSTEM = """
 
 
 def task_splitter_user(prompt: str, today: date) -> str:
-    return f"today={today.isoformat()}\n사용자 입력:\n{prompt}"
+    return f"today={today.isoformat()}\nDATA:\n사용자 입력:\n{prompt}"
 
 
 PLANNER_JUDGE_SYSTEM = """

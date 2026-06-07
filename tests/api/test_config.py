@@ -102,40 +102,40 @@ def test_invalid_quest_llm_provider_raises(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# midm provider branch
+# qwen provider branch
 # ---------------------------------------------------------------------------
 
-def test_llm_provider_midm_missing_vars_raises(monkeypatch):
-    """midm 프로바이더인데 MIDM_* 변수가 없으면 MissingEnvError를 던진다."""
+def test_llm_provider_qwen_missing_vars_raises(monkeypatch):
+    """qwen 프로바이더인데 QWEN_* 변수가 없으면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
-    monkeypatch.setenv("LLM_PROVIDER", "midm")
-    monkeypatch.delenv("MIDM_BASE_URL", raising=False)
-    monkeypatch.delenv("MIDM_MODEL", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "qwen")
+    monkeypatch.delenv("QWEN_BASE_URL", raising=False)
+    monkeypatch.delenv("QWEN_MODEL", raising=False)
     with pytest.raises(MissingEnvError):
         AppConfig.from_env()
 
 
-def test_llm_provider_midm_with_vars_succeeds(monkeypatch):
-    """midm 프로바이더에 MIDM_* 변수가 갖춰지면 설정이 로드된다."""
+def test_llm_provider_qwen_with_vars_succeeds(monkeypatch):
+    """qwen 프로바이더에 QWEN_* 변수가 갖춰지면 설정이 로드된다."""
     _base_env(monkeypatch)
-    monkeypatch.setenv("LLM_PROVIDER", "midm")
-    monkeypatch.setenv("MIDM_BASE_URL", "http://midm-host/v1")
-    monkeypatch.setenv("MIDM_MODEL", "midm-bilingual-instruct")
+    monkeypatch.setenv("LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
+    monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
     cfg = AppConfig.from_env()
-    assert cfg.llm_provider == "midm"
-    assert cfg.midm_base_url == "http://midm-host/v1"
-    assert cfg.midm_model == "midm-bilingual-instruct"
+    assert cfg.llm_provider == "qwen"
+    assert cfg.qwen_base_url == "http://qwen-host/v1"
+    assert cfg.qwen_model == "Qwen/Qwen2.5-7B-Instruct"
 
 
-def test_quest_llm_provider_midm_with_vars_succeeds(monkeypatch):
-    """quest용 midm 프로바이더에 MIDM_* 변수가 갖춰지면 설정이 로드된다."""
+def test_quest_llm_provider_qwen_with_vars_succeeds(monkeypatch):
+    """quest용 qwen 프로바이더에 QWEN_* 변수가 갖춰지면 설정이 로드된다."""
     _base_env(monkeypatch)
-    monkeypatch.setenv("QUEST_LLM_PROVIDER", "midm")
-    monkeypatch.setenv("MIDM_BASE_URL", "http://midm-host/v1")
-    monkeypatch.setenv("MIDM_MODEL", "midm-bilingual-instruct")
+    monkeypatch.setenv("QUEST_LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
+    monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
     cfg = AppConfig.from_env()
-    assert cfg.quest_llm_provider == "midm"
-    assert cfg.midm_base_url == "http://midm-host/v1"
+    assert cfg.quest_llm_provider == "qwen"
+    assert cfg.qwen_base_url == "http://qwen-host/v1"
 
 
 # ---------------------------------------------------------------------------
