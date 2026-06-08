@@ -12,9 +12,8 @@ from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
-from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
+from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.character_creation.schemas import LLMPersonaResult
@@ -28,9 +27,9 @@ from api.config import AppConfig
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """앱 시작 시 설정 1회 로드. LoRA 는 첫 character 요청에서 지연 로드."""
+    """앱 시작 시 설정 1회 로드. 이미지 생성기는 첫 character 요청에서 지연 생성."""
     app.state.config = AppConfig.from_env()
-    app.state.lora_generator = None
+    app.state.image_generator = None
     yield
 
 
@@ -40,9 +39,11 @@ def get_config(request: Request) -> AppConfig:
 
 def _build_character_llm(cfg: AppConfig):
     if cfg.llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
+        assert cfg.qwen_base_url and cfg.qwen_persona_model
         return QwenCharacterLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+            model=cfg.qwen_persona_model,
+            base_url=cfg.qwen_base_url,
+            api_key=cfg.qwen_api_key,
         )
     from langchain_openai import ChatOpenAI
 
@@ -54,12 +55,18 @@ def _build_character_llm(cfg: AppConfig):
 
 
 def _build_todo_llm(cfg: AppConfig):
-    if cfg.llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
-        return QwenTodoLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    """TODO 생성은 Qwen 전용 (planning 어댑터). llm_provider 와 무관하게 항상 Qwen.
+
+    openai(gpt-4o)는 character 페르소나에만 쓰이고, TODO 분할은 학습된 Qwen
+    어댑터로만 수행한다. qwen 설정이 없으면 호출 시점에 명확히 실패시킨다.
+    """
+    if not (cfg.qwen_base_url and cfg.qwen_model):
+        raise RuntimeError(
+            "TODO 생성은 Qwen 전용입니다 — QWEN_BASE_URL/QWEN_MODEL 이 필요합니다"
         )
-    return OpenAITodoLLM(api_key=cfg.openai_api_key)
+    return QwenTodoLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
 
 
 def _build_quest_llm(cfg: AppConfig):
@@ -71,25 +78,58 @@ def _build_quest_llm(cfg: AppConfig):
     return FakeQuestLLM()
 
 
-def _get_lora_generator(request: Request):
-    """LoRA 모델을 앱 전체에서 한 번만 로드(지연)."""
-    if request.app.state.lora_generator is None:
-        from adapters.character_creation.lora_image import LoRAImageGenerator
+def _get_image_generator(request: Request):
+    """이미지 생성기를 앱 전체에서 한 번만 만들어 재사용(지연).
 
+    runpod: 원격 RunPod Serverless 워커 호출 (GPU 불필요)
+    local: 로컬 LoRA 디퓨전 파이프라인 로드 (GPU 권장)
+    """
+    if request.app.state.image_generator is None:
         cfg: AppConfig = request.app.state.config
-        request.app.state.lora_generator = LoRAImageGenerator(lora_dir=cfg.lora_dir)
-    return request.app.state.lora_generator
+        if cfg.image_provider == "runpod":
+            from adapters.character_creation.runpod_image import RunPodImageGenerator
+
+            if not cfg.runpod_image_endpoint_url:
+                raise RuntimeError(
+                    "IMAGE_PROVIDER=runpod 인데 RUNPOD_IMAGE_ENDPOINT_URL 이 없습니다"
+                )
+            request.app.state.image_generator = RunPodImageGenerator(
+                endpoint_url=cfg.runpod_image_endpoint_url,
+                api_key=cfg.runpod_api_key,
+            )
+        else:
+            from adapters.character_creation.lora_image import LoRAImageGenerator
+
+            request.app.state.image_generator = LoRAImageGenerator(
+                lora_dir=cfg.lora_dir
+            )
+    return request.app.state.image_generator
+
+
+def _s3_client(cfg: AppConfig):
+    """리전 엔드포인트를 명시한 boto3 S3 client.
+
+    endpoint_url 없이 client 를 만들면 presigned URL 이 글로벌 엔드포인트
+    (s3.amazonaws.com)로 생성되고, GET 시 S3 가 리전 엔드포인트로 307 리다이렉트
+    하면서 Host 가 바뀌어 SigV4 서명(SignedHeaders=host)이 깨지고 403 이 난다.
+    리전 엔드포인트를 명시해 presigned host 를 리전형으로 고정한다.
+    """
+    import boto3
+
+    endpoint_url = (
+        f"https://s3.{cfg.aws_region}.amazonaws.com" if cfg.aws_region else None
+    )
+    return boto3.client("s3", region_name=cfg.aws_region, endpoint_url=endpoint_url)
 
 
 def _build_storage(cfg: AppConfig):
     if cfg.storage_backend == "s3":
-        import boto3
-
         from adapters.character_creation.s3_storage import S3Storage
 
-        client = boto3.client("s3", region_name=cfg.aws_region)
         return S3Storage(
-            client=client, bucket=cfg.aws_s3_bucket or "", prefix=cfg.storage_prefix
+            client=_s3_client(cfg),
+            bucket=cfg.aws_s3_bucket or "",
+            prefix=cfg.storage_prefix,
         )
     return LocalStorage(root=cfg.local_storage_root, prefix=cfg.storage_prefix)
 
@@ -123,7 +163,7 @@ def build_character_ports(
     return CharacterPorts(
         llm=_build_character_llm(cfg),
         s3=PassthroughSourceS3(inner=inner_s3, source_url=source_url),
-        image_generator=_get_lora_generator(request),
+        image_generator=_get_image_generator(request),
         repository=InMemoryRepo(),
     )
 
@@ -131,9 +171,7 @@ def build_character_ports(
 async def fetch_source_bytes(cfg: AppConfig, *, key: str, content_type: str) -> bytes:
     """S3(또는 로컬 스토리지)에서 소스 이미지 bytes 를 가져온다."""
     if cfg.storage_backend == "s3":
-        import boto3
-
-        client = boto3.client("s3", region_name=cfg.aws_region)
+        client = _s3_client(cfg)
         obj = client.get_object(Bucket=cfg.aws_s3_bucket, Key=key)
         return obj["Body"].read()
     return (cfg.local_storage_root / key).read_bytes()

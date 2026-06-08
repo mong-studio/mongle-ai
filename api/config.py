@@ -11,6 +11,7 @@ class MissingEnvError(RuntimeError):
 
 _VALID_QUEST_LLM_PROVIDERS = ("fake", "qwen")
 _VALID_LLM_PROVIDERS = ("openai", "qwen")
+_VALID_IMAGE_PROVIDERS = ("local", "runpod")
 
 
 def _split_s3_uri(value: str) -> tuple[str, str]:
@@ -37,8 +38,12 @@ class AppConfig:
     llm_provider: str
     qwen_base_url: str | None
     qwen_model: str | None
+    qwen_persona_model: str | None
     qwen_api_key: str
     lora_dir: str
+    image_provider: str = "local"
+    runpod_image_endpoint_url: str | None = None
+    runpod_api_key: str = "EMPTY"
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -71,15 +76,38 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
 
-        qwen_base_url: str | None = None
-        qwen_model: str | None = None
+        # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
+        # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
+        qwen_base_url = os.environ.get("QWEN_BASE_URL", "").strip() or None
+        qwen_model = os.environ.get("QWEN_MODEL", "").strip() or None
         qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
         if quest_llm_provider == "qwen" or llm_provider == "qwen":
-            qwen_base_url = need("QWEN_BASE_URL")
-            qwen_model = need("QWEN_MODEL")
+            if not qwen_base_url:
+                missing.append("QWEN_BASE_URL")
+            if not qwen_model:
+                missing.append("QWEN_MODEL")
+        # persona 어댑터를 따로 지정하지 않으면 planning(기본) 모델로 폴백
+        qwen_persona_model = (
+            os.environ.get("QWEN_PERSONA_MODEL", "").strip() or qwen_model
+        )
+
+        image_provider = (
+            os.environ.get("IMAGE_PROVIDER", "local").strip().lower() or "local"
+        )
+        if image_provider not in _VALID_IMAGE_PROVIDERS:
+            raise MissingEnvError(
+                f"IMAGE_PROVIDER 는 {'|'.join(_VALID_IMAGE_PROVIDERS)} 중 "
+                f"하나여야 합니다 (현재: {image_provider!r})"
+            )
+
+        runpod_image_endpoint_url: str | None = None
+        runpod_api_key = "EMPTY"
+        if image_provider == "runpod":
+            runpod_image_endpoint_url = need("RUNPOD_IMAGE_ENDPOINT_URL")
+            runpod_api_key = need("RUNPOD_API_KEY")
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
-        if not lora_dir:
+        if image_provider == "local" and not lora_dir:
             missing.append("LORA_DIR")
 
         common = dict(
@@ -89,8 +117,12 @@ class AppConfig:
             llm_provider=llm_provider,
             qwen_base_url=qwen_base_url,
             qwen_model=qwen_model,
+            qwen_persona_model=qwen_persona_model,
             qwen_api_key=qwen_api_key,
             lora_dir=lora_dir,
+            image_provider=image_provider,
+            runpod_image_endpoint_url=runpod_image_endpoint_url,
+            runpod_api_key=runpod_api_key,
         )
 
         if backend == "s3":
