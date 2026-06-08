@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END
 
+from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.commit.state import CommitGraphState
 
 QUEST_DAILY_LIMIT = 5
 
 
 async def quest_gate(
-    state: CommitGraphState, config: dict[str, Any]
+    state: CommitGraphState, config: RunnableConfig
 ) -> str:
     """Conditional-edge router function.
 
@@ -35,7 +37,7 @@ async def quest_gate(
     if state.get("idempotent_hit") is True:
         return END
 
-    ports = config["configurable"]["ports"]
+    ports = get_ports(config)
     counter = ports.quest_counter
     acquired = await counter.incr_if_under_limit(
         user_id=inp.user_id, day_kst=today, limit=QUEST_DAILY_LIMIT

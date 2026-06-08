@@ -4,17 +4,21 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
+from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.state import ParsedGoal, PlanDay
 
 _MAX_SUMMARY_CHARS = 1500
 
 
 async def plan_generator_node(
-    state: MultiTurnGraphState, config: dict[str, Any]
+    state: MultiTurnGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
+    ports = get_ports(config)
     llm = ports.llm
-    parsed_goal = state.get("parsed_goal") or {}
+    parsed_goal: ParsedGoal = state.get("parsed_goal") or {}
     today = state["today"]
 
     goal_tag = await llm.generate_goal_tag(
@@ -57,19 +61,23 @@ def _truncate_summary(value: str) -> str:
 
 
 def _prepare_plan_days(
-    plan: list[dict[str, Any]], *, parsed_goal: dict[str, Any], today: date
-) -> list[dict[str, Any]]:
+    plan: list[PlanDay], *, parsed_goal: ParsedGoal, today: date
+) -> list[PlanDay]:
     """모델 출력의 날짜를 하루 단위로 정리하고 동일 goal_tag 를 붙인다."""
 
     if not plan:
         return []
 
-    raw_dates = [day.get("date") for day in plan if isinstance(day.get("date"), date)]
+    raw_dates: list[date] = []
+    for day in plan:
+        planned_date = day.get("date")
+        if isinstance(planned_date, date):
+            raw_dates.append(planned_date)
     should_spread = len(set(raw_dates)) <= 1
     start_date = max(today, raw_dates[0]) if raw_dates else today
     goal_tag = _normalize_goal_tag(parsed_goal.get("goal_tag") or parsed_goal.get("goal_text"))
 
-    prepared: list[dict[str, Any]] = []
+    prepared: list[PlanDay] = []
     previous_date: date | None = None
 
     for index, day in enumerate(plan):

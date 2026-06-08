@@ -4,12 +4,13 @@ from api.config import AppConfig, MissingEnvError, _split_s3_uri
 
 
 def _base_env(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("LORA_DIR", "/tmp/lora")
     monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
-    monkeypatch.setenv("LLM_PROVIDER", "openai")
-    monkeypatch.setenv("QUEST_LLM_PROVIDER", "fake")
+    monkeypatch.setenv("LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("QUEST_LLM_PROVIDER", "qwen")
     monkeypatch.setenv("STORAGE_BACKEND", "local")
+    monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
+    monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 
 
 def test_from_env_local_backend(monkeypatch):
@@ -18,13 +19,13 @@ def test_from_env_local_backend(monkeypatch):
     cfg = AppConfig.from_env()
     assert cfg.storage_backend == "local"
     assert cfg.api_key == "secret-key"
-    assert cfg.llm_provider == "openai"
+    assert cfg.llm_provider == "qwen"
 
 
 def test_missing_required_env_raises(monkeypatch):
     """필수 환경변수가 빠지면 MissingEnvError를 던진다."""
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("LORA_DIR", raising=False)
+    monkeypatch.delenv("QWEN_BASE_URL", raising=False)
     monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
     with pytest.raises(MissingEnvError):
         AppConfig.from_env()

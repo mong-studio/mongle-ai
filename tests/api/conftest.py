@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +12,7 @@ AUTH = {"X-API-Key": API_KEY}
 
 
 def make_config(**over) -> AppConfig:
-    base = dict(
+    base: dict[str, Any] = dict(
         api_key=API_KEY,
         openai_api_key="sk-test",
         storage_backend="local",
@@ -19,10 +20,10 @@ def make_config(**over) -> AppConfig:
         local_storage_root=Path("/tmp/mongle-test"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="fake",
-        llm_provider="openai",
-        qwen_base_url=None,
-        qwen_model=None,
+        quest_llm_provider="qwen",
+        llm_provider="qwen",
+        qwen_base_url="http://qwen-host/v1",
+        qwen_model="Qwen/Qwen2.5-7B-Instruct",
         qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )

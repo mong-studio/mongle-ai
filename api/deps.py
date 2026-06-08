@@ -9,11 +9,9 @@ from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
-from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
-from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
@@ -54,21 +52,17 @@ def _build_character_llm(cfg: AppConfig):
 
 
 def _build_todo_llm(cfg: AppConfig):
-    if cfg.llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
-        return QwenTodoLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
-        )
-    return OpenAITodoLLM(api_key=cfg.openai_api_key)
+    assert cfg.qwen_base_url and cfg.qwen_model
+    return QwenTodoLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
 
 
 def _build_quest_llm(cfg: AppConfig):
-    if cfg.quest_llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
-        return QwenQuestLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
-        )
-    return FakeQuestLLM()
+    assert cfg.qwen_base_url and cfg.qwen_model
+    return QwenQuestLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
 
 
 def _get_lora_generator(request: Request):

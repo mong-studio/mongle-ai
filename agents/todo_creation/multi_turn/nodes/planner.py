@@ -10,10 +10,12 @@ JSON 파싱 실패 등 LLMOutputError 는 그대로 raise.
 from __future__ import annotations
 
 import inspect
-from typing import Any
+from typing import Any, cast
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 
+from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.multi_turn.goal_rules import (
     build_recovery_goal,
     delegates_planning,
@@ -21,18 +23,26 @@ from agents.todo_creation.multi_turn.goal_rules import (
     needs_deadline_follow_up,
     should_accept_out_of_scope,
 )
+from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.state import ParsedGoal, Turn
 
 
-async def planner_node(state: dict[str, Any], config: dict[str, Any]) -> Command:
-    llm = config["configurable"]["ports"].llm
+async def planner_node(
+    state: MultiTurnGraphState, config: RunnableConfig
+) -> Command[str]:
+    llm = get_ports(config).llm
     if state.get("revision_request") and state.get("plan"):
+        previous_plan = state.get("plan") or []
+        existing_goal = state.get("parsed_goal")
+        revision_goal: ParsedGoal = cast(
+            ParsedGoal,
+            existing_goal.copy() if existing_goal is not None else {},
+        )
+        revision_goal["revision_request"] = state.get("revision_request")
+        revision_goal["previous_plan"] = previous_plan
+        revision_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
         return _plan_command(
-            parsed_goal={
-                **dict(state.get("parsed_goal") or {}),
-                "revision_request": state.get("revision_request"),
-                "previous_plan": state.get("plan") or [],
-                "user_profile_memory": state.get("user_profile_memory") or {},
-            },
+            parsed_goal=revision_goal,
             sufficient=True,
             missing=[],
         )
@@ -60,30 +70,32 @@ async def planner_node(state: dict[str, Any], config: dict[str, Any]) -> Command
             update={
                 "sufficiency": False,
                 "missing_aspects": [],
-                "parsed_goal": dict(parsed),
+                "parsed_goal": parsed.copy(),
             },
         )
 
-    parsed_goal = dict(parsed) if parsed else None
-    if parsed_goal is not None:
-        merge_deadline_from_state(state, parsed_goal)
-        if parsed_goal.get("deadline") and "deadline" in (missing or []):
+    resolved_goal: ParsedGoal | None = (
+        cast(ParsedGoal, parsed.copy()) if parsed is not None else None
+    )
+    if resolved_goal is not None:
+        merge_deadline_from_state(state, resolved_goal)
+        if resolved_goal.get("deadline") and "deadline" in (missing or []):
             missing = [item for item in missing if item != "deadline"]
             if not missing:
                 sufficient = True
-        parsed_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
+        resolved_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
 
-    if delegates_planning(state.get("message", "")) and parsed_goal:
+    if delegates_planning(state.get("message", "")) and resolved_goal:
         sufficient = True
         missing = []
 
-    if sufficient and needs_deadline_follow_up(state, parsed_goal):
+    if sufficient and needs_deadline_follow_up(state, resolved_goal):
         return Command(
             goto="follow_up",
             update={
                 "sufficiency": False,
                 "missing_aspects": ["deadline"],
-                "parsed_goal": parsed_goal,
+                "parsed_goal": resolved_goal,
             },
         )
 
@@ -92,12 +104,12 @@ async def planner_node(state: dict[str, Any], config: dict[str, Any]) -> Command
         update={
             "sufficiency": bool(sufficient),
             "missing_aspects": list(missing or []),
-            "parsed_goal": parsed_goal,
+            "parsed_goal": resolved_goal,
         },
     )
 
 
-def _follow_up_count(history: list[dict[str, Any]]) -> int:
+def _follow_up_count(history: list[Turn]) -> int:
     """assistant 질문 수를 기준으로 꼬리질문 반복 횟수를 계산한다."""
 
     return sum(
@@ -114,11 +126,11 @@ def _follow_up_count(history: list[dict[str, Any]]) -> int:
 async def _judge_sufficiency(
     llm: Any,
     *,
-    history: list[dict[str, Any]],
+    history: list[Turn],
     message: str,
     today: Any,
     user_profile_memory: dict[str, Any] | None,
-) -> tuple[bool, list[str], dict[str, Any]]:
+) -> tuple[bool, list[str], ParsedGoal]:
     params = inspect.signature(llm.judge_sufficiency).parameters
     kwargs: dict[str, Any] = {
         "history": history,
@@ -133,8 +145,8 @@ async def _judge_sufficiency(
 
 
 def _plan_command(
-    *, parsed_goal: dict[str, Any], sufficient: bool, missing: list[str]
-) -> Command:
+    *, parsed_goal: ParsedGoal, sufficient: bool, missing: list[str]
+) -> Command[str]:
     return Command(
         goto="plan_generator" if sufficient else "follow_up",
         update={

@@ -27,7 +27,7 @@ class ParsedGoal(TypedDict, total=False):
     deadline: date | None
     daily_capacity_minutes: int | None
     revision_request: str | None
-    previous_plan: list[dict[str, Any]]
+    previous_plan: list[PlanDay]
     user_profile_memory: dict[str, Any]
 
 
