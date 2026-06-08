@@ -228,3 +228,17 @@ def test_normalize_then_validate_recovers_missing_calendar_events():
     plan = PlanOutput.model_validate(_normalize_plan_dict(_loads_lenient(raw)))
     assert plan.calendar_events == []
     assert plan.todos[0].tags == []
+
+
+def test_dump_plan_for_training_excludes_tags():
+    """학습용 직렬화는 tags 를 제외하고(Tagger 노드 책임), 파서는 누락을 []로 흡수한다."""
+    from sft_pipeline.build.plan_schemas import PlanTask, dump_plan_for_training
+
+    plan = PlanOutput(
+        summary_text="요약",
+        todos=[PlanTask(title="할 일", due_date=date(2026, 6, 8), tags=["공부"])],
+        calendar_events=[],
+    )
+    dumped = dump_plan_for_training(plan)
+    assert '"tags"' not in dumped
+    assert parse_plan(dumped).todos[0].tags == []

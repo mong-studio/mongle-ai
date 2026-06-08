@@ -22,6 +22,15 @@
   "always import unsloth first"). 검증: RTX 4090에서 Qwen2.5-7B QLoRA 2epoch 정상 수렴(loss 1.33→0.21).
 
 ### Changed
+- **SFT 플랜 출력에서 `tags` 필드 제거 (학습 토큰 다이어트)**:
+  - 태그는 별도 Tagger 노드 책임(todo CLAUDE.md §4.9, 어휘 체계 미결)이라 플랜 SFT 가 배울
+    토큰이 아님 — `["공부"]` 류 저정보 토큰이 전 항목에 반복되던 것을 제거.
+  - `plan_schemas.dump_plan_for_training` 신설(tags 제외 직렬화, PlanTask 스키마는 런타임
+    미러 유지). 빌더 3종(exam_synth·templates·latte/synthesize) 출력·프롬프트 예시,
+    sft_qwen_llm 어댑터 재강화 프롬프트에서 일괄 제거 — 학습/서빙 토큰 시퀀스 동시 전환.
+  - `build/strip_tags.py` 신설(멱등): 기생성 클린셋 3파일(exam 12·daily_v1 979·daily_v2 980)
+    in-place 마이그레이션, distractor(chat) 0건 무변경, 신 검증기 전건(ok=2273) 통과.
+    파싱 폴백(`item.get("tags") or []`)과 런타임 `TaskCandidate.tags` default 는 유지 — 호환 보장.
 - **SFT meta 스키마에 `task_type` 도입 (plan/chat 분기의 명시 축)**:
   - validate 2층(플랜 정합성) 분기를 `PLAN_PROVENANCES` 집합(provenance 간접 유추)에서
     `meta.task_type`(`"plan"|"chat"`, 필수+화이트리스트) 명시 필드로 전환. 소비처 4곳 일괄 전환

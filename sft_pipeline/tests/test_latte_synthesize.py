@@ -209,3 +209,13 @@ def test_synthesize_to_file_preserves_progress_on_interrupt(tmp_path):
     assert len(lines) == 2  # 중단 시점까지의 진행분 보존
     first = json.loads(lines[0])
     assert first["meta"]["synthesized_by"] == "llm"
+
+
+def test_outputs_and_prompt_exclude_tags():
+    """tags 는 Tagger 노드 책임 — 합성 프롬프트와 출력(폴백·LLM) 모두에서 제외."""
+    prompt = build_synthesis_prompt(_SEED, today=TODAY)
+    assert '"tags"' not in prompt
+    fallback = synthesize_sample(_SEED, today=TODAY, client=None)
+    assert '"tags"' not in fallback["messages"][-1]["content"]
+    llm = synthesize_sample(_SEED, today=TODAY, client=_fake_client(_llm_payload()))
+    assert '"tags"' not in llm["messages"][-1]["content"]  # 입력에 있어도 직렬화에서 제거

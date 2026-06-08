@@ -25,6 +25,7 @@ from sft_pipeline.build.plan_schemas import (
     _loads_lenient,
     _normalize_plan_dict,
     check_plan_consistency,
+    dump_plan_for_training,
 )
 
 log = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def build_synthesis_prompt(seed: dict, *, today: date) -> str:
         "4) summary_text 에 장소·시간대 추천 이유를 1~2문장으로 적어.\n"
         "5) 반드시 아래 JSON 형식으로만 출력:\n"
         '{"user": "...", "plan": {"summary_text": "...", '
-        '"todos": [{"title": "...", "due_date": "YYYY-MM-DD", "tags": []}], '
+        '"todos": [{"title": "...", "due_date": "YYYY-MM-DD"}], '
         '"calendar_events": [...]}}'
     )
 
@@ -64,10 +65,9 @@ def _fallback_parts(seed: dict, today: date) -> tuple[str, PlanOutput]:
     place = seed.get("place_ko", "")
     times = seed.get("times_ko", [])
     times_str = ", ".join(times) if times else "여유 있는 시간"
-    tags = [t for t in [seed.get("broad_ko", "")] if t] or ["일상"]
     plan = PlanOutput(
         summary_text=f"{place}에서 {times_str}에 '{task}'을(를) 하는 걸 추천해요.",
-        todos=[PlanTask(title=task[:20], due_date=today, tags=tags)],
+        todos=[PlanTask(title=task[:20], due_date=today)],
         calendar_events=[],
     )
     user = f"'{task}' 할 일을 계획하고 싶어. 언제 하는 게 좋을까?"
@@ -128,7 +128,7 @@ def synthesize_sample(
     return {
         "messages": [
             {"role": "user", "content": user_content},
-            {"role": "assistant", "content": plan.model_dump_json()},
+            {"role": "assistant", "content": dump_plan_for_training(plan)},
         ],
         "meta": {
             "provenance": "daily-latte",

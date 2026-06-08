@@ -211,3 +211,13 @@ def test_synthesize_to_file_concurrent_writes_all(tmp_path):
     assert total == len(seeds)
     assert counts["llm"] == len(seeds)
     assert len(out.read_text(encoding="utf-8").splitlines()) == len(seeds)
+
+
+def test_outputs_and_prompt_exclude_tags():
+    """tags 는 Tagger 노드 책임 — 합성 프롬프트와 출력(폴백·LLM) 모두에서 제외."""
+    prompt = build_exam_prompt(_SEED, today=TODAY, exemplars=[])
+    assert '"tags"' not in prompt
+    fallback = synthesize_sample(_SEED, today=TODAY, client=None)
+    assert '"tags"' not in fallback["messages"][-1]["content"]
+    llm = synthesize_sample(_SEED, today=TODAY, client=_fake_client(_plan_payload()))
+    assert '"tags"' not in llm["messages"][-1]["content"]  # 입력에 있어도 직렬화에서 제거

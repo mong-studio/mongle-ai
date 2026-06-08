@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sft_pipeline.build.plan_schemas import PlanOutput, PlanTask
+from sft_pipeline.build.plan_schemas import PlanOutput, PlanTask, dump_plan_for_training
 
 
 def _field(case: dict, key: str, default: str = "미기재") -> str:
@@ -89,7 +89,7 @@ def build_plan(case: dict, today: date) -> PlanOutput:
     """케이스 → 정합성 있는 구조화 플랜. due_date==today → todos, 미래 → calendar_events."""
     days = _plan_days(case)
     tasks = [
-        PlanTask(title=title, due_date=today + timedelta(days=i), tags=["공부"])
+        PlanTask(title=title, due_date=today + timedelta(days=i))
         for i, title in enumerate(_phase_titles(days))
     ]
     return PlanOutput(
@@ -101,4 +101,4 @@ def build_plan(case: dict, today: date) -> PlanOutput:
 
 def build_output(case: dict, today: date) -> str:
     """assistant content 로 쓸 구조화 플랜 JSON 문자열."""
-    return build_plan(case, today).model_dump_json()
+    return dump_plan_for_training(build_plan(case, today))

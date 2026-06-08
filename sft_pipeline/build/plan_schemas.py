@@ -57,6 +57,23 @@ def parse_plan(content: str) -> PlanOutput:
         raise ValueError(f"[파싱] 플랜 출력 파싱 실패: {exc}") from exc
 
 
+def dump_plan_for_training(plan: PlanOutput) -> str:
+    """학습용 직렬화 — tags 제외.
+
+    태그는 별도 Tagger 노드 책임(todo CLAUDE.md §4.9)이라 플랜 SFT 가 배울 토큰이
+    아니다(2026-06-08 결정). 파싱(_normalize_plan_dict)은 tags 누락을 []로 흡수하고,
+    런타임 TaskCandidate.tags 도 default_factory=list 라 추론 출력과 호환된다.
+    """
+    data = plan.model_dump(
+        mode="json",
+        exclude={
+            "todos": {"__all__": {"tags"}},
+            "calendar_events": {"__all__": {"tags"}},
+        },
+    )
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+
 # 모델이 due_date 대신 흔히 쓰는 키 별칭들(관용 정규화 대상).
 _DATE_ALIASES = ("date", "due", "dueDate", "deadline", "day", "when")
 

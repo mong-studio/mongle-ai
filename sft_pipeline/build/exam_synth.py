@@ -23,6 +23,7 @@ from sft_pipeline.build.plan_schemas import (
     _loads_lenient,
     _normalize_plan_dict,
     check_plan_consistency,
+    dump_plan_for_training,
 )
 from sft_pipeline.latte.synthesize import make_local_client
 from sft_pipeline.structure.exam_structure import concreteness_ratio, structure_for
@@ -139,19 +140,18 @@ def _fallback_plan(seed: dict, today: date) -> PlanOutput:
         f"시작 {seed['level']}, 목표 '{seed['goal']}'. "
         "전략: 과목·파트별 기출로 출제 감을 잡고, 약한 영역을 집중 보완한 뒤 모의고사로 점검하세요."
     )
-    todos = [PlanTask(title=_fit_title(sections[0]), due_date=today, tags=["공부"])]
+    todos = [PlanTask(title=_fit_title(sections[0]), due_date=today)]
     rest = sections[1:]
     events = [
         PlanTask(
             title=_fit_title(sec),
             # 내일~D-(horizon-1) 사이에 균등 배치(결정론적), 마지막 날은 모의고사용으로 비움
             due_date=today + timedelta(days=1 + (i * (horizon - 2)) // max(len(rest) - 1, 1)),
-            tags=["공부"],
         )
         for i, sec in enumerate(rest)
     ]
     events.append(
-        PlanTask(title="실전 모의고사 점검", due_date=today + timedelta(days=horizon), tags=["공부"])
+        PlanTask(title="실전 모의고사 점검", due_date=today + timedelta(days=horizon))
     )
     return PlanOutput(summary_text=summary, todos=todos, calendar_events=events)
 
@@ -181,7 +181,7 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
         "4) summary_text 에 목표·기간 맞춤 전략을 1~2문장.\n"
         f"{shots}\n"
         "반드시 아래 JSON 형식으로만 출력:\n"
-        '{"summary_text": "...", "todos": [{"title":"...","due_date":"YYYY-MM-DD","tags":[]}], '
+        '{"summary_text": "...", "todos": [{"title":"...","due_date":"YYYY-MM-DD"}], '
         '"calendar_events": [...]}'
     )
 
@@ -255,7 +255,7 @@ def synthesize_sample(
     return {
         "messages": [
             {"role": "user", "content": user},
-            {"role": "assistant", "content": plan.model_dump_json()},
+            {"role": "assistant", "content": dump_plan_for_training(plan)},
         ],
         "meta": {
             "provenance": "exam-synth",
