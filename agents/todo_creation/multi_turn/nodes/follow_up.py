@@ -10,11 +10,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
+from agents.todo_creation.config_utils import get_ports
 
-async def follow_up_node(state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
+
+async def follow_up_node(
+    state: dict[str, Any], config: RunnableConfig
+) -> dict[str, Any]:
+    ports = get_ports(config)
     question = await ports.llm.generate_follow_up_question(
         missing_aspects=state.get("missing_aspects", []),
         history=state.get("history", []),

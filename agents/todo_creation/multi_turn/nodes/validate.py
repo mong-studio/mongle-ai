@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from agents.todo_creation.exceptions import ValidationError
 
 
@@ -23,7 +25,9 @@ def _korean_syllable_ratio(text: str) -> float:
     return hangul / len(chars)
 
 
-async def multi_validate_node(state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+async def multi_validate_node(
+    state: dict[str, Any], config: RunnableConfig
+) -> dict[str, Any]:
     message = state.get("message", "")
     if not message or not message.strip():
         raise ValidationError(code="C2", message="multi_validate: empty message")

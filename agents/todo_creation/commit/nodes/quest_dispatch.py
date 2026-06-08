@@ -3,13 +3,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
+from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.commit.state import CommitGraphState
 
 logger = logging.getLogger(__name__)
 
 
 async def quest_dispatch_node(
-    state: CommitGraphState, config: dict[str, Any]
+    state: CommitGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     """Call QuestDispatchPort. Failure is silently absorbed (silent skip).
 
@@ -23,7 +26,7 @@ async def quest_dispatch_node(
     (b) move the increment after a successful dispatch and accept the
     micro-race. Tracked for follow-up alongside the back-off queue.
     """
-    ports = config["configurable"]["ports"]
+    ports = get_ports(config)
     user_id = state["input"].user_id
     try:
         await ports.quest_dispatch.dispatch(user_id=user_id)

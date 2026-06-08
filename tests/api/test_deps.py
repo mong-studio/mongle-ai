@@ -1,5 +1,6 @@
 import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,7 +16,7 @@ from api.deps import (
 
 
 def _cfg(**over) -> AppConfig:
-    base = dict(
+    base: dict[str, Any] = dict(
         api_key="k",
         openai_api_key="sk",
         storage_backend="local",
@@ -23,10 +24,10 @@ def _cfg(**over) -> AppConfig:
         local_storage_root=Path("/tmp"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="fake",
-        llm_provider="openai",
-        qwen_base_url=None,
-        qwen_model=None,
+        quest_llm_provider="qwen",
+        llm_provider="qwen",
+        qwen_base_url="http://qwen-host/v1",
+        qwen_model="Qwen/Qwen2.5-7B-Instruct",
         qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )
@@ -34,15 +35,9 @@ def _cfg(**over) -> AppConfig:
     return AppConfig(**base)
 
 
-def test_quest_ports_fake_provider_builds():
-    """fake 프로바이더로 quest 포트가 빌드된다."""
-    ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
-    assert ports.llm is not None
-
-
-def test_todo_generate_ports_openai_builds():
-    """openai 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(_cfg(llm_provider="openai"))
+def test_todo_generate_ports_qwen_builds_by_default():
+    """qwen 프로바이더로 todo 생성 포트가 빌드된다."""
+    ports = build_todo_generate_ports(_cfg())
     assert ports.llm is not None
 
 
@@ -50,9 +45,9 @@ def test_todo_generate_ports_openai_builds():
 # build_todo_multiturn_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_openai():
-    """openai 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(_cfg(llm_provider="openai"))
+def test_build_todo_multiturn_ports_qwen_by_default():
+    """qwen 프로바이더로 멀티턴 포트가 빌드된다."""
+    ports = build_todo_multiturn_ports(_cfg())
     assert ports.llm is not None
 
 
@@ -166,3 +161,4 @@ def test_build_todo_multiturn_ports_qwen_builds():
         )
     )
     assert ports.llm is not None
+

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 
 _OUT_OF_SCOPE_MESSAGE = (
     "나는 목표를 TODO랑 일정으로 차근차근 나눠주는 이장님이야. "
@@ -10,7 +12,7 @@ _OUT_OF_SCOPE_MESSAGE = (
 
 
 async def out_of_scope_node(
-    state: dict[str, Any], config: dict[str, Any]
+    state: dict[str, Any], config: RunnableConfig
 ) -> dict[str, Any]:
     """플랜과 관련 없는 입력에는 고정 안내문만 반환한다."""
 

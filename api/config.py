@@ -9,7 +9,7 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("fake", "qwen")
+_VALID_QUEST_LLM_PROVIDERS = ("qwen",)
 _VALID_LLM_PROVIDERS = ("openai", "qwen")
 
 
@@ -52,10 +52,8 @@ class AppConfig:
 
         backend = os.environ.get("STORAGE_BACKEND", "local").strip().lower() or "local"
         api_key = need("MONGLE_API_KEY")
-        openai_api_key = need("OPENAI_API_KEY")
-
         quest_llm_provider = (
-            os.environ.get("QUEST_LLM_PROVIDER", "fake").strip().lower() or "fake"
+            os.environ.get("QUEST_LLM_PROVIDER", "qwen").strip().lower() or "qwen"
         )
         if quest_llm_provider not in _VALID_QUEST_LLM_PROVIDERS:
             raise MissingEnvError(
@@ -63,13 +61,17 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {quest_llm_provider!r})"
             )
         llm_provider = (
-            os.environ.get("LLM_PROVIDER", "openai").strip().lower() or "openai"
+            os.environ.get("LLM_PROVIDER", "qwen").strip().lower() or "qwen"
         )
         if llm_provider not in _VALID_LLM_PROVIDERS:
             raise MissingEnvError(
                 f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
+
+        openai_api_key = ""
+        if llm_provider == "openai":
+            openai_api_key = need("OPENAI_API_KEY")
 
         qwen_base_url: str | None = None
         qwen_model: str | None = None
@@ -82,17 +84,6 @@ class AppConfig:
         if not lora_dir:
             missing.append("LORA_DIR")
 
-        common = dict(
-            api_key=api_key,
-            openai_api_key=openai_api_key,
-            quest_llm_provider=quest_llm_provider,
-            llm_provider=llm_provider,
-            qwen_base_url=qwen_base_url,
-            qwen_model=qwen_model,
-            qwen_api_key=qwen_api_key,
-            lora_dir=lora_dir,
-        )
-
         if backend == "s3":
             raw_bucket = need("AWS_S3_BUCKET")
             bucket, embedded_prefix = _split_s3_uri(raw_bucket)
@@ -104,7 +95,14 @@ class AppConfig:
                 local_storage_root=_default_local_root(),
                 aws_region=need("AWS_REGION"),
                 aws_s3_bucket=bucket,
-                **common,
+                api_key=api_key,
+                openai_api_key=openai_api_key,
+                quest_llm_provider=quest_llm_provider,
+                llm_provider=llm_provider,
+                qwen_base_url=qwen_base_url,
+                qwen_model=qwen_model,
+                qwen_api_key=qwen_api_key,
+                lora_dir=lora_dir,
             )
         else:
             env_prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
@@ -117,7 +115,14 @@ class AppConfig:
                 local_storage_root=root,
                 aws_region=None,
                 aws_s3_bucket=None,
-                **common,
+                api_key=api_key,
+                openai_api_key=openai_api_key,
+                quest_llm_provider=quest_llm_provider,
+                llm_provider=llm_provider,
+                qwen_base_url=qwen_base_url,
+                qwen_model=qwen_model,
+                qwen_api_key=qwen_api_key,
+                lora_dir=lora_dir,
             )
 
         if missing:

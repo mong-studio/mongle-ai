@@ -26,6 +26,7 @@
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
   `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 stateless 전환 (근거: `docs/adr/0001`~`0005`).
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
+- TODO/quest 런타임 LLM 경로에서 `fake` fallback 제거. FastAPI 설정과 ports 빌더는 이제 `qwen`만 허용하며, 테스트는 런타임 어댑터 대신 테스트 내부 fake로 분리.
 
 ### Added
 - **sft_pipeline 언어 게이트 (중국어 응답 근본 원인 수정)**:
