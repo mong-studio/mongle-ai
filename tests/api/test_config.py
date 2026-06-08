@@ -128,6 +128,29 @@ def test_llm_provider_qwen_with_vars_succeeds(monkeypatch):
     assert cfg.qwen_model == "Qwen/Qwen2.5-7B-Instruct"
 
 
+def test_qwen_persona_model_defaults_to_qwen_model(monkeypatch):
+    """QWEN_PERSONA_MODEL 미설정이면 persona 모델은 QWEN_MODEL 로 폴백한다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
+    monkeypatch.setenv("QWEN_MODEL", "planning-adapter")
+    monkeypatch.delenv("QWEN_PERSONA_MODEL", raising=False)
+    cfg = AppConfig.from_env()
+    assert cfg.qwen_persona_model == "planning-adapter"
+
+
+def test_qwen_persona_model_override(monkeypatch):
+    """QWEN_PERSONA_MODEL 이 있으면 persona 어댑터명을 별도로 읽는다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
+    monkeypatch.setenv("QWEN_MODEL", "planning-adapter")
+    monkeypatch.setenv("QWEN_PERSONA_MODEL", "persona-adapter")
+    cfg = AppConfig.from_env()
+    assert cfg.qwen_model == "planning-adapter"
+    assert cfg.qwen_persona_model == "persona-adapter"
+
+
 def test_quest_llm_provider_qwen_with_vars_succeeds(monkeypatch):
     """quest용 qwen 프로바이더에 QWEN_* 변수가 갖춰지면 설정이 로드된다."""
     _base_env(monkeypatch)
@@ -137,6 +160,59 @@ def test_quest_llm_provider_qwen_with_vars_succeeds(monkeypatch):
     cfg = AppConfig.from_env()
     assert cfg.quest_llm_provider == "qwen"
     assert cfg.qwen_base_url == "http://qwen-host/v1"
+
+
+# ---------------------------------------------------------------------------
+# IMAGE_PROVIDER branch
+# ---------------------------------------------------------------------------
+
+def test_image_provider_defaults_to_local(monkeypatch):
+    """IMAGE_PROVIDER 미설정이면 local 이고 LORA_DIR 이 필수다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("IMAGE_PROVIDER", raising=False)
+    cfg = AppConfig.from_env()
+    assert cfg.image_provider == "local"
+    assert cfg.lora_dir == "/tmp/lora"
+
+
+def test_image_provider_local_missing_lora_dir_raises(monkeypatch):
+    """local 프로바이더인데 LORA_DIR 이 없으면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("LORA_DIR", raising=False)
+    with pytest.raises(MissingEnvError, match="LORA_DIR"):
+        AppConfig.from_env()
+
+
+def test_image_provider_runpod_loads_endpoint(monkeypatch):
+    """runpod 프로바이더면 엔드포인트·API 키가 로드되고 LORA_DIR 은 불필요하다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("LORA_DIR", raising=False)
+    monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
+    monkeypatch.setenv("RUNPOD_IMAGE_ENDPOINT_URL", "https://api.runpod.ai/v2/ep-1")
+    monkeypatch.setenv("RUNPOD_API_KEY", "rp-key")
+    cfg = AppConfig.from_env()
+    assert cfg.image_provider == "runpod"
+    assert cfg.runpod_image_endpoint_url == "https://api.runpod.ai/v2/ep-1"
+    assert cfg.runpod_api_key == "rp-key"
+    assert cfg.lora_dir == ""
+
+
+def test_image_provider_runpod_missing_vars_raises(monkeypatch):
+    """runpod 프로바이더인데 RUNPOD_* 변수가 없으면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
+    monkeypatch.delenv("RUNPOD_IMAGE_ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    with pytest.raises(MissingEnvError):
+        AppConfig.from_env()
+
+
+def test_invalid_image_provider_raises(monkeypatch):
+    """알 수 없는 IMAGE_PROVIDER 값이면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "bogus")
+    with pytest.raises(MissingEnvError, match="IMAGE_PROVIDER"):
+        AppConfig.from_env()
 
 
 # ---------------------------------------------------------------------------

@@ -20,10 +20,11 @@ def make_config(**over) -> AppConfig:
         local_storage_root=Path("/tmp/mongle-test"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="qwen",
-        llm_provider="qwen",
-        qwen_base_url="http://qwen-host/v1",
-        qwen_model="Qwen/Qwen2.5-7B-Instruct",
+        quest_llm_provider="fake",
+        llm_provider="openai",
+        qwen_base_url=None,
+        qwen_model=None,
+        qwen_persona_model=None,
         qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )
@@ -37,5 +38,5 @@ def api_client(monkeypatch):
     monkeypatch.setenv("MONGLE_API_KEY", API_KEY)
     app = create_app()
     app.state.config = make_config()
-    app.state.lora_generator = None
+    app.state.image_generator = None
     return TestClient(app, raise_server_exceptions=False)

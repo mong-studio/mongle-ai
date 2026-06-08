@@ -1,11 +1,13 @@
 import types
 from pathlib import Path
-from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
 from api.config import AppConfig
 from api.deps import (
+    _get_image_generator,
+    _s3_client,
     build_commit_ports,
     build_quest_ports,
     build_todo_generate_ports,
@@ -24,10 +26,11 @@ def _cfg(**over) -> AppConfig:
         local_storage_root=Path("/tmp"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="qwen",
-        llm_provider="qwen",
-        qwen_base_url="http://qwen-host/v1",
-        qwen_model="Qwen/Qwen2.5-7B-Instruct",
+        quest_llm_provider="fake",
+        llm_provider="openai",
+        qwen_base_url=None,
+        qwen_model=None,
+        qwen_persona_model=None,
         qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )
@@ -35,19 +38,35 @@ def _cfg(**over) -> AppConfig:
     return AppConfig(**base)
 
 
-def test_todo_generate_ports_qwen_builds_by_default():
-    """qwen 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(_cfg())
+def test_quest_ports_fake_provider_builds():
+    """fake 프로바이더로 quest 포트가 빌드된다."""
+    ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
     assert ports.llm is not None
+
+
+def test_todo_generate_ports_qwen_builds():
+    """todo 생성은 Qwen 전용 — qwen 설정으로 포트가 빌드된다."""
+    ports = build_todo_generate_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
+    assert ports.llm is not None
+
+
+def test_todo_generate_ports_without_qwen_raises():
+    """todo 는 Qwen 전용이라 qwen 설정이 없으면 RuntimeError 를 던진다."""
+    with pytest.raises(RuntimeError, match="Qwen"):
+        build_todo_generate_ports(_cfg(qwen_base_url=None, qwen_model=None))
 
 
 # ---------------------------------------------------------------------------
 # build_todo_multiturn_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_qwen_by_default():
-    """qwen 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(_cfg())
+def test_build_todo_multiturn_ports_qwen():
+    """멀티턴 todo 도 Qwen 전용 — qwen 설정으로 빌드된다."""
+    ports = build_todo_multiturn_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
     assert ports.llm is not None
 
 
@@ -162,3 +181,106 @@ def test_build_todo_multiturn_ports_qwen_builds():
     )
     assert ports.llm is not None
 
+
+def test_build_character_llm_uses_persona_model():
+    """qwen 프로바이더에서 character LLM 은 persona 어댑터 모델명을 사용한다."""
+    from api.deps import _build_character_llm
+
+    llm = _build_character_llm(
+        _cfg(
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            qwen_persona_model="persona-adapter",
+            qwen_api_key="EMPTY",
+        )
+    )
+    assert llm.model == "persona-adapter"
+    assert llm.base_url == "http://qwen-host/v1"
+
+
+def test_build_todo_llm_uses_planning_model():
+    """qwen 프로바이더에서 todo LLM 은 planning(기본) 어댑터 모델명을 사용한다."""
+    from api.deps import _build_todo_llm
+
+    llm = _build_todo_llm(
+        _cfg(
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            qwen_persona_model="persona-adapter",
+            qwen_api_key="EMPTY",
+        )
+    )
+    assert llm.model == "planning-adapter"
+
+
+# ---------------------------------------------------------------------------
+# _get_image_generator — provider 분기
+# ---------------------------------------------------------------------------
+
+def _fake_request(cfg: AppConfig) -> types.SimpleNamespace:
+    return types.SimpleNamespace(
+        app=types.SimpleNamespace(
+            state=types.SimpleNamespace(config=cfg, image_generator=None)
+        )
+    )
+
+
+def test_image_generator_runpod_builds_and_caches():
+    """runpod 프로바이더면 RunPodImageGenerator 를 만들고 재사용한다."""
+    from adapters.character_creation.runpod_image import RunPodImageGenerator
+
+    cfg = _cfg(
+        image_provider="runpod",
+        runpod_image_endpoint_url="https://api.runpod.ai/v2/ep-1",
+        runpod_api_key="rp-key",
+        lora_dir="",
+    )
+    request = _fake_request(cfg)
+
+    gen = _get_image_generator(request)
+
+    assert isinstance(gen, RunPodImageGenerator)
+    assert _get_image_generator(request) is gen
+
+
+# ---------------------------------------------------------------------------
+# _s3_client — presigned URL 307→403 회귀 방지
+#   endpoint_url 없이 client 를 만들면 presigned URL 이 글로벌 엔드포인트로 생성되어
+#   GET 시 리전으로 307 리다이렉트되고 SigV4 서명이 깨져 403 이 난다.
+# ---------------------------------------------------------------------------
+
+def test_s3_client_pins_regional_endpoint(monkeypatch):
+    """region 이 있으면 리전 엔드포인트를 명시해 boto3 client 를 만든다."""
+    captured: dict[str, object] = {}
+
+    def fake_client(service: str, **kwargs: object) -> MagicMock:
+        captured["service"] = service
+        captured["kwargs"] = kwargs
+        return MagicMock()
+
+    monkeypatch.setattr("boto3.client", fake_client)
+
+    _s3_client(_cfg(storage_backend="s3", aws_region="ap-northeast-2"))
+
+    assert captured["service"] == "s3"
+    assert captured["kwargs"] == {
+        "region_name": "ap-northeast-2",
+        "endpoint_url": "https://s3.ap-northeast-2.amazonaws.com",
+    }
+
+
+def test_s3_client_no_region_leaves_endpoint_none(monkeypatch):
+    """region 이 없으면 endpoint_url 을 None 으로 둔다(잘못된 URL 생성 방지)."""
+    captured: dict[str, object] = {}
+
+    def fake_client(service: str, **kwargs: object) -> MagicMock:
+        captured["kwargs"] = kwargs
+        return MagicMock()
+
+    monkeypatch.setattr("boto3.client", fake_client)
+
+    _s3_client(_cfg(storage_backend="s3", aws_region=None))
+
+    assert captured["kwargs"] == {"region_name": None, "endpoint_url": None}
