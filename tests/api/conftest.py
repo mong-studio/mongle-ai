@@ -21,9 +21,10 @@ def make_config(**over) -> AppConfig:
         aws_s3_bucket=None,
         quest_llm_provider="fake",
         llm_provider="openai",
-        midm_base_url=None,
-        midm_model=None,
-        midm_api_key="EMPTY",
+        qwen_base_url=None,
+        qwen_model=None,
+        qwen_persona_model=None,
+        qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )
     base.update(over)

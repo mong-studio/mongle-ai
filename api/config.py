@@ -9,8 +9,8 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
-_VALID_LLM_PROVIDERS = ("openai", "midm")
+_VALID_QUEST_LLM_PROVIDERS = ("fake", "qwen")
+_VALID_LLM_PROVIDERS = ("openai", "qwen")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 
 
@@ -36,9 +36,10 @@ class AppConfig:
     aws_s3_bucket: str | None
     quest_llm_provider: str
     llm_provider: str
-    midm_base_url: str | None
-    midm_model: str | None
-    midm_api_key: str
+    qwen_base_url: str | None
+    qwen_model: str | None
+    qwen_persona_model: str | None
+    qwen_api_key: str
     lora_dir: str
     image_provider: str = "local"
     runpod_image_endpoint_url: str | None = None
@@ -75,12 +76,20 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
 
-        midm_base_url: str | None = None
-        midm_model: str | None = None
-        midm_api_key = os.environ.get("MIDM_API_KEY", "").strip() or "EMPTY"
-        if quest_llm_provider == "midm" or llm_provider == "midm":
-            midm_base_url = need("MIDM_BASE_URL")
-            midm_model = need("MIDM_MODEL")
+        # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
+        # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
+        qwen_base_url = os.environ.get("QWEN_BASE_URL", "").strip() or None
+        qwen_model = os.environ.get("QWEN_MODEL", "").strip() or None
+        qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
+        if quest_llm_provider == "qwen" or llm_provider == "qwen":
+            if not qwen_base_url:
+                missing.append("QWEN_BASE_URL")
+            if not qwen_model:
+                missing.append("QWEN_MODEL")
+        # persona 어댑터를 따로 지정하지 않으면 planning(기본) 모델로 폴백
+        qwen_persona_model = (
+            os.environ.get("QWEN_PERSONA_MODEL", "").strip() or qwen_model
+        )
 
         image_provider = (
             os.environ.get("IMAGE_PROVIDER", "local").strip().lower() or "local"
@@ -106,9 +115,10 @@ class AppConfig:
             openai_api_key=openai_api_key,
             quest_llm_provider=quest_llm_provider,
             llm_provider=llm_provider,
-            midm_base_url=midm_base_url,
-            midm_model=midm_model,
-            midm_api_key=midm_api_key,
+            qwen_base_url=qwen_base_url,
+            qwen_model=qwen_model,
+            qwen_persona_model=qwen_persona_model,
+            qwen_api_key=qwen_api_key,
             lora_dir=lora_dir,
             image_provider=image_provider,
             runpod_image_endpoint_url=runpod_image_endpoint_url,

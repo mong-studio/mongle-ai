@@ -28,9 +28,10 @@ def _cfg(**over) -> AppConfig:
         aws_s3_bucket=None,
         quest_llm_provider="fake",
         llm_provider="openai",
-        midm_base_url=None,
-        midm_model=None,
-        midm_api_key="EMPTY",
+        qwen_base_url=None,
+        qwen_model=None,
+        qwen_persona_model=None,
+        qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
     )
     base.update(over)
@@ -43,19 +44,29 @@ def test_quest_ports_fake_provider_builds():
     assert ports.llm is not None
 
 
-def test_todo_generate_ports_openai_builds():
-    """openai 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(_cfg(llm_provider="openai"))
+def test_todo_generate_ports_qwen_builds():
+    """todo 생성은 Qwen 전용 — qwen 설정으로 포트가 빌드된다."""
+    ports = build_todo_generate_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
     assert ports.llm is not None
+
+
+def test_todo_generate_ports_without_qwen_raises():
+    """todo 는 Qwen 전용이라 qwen 설정이 없으면 RuntimeError 를 던진다."""
+    with pytest.raises(RuntimeError, match="Qwen"):
+        build_todo_generate_ports(_cfg(qwen_base_url=None, qwen_model=None))
 
 
 # ---------------------------------------------------------------------------
 # build_todo_multiturn_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_openai():
-    """openai 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(_cfg(llm_provider="openai"))
+def test_build_todo_multiturn_ports_qwen():
+    """멀티턴 todo 도 Qwen 전용 — qwen 설정으로 빌드된다."""
+    ports = build_todo_multiturn_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
     assert ports.llm is not None
 
 
@@ -128,47 +139,80 @@ async def test_fetch_source_bytes_local_nested_key(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# midm branch — build_quest_ports and build_todo_generate_ports
-# (MidmLLM is a @dataclass; __init__ only stores fields, no network call)
+# qwen branch — build_quest_ports and build_todo_generate_ports
+# (QwenLLM is a @dataclass; __init__ only stores fields, no network call)
 # ---------------------------------------------------------------------------
 
-def test_build_quest_ports_midm_builds():
-    """midm 프로바이더로 quest 포트가 빌드된다(네트워크 호출 없음)."""
+def test_build_quest_ports_qwen_builds():
+    """qwen 프로바이더로 quest 포트가 빌드된다(네트워크 호출 없음)."""
     ports = build_quest_ports(
         _cfg(
-            quest_llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
+            quest_llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="Qwen/Qwen2.5-7B-Instruct",
+            qwen_api_key="EMPTY",
         )
     )
     assert ports.llm is not None
 
 
-def test_build_todo_generate_ports_midm_builds():
-    """midm 프로바이더로 todo 생성 포트가 빌드된다."""
+def test_build_todo_generate_ports_qwen_builds():
+    """qwen 프로바이더로 todo 생성 포트가 빌드된다."""
     ports = build_todo_generate_ports(
         _cfg(
-            llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="Qwen/Qwen2.5-7B-Instruct",
+            qwen_api_key="EMPTY",
         )
     )
     assert ports.llm is not None
 
 
-def test_build_todo_multiturn_ports_midm_builds():
-    """midm 프로바이더로 멀티턴 포트가 빌드된다."""
+def test_build_todo_multiturn_ports_qwen_builds():
+    """qwen 프로바이더로 멀티턴 포트가 빌드된다."""
     ports = build_todo_multiturn_ports(
         _cfg(
-            llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="Qwen/Qwen2.5-7B-Instruct",
+            qwen_api_key="EMPTY",
         )
     )
     assert ports.llm is not None
+
+
+def test_build_character_llm_uses_persona_model():
+    """qwen 프로바이더에서 character LLM 은 persona 어댑터 모델명을 사용한다."""
+    from api.deps import _build_character_llm
+
+    llm = _build_character_llm(
+        _cfg(
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            qwen_persona_model="persona-adapter",
+            qwen_api_key="EMPTY",
+        )
+    )
+    assert llm.model == "persona-adapter"
+    assert llm.base_url == "http://qwen-host/v1"
+
+
+def test_build_todo_llm_uses_planning_model():
+    """qwen 프로바이더에서 todo LLM 은 planning(기본) 어댑터 모델명을 사용한다."""
+    from api.deps import _build_todo_llm
+
+    llm = _build_todo_llm(
+        _cfg(
+            llm_provider="qwen",
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            qwen_persona_model="persona-adapter",
+            qwen_api_key="EMPTY",
+        )
+    )
+    assert llm.model == "planning-adapter"
 
 
 # ---------------------------------------------------------------------------
