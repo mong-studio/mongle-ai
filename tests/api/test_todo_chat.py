@@ -6,7 +6,7 @@ from tests.api.conftest import AUTH
 
 
 class _FakeMultiLLM:
-    async def judge_sufficiency(self, *, history, message, today):
+    async def judge_sufficiency(self, *, history, message, today, user_profile_memory=None):
         from agents.todo_creation.state import ParsedGoal
 
         parsed_goal: ParsedGoal = {"goal_text": message, "deadline": None, "daily_capacity_minutes": None}

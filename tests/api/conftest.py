@@ -3,11 +3,17 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import AppConfig
+from api.config import AppConfig, QwenEndpoint
 from api.main import create_app
 
 API_KEY = "test-key"
 AUTH = {"X-API-Key": API_KEY}
+
+
+def _qwen() -> QwenEndpoint:
+    return QwenEndpoint(
+        base_url="http://localhost:8000/v1", model="Qwen/Qwen2.5-7B-Instruct", api_key="EMPTY"
+    )
 
 
 def make_config(**over) -> AppConfig:
@@ -19,11 +25,9 @@ def make_config(**over) -> AppConfig:
         local_storage_root=Path("/tmp/mongle-test"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="fake",
-        llm_provider="openai",
-        midm_base_url=None,
-        midm_model=None,
-        midm_api_key="EMPTY",
+        qwen_todo=_qwen(),
+        qwen_character=_qwen(),
+        qwen_quest=_qwen(),
         lora_dir="/tmp/lora",
     )
     base.update(over)

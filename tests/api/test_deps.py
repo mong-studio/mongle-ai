@@ -1,9 +1,7 @@
 import types
 from pathlib import Path
 
-import pytest
-
-from api.config import AppConfig
+from api.config import AppConfig, QwenEndpoint
 from api.deps import (
     build_commit_ports,
     build_quest_ports,
@@ -23,26 +21,30 @@ def _cfg(**over) -> AppConfig:
         local_storage_root=Path("/tmp"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="fake",
-        llm_provider="openai",
-        midm_base_url=None,
-        midm_model=None,
-        midm_api_key="EMPTY",
+        qwen_todo=QwenEndpoint(
+            base_url="http://localhost:8000/v1", model="Qwen/Qwen2.5-7B-Instruct", api_key="EMPTY"
+        ),
+        qwen_character=QwenEndpoint(
+            base_url="http://localhost:8000/v1", model="Qwen/Qwen2.5-7B-Instruct", api_key="EMPTY"
+        ),
+        qwen_quest=QwenEndpoint(
+            base_url="http://localhost:8000/v1", model="Qwen/Qwen2.5-7B-Instruct", api_key="EMPTY"
+        ),
         lora_dir="/tmp/lora",
     )
     base.update(over)
     return AppConfig(**base)
 
 
-def test_quest_ports_fake_provider_builds():
-    """fake 프로바이더로 quest 포트가 빌드된다."""
-    ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
+def test_quest_ports_builds():
+    """quest 포트가 qwen LLM 으로 빌드된다."""
+    ports = build_quest_ports(_cfg())
     assert ports.llm is not None
 
 
-def test_todo_generate_ports_openai_builds():
-    """openai 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(_cfg(llm_provider="openai"))
+def test_todo_generate_ports_builds():
+    """todo 생성 포트가 qwen LLM 으로 빌드된다."""
+    ports = build_todo_generate_ports(_cfg())
     assert ports.llm is not None
 
 
@@ -50,9 +52,9 @@ def test_todo_generate_ports_openai_builds():
 # build_todo_multiturn_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_openai():
-    """openai 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(_cfg(llm_provider="openai"))
+def test_build_todo_multiturn_ports_builds():
+    """멀티턴 포트가 qwen LLM 으로 빌드된다."""
+    ports = build_todo_multiturn_ports(_cfg())
     assert ports.llm is not None
 
 
@@ -122,47 +124,3 @@ async def test_fetch_source_bytes_local_nested_key(tmp_path):
     cfg = _cfg(local_storage_root=tmp_path)
     result = await fetch_source_bytes(cfg, key=key, content_type="image/png")
     assert result == content
-
-
-# ---------------------------------------------------------------------------
-# midm branch — build_quest_ports and build_todo_generate_ports
-# (MidmLLM is a @dataclass; __init__ only stores fields, no network call)
-# ---------------------------------------------------------------------------
-
-def test_build_quest_ports_midm_builds():
-    """midm 프로바이더로 quest 포트가 빌드된다(네트워크 호출 없음)."""
-    ports = build_quest_ports(
-        _cfg(
-            quest_llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
-        )
-    )
-    assert ports.llm is not None
-
-
-def test_build_todo_generate_ports_midm_builds():
-    """midm 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(
-        _cfg(
-            llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
-        )
-    )
-    assert ports.llm is not None
-
-
-def test_build_todo_multiturn_ports_midm_builds():
-    """midm 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(
-        _cfg(
-            llm_provider="midm",
-            midm_base_url="http://midm-host/v1",
-            midm_model="midm-bilingual-instruct",
-            midm_api_key="EMPTY",
-        )
-    )
-    assert ports.llm is not None

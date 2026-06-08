@@ -1,23 +1,21 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request
 
 from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
-from adapters.character_creation.midm_llm import MidmLLM as MidmCharacterLLM
-from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
-from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
-from adapters.quest_generation.midm_llm import MidmLLM as MidmQuestLLM
+from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
+from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
-from adapters.todo_creation.midm_llm import MidmLLM as MidmTodoLLM
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
-from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
+from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
-from agents.character_creation.schemas import LLMPersonaResult
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts
@@ -28,7 +26,13 @@ from api.config import AppConfig
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """앱 시작 시 설정 1회 로드. LoRA 는 첫 character 요청에서 지연 로드."""
+    """앱 시작 시 설정 1회 로드. LoRA 는 첫 character 요청에서 지연 로드.
+
+    레포 루트의 단일 `.env` 를 여기(런타임 시작)에서만 로드한다. 이미 설정된
+    환경변수(셸 export·uvicorn --env-file 등)는 보존한다(override=False).
+    유닛테스트는 lifespan 을 진입하지 않으므로 실제 .env 오염 없이 hermetic 하다.
+    """
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     app.state.config = AppConfig.from_env()
     app.state.lora_generator = None
     yield
@@ -39,36 +43,18 @@ def get_config(request: Request) -> AppConfig:
 
 
 def _build_character_llm(cfg: AppConfig):
-    if cfg.llm_provider == "midm":
-        assert cfg.midm_base_url and cfg.midm_model
-        return MidmCharacterLLM(
-            model=cfg.midm_model, base_url=cfg.midm_base_url, api_key=cfg.midm_api_key
-        )
-    from langchain_openai import ChatOpenAI
-
-    chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
-    runnable = chat.with_structured_output(
-        LLMPersonaResult, method="json_schema", strict=True
-    )
-    return OpenAICharacterLLM(runnable=runnable)
+    ep = cfg.qwen_character
+    return QwenCharacterLLM(model=ep.model, base_url=ep.base_url, api_key=ep.api_key)
 
 
 def _build_todo_llm(cfg: AppConfig):
-    if cfg.llm_provider == "midm":
-        assert cfg.midm_base_url and cfg.midm_model
-        return MidmTodoLLM(
-            model=cfg.midm_model, base_url=cfg.midm_base_url, api_key=cfg.midm_api_key
-        )
-    return OpenAITodoLLM()
+    ep = cfg.qwen_todo
+    return QwenTodoLLM(model=ep.model, base_url=ep.base_url, api_key=ep.api_key)
 
 
 def _build_quest_llm(cfg: AppConfig):
-    if cfg.quest_llm_provider == "midm":
-        assert cfg.midm_base_url and cfg.midm_model
-        return MidmQuestLLM(
-            model=cfg.midm_model, base_url=cfg.midm_base_url, api_key=cfg.midm_api_key
-        )
-    return FakeQuestLLM()
+    ep = cfg.qwen_quest
+    return QwenQuestLLM(model=ep.model, base_url=ep.base_url, api_key=ep.api_key)
 
 
 def _get_lora_generator(request: Request):

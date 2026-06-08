@@ -9,8 +9,20 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
-_VALID_LLM_PROVIDERS = ("openai", "midm")
+# 텍스트 LLM 은 qwen 단일 프로바이더(OpenAI 호환 chat completions 엔드포인트).
+# 피처별로 다르게 파인튜닝한 LoRA 어댑터를 쓰므로 model 은 피처별로, base_url 은
+# 공유(단일 vLLM + 멀티 LoRA)하되 필요한 피처만 따로 떼어낼 수 있게 override 를 둔다.
+_DEFAULT_QWEN_BASE_URL = "http://localhost:8000/v1"
+_DEFAULT_QWEN_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+
+@dataclass(frozen=True)
+class QwenEndpoint:
+    """피처 하나가 호출할 qwen 엔드포인트(어댑터 단위)."""
+
+    base_url: str
+    model: str
+    api_key: str
 
 
 def _split_s3_uri(value: str) -> tuple[str, str]:
@@ -33,11 +45,9 @@ class AppConfig:
     local_storage_root: Path
     aws_region: str | None
     aws_s3_bucket: str | None
-    quest_llm_provider: str
-    llm_provider: str
-    midm_base_url: str | None
-    midm_model: str | None
-    midm_api_key: str
+    qwen_todo: QwenEndpoint
+    qwen_character: QwenEndpoint
+    qwen_quest: QwenEndpoint
     lora_dir: str
 
     @classmethod
@@ -54,29 +64,20 @@ class AppConfig:
         api_key = need("MONGLE_API_KEY")
         openai_api_key = need("OPENAI_API_KEY")
 
-        quest_llm_provider = (
-            os.environ.get("QUEST_LLM_PROVIDER", "fake").strip().lower() or "fake"
+        qwen_base_url = (
+            os.environ.get("QWEN_BASE_URL", "").strip() or _DEFAULT_QWEN_BASE_URL
         )
-        if quest_llm_provider not in _VALID_QUEST_LLM_PROVIDERS:
-            raise MissingEnvError(
-                f"QUEST_LLM_PROVIDER 는 {'|'.join(_VALID_QUEST_LLM_PROVIDERS)} 중 "
-                f"하나여야 합니다 (현재: {quest_llm_provider!r})"
-            )
-        llm_provider = (
-            os.environ.get("LLM_PROVIDER", "openai").strip().lower() or "openai"
-        )
-        if llm_provider not in _VALID_LLM_PROVIDERS:
-            raise MissingEnvError(
-                f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
-                f"하나여야 합니다 (현재: {llm_provider!r})"
-            )
+        qwen_model = os.environ.get("QWEN_MODEL", "").strip() or _DEFAULT_QWEN_MODEL
+        qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
 
-        midm_base_url: str | None = None
-        midm_model: str | None = None
-        midm_api_key = os.environ.get("MIDM_API_KEY", "").strip() or "EMPTY"
-        if quest_llm_provider == "midm" or llm_provider == "midm":
-            midm_base_url = need("MIDM_BASE_URL")
-            midm_model = need("MIDM_MODEL")
+        def _qwen_endpoint(feature: str) -> QwenEndpoint:
+            """피처별 QWEN_<FEATURE>_* 가 있으면 그걸, 없으면 공유 기본값으로 폴백."""
+            prefix = f"QWEN_{feature}_"
+            return QwenEndpoint(
+                base_url=os.environ.get(prefix + "BASE_URL", "").strip() or qwen_base_url,
+                model=os.environ.get(prefix + "MODEL", "").strip() or qwen_model,
+                api_key=qwen_api_key,
+            )
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
         if not lora_dir:
@@ -85,11 +86,9 @@ class AppConfig:
         common = dict(
             api_key=api_key,
             openai_api_key=openai_api_key,
-            quest_llm_provider=quest_llm_provider,
-            llm_provider=llm_provider,
-            midm_base_url=midm_base_url,
-            midm_model=midm_model,
-            midm_api_key=midm_api_key,
+            qwen_todo=_qwen_endpoint("TODO"),
+            qwen_character=_qwen_endpoint("CHARACTER"),
+            qwen_quest=_qwen_endpoint("QUEST"),
             lora_dir=lora_dir,
         )
 
