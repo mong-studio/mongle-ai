@@ -127,6 +127,13 @@ def test_exam_prompt_forbids_exam_name_prefix():
     assert "시험명" in prompt and "접두사" in prompt
 
 
+def test_exam_prompt_suggests_phase_sequence():
+    """프롬프트가 학습 단계 시퀀스(개념→기출→약점→모의→점검)를 제시하는지 확인."""
+    prompt = build_exam_prompt(_SEED, today=TODAY, exemplars=[])
+    assert "단계" in prompt
+    assert "개념" in prompt and "모의고사" in prompt
+
+
 def _fake_client_seq(contents: list[str]):
     """호출 순서대로 다른 응답을 돌려주는 페이크 (재시도 검증용)."""
     calls = {"i": 0}
@@ -172,6 +179,55 @@ def test_fallback_titles_reference_exam_structure():
     plan = parse_plan(sample["messages"][-1]["content"])
     titles = [t.title for t in plan.todos] + [e.title for e in plan.calendar_events]
     assert concreteness_ratio(titles, "토익") >= 0.6
+
+
+def test_phases_for_short_horizon_skips_concept():
+    """벼락치기(~D-9)는 개념 단계를 생략하고 기출·모의로 압축한다."""
+    from sft_pipeline.build.exam_synth import _phases_for
+
+    labels = [label for label, _ in _phases_for(7)]
+    assert not any("개념" in label for label in labels)
+    assert any("모의" in label for label in labels)
+
+
+def test_phases_for_long_horizon_has_two_pastexam_passes():
+    """충분한 기간(D-17+)은 개념 + 기출 2회독을 포함한다."""
+    from sft_pipeline.build.exam_synth import _phases_for
+
+    labels = [label for label, _ in _phases_for(30)]
+    assert any("개념" in label for label in labels)
+    assert sum(1 for label in labels if "기출" in label) >= 2
+
+
+_LONG_SEED = {
+    "exam_type": "정보처리기사_필기",
+    "goal": "합격",
+    "days_left": 30,
+    "daily_hours": 3,
+    "level": "기초",
+    "note": "전업 준비",
+}
+
+
+def test_fallback_orders_concept_before_pastexam():
+    """폴백 분해의 순서 논리(M3): 개념 단계가 기출 단계보다 앞 날짜에 온다."""
+    sample = synthesize_sample(_LONG_SEED, today=TODAY, client=None)
+    plan = parse_plan(sample["messages"][-1]["content"])
+    items = [(t.due_date, t.title) for t in plan.todos + plan.calendar_events]
+    concept_days = [d for d, t in items if "개념" in t]
+    exam_days = [d for d, t in items if "기출" in t]
+    assert concept_days and exam_days
+    assert max(concept_days) <= min(exam_days)
+
+
+def test_fallback_keeps_concreteness_and_title_limit():
+    """phase×section 폴백도 구체성≥0.6, 제목 20자 제약, 정합성을 만족한다."""
+    sample = synthesize_sample(_LONG_SEED, today=TODAY, client=None)
+    plan = parse_plan(sample["messages"][-1]["content"])
+    titles = [t.title for t in plan.todos] + [e.title for e in plan.calendar_events]
+    assert concreteness_ratio(titles, "정보처리기사_필기") >= 0.6
+    assert all(len(t) <= 20 for t in titles)
+    assert check_plan_consistency(plan, today=TODAY, horizon_days=30) == []
 
 
 def test_synthesize_falls_back_on_abstract_llm_plan():

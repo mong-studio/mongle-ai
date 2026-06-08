@@ -185,8 +185,8 @@ JLPT:
   source: "JLPT 공식 시험 과목 구성 (https://www.jlpt.jp/sp/e/guideline/testsections.html) — 180점 만점, N1·N2 는 언어지식·독해 통합"
   verified_at: "2026-06-07"
   sections:
-    - "언어지식 (문자·어휘)"
-    - "언어지식 (문법)"
+    - "문자·어휘"
+    - "문법"
     - "독해"
     - "청해"
   keywords:

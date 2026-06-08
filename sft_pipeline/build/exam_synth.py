@@ -119,17 +119,69 @@ def _strip_item_count(section: str) -> str:
     return re.sub(r"\s*\(\d+문항[^)]*\)", "", section).strip()
 
 
-def _fit_title(section: str) -> str:
-    """PlanTask.title 20자 제약에 맞춰 행동 접미사를 줄여가며 제목을 만든다."""
-    for suffix in (" 집중 학습", " 학습", ""):
-        title = f"{section}{suffix}"
-        if len(title) <= 20:
-            return title
-    return section[:20]
+def _section_core(section: str) -> str:
+    """제목용 핵심 명칭 추출: 문항수·괄호 주석·'N과목' 번호 접두를 떼서 짧게."""
+    s = _strip_item_count(section)
+    s = re.sub(r"\s*\([^)]*\)", "", s)  # 괄호 주석(어학시험 '(적응형 독해)' 등)
+    s = re.sub(r"^(필기 |실기 )?\d+과목\s*", "", s)  # '5과목 ' 번호 접두
+    return s.strip() or section
+
+
+# 기간(일) 상한 → 학습 단계 시퀀스. 첫 매칭 구간을 쓴다(앞에서부터 좁은 구간).
+# 각 단계 = (라벨, per_section): per_section True 면 과목/파트마다 항목 1개, False 면 단일 항목.
+# 단계 순서가 곧 학습 논리(개념→기출→약점→모의→점검)이며, 폴백은 이 순서대로 날짜를 채운다.
+_PHASE_PLANS: list[tuple[int, list[tuple[str, bool]]]] = [
+    # ~D-9 벼락치기: 개념 생략, 기출 2회독 반복 + 모의(시간상 점검 단계 생략)
+    (9, [("기출 1회독", True), ("기출 2회독", True), ("실전 모의고사", False)]),
+    # ~D-16: 개념 1회독 + 기출 + 약점 + 모의
+    (16, [("개념 정리", True), ("기출 풀이", True), ("약점 보완", False), ("실전 모의고사", False)]),
+    # D-17+: 개념 + 기출 2회독 사이에 약점 보완, 모의 + 점검
+    (
+        10**9,
+        [
+            ("개념 정리", True),
+            ("기출 1회독", True),
+            ("약점 보완", False),
+            ("기출 2회독", True),
+            ("실전 모의고사", False),
+            ("최종 점검", False),
+        ],
+    ),
+]
+
+
+def _phases_for(horizon: int) -> list[tuple[str, bool]]:
+    """남은 기간(일)에 맞는 학습 단계 시퀀스를 고른다(결정론적)."""
+    for limit, phases in _PHASE_PLANS:
+        if horizon <= limit:
+            return phases
+    return _PHASE_PLANS[-1][1]
+
+
+def _phase_title(core: str, label: str) -> str:
+    """과목명 + 단계 라벨로 20자 이하 제목. 초과 시 라벨을 보존하고 과목명을 줄인다."""
+    full = f"{core} {label}"
+    if len(full) <= 20:
+        return full
+    keep = max(20 - len(label) - 1, 1)
+    return f"{core[:keep]} {label}"
+
+
+def _fallback_titles(sections: list[str], horizon: int) -> list[str]:
+    """단계×과목을 펼쳐 제목 목록을 순서대로 만든다(앞쪽이 이른 학습 단계)."""
+    titles: list[str] = []
+    for label, per_section in _phases_for(horizon):
+        if per_section:
+            titles.extend(_phase_title(_section_core(s), label) for s in sections)
+        elif label == "약점 보완":
+            titles.append("전 과목 약점 보완")
+        else:
+            titles.append(label)
+    return titles
 
 
 def _fallback_plan(seed: dict, today: date) -> PlanOutput:
-    """LLM 실패 시 쓰는 결정론적 폴백: 시험 구조(과목/파트) 기반 전략 템플릿."""
+    """LLM 실패 시 쓰는 결정론적 폴백: 시험 구조(과목/파트)를 학습 단계로 분해한 전략 템플릿."""
     horizon = int(seed["days_left"])
     structure = structure_for(seed["exam_type"]) or {}
     sections = [_strip_item_count(s) for s in structure.get("sections", [])]
@@ -138,21 +190,17 @@ def _fallback_plan(seed: dict, today: date) -> PlanOutput:
     summary = (
         f"[{seed['exam_type']} · D-{horizon} · 하루 {seed['daily_hours']}시간] "
         f"시작 {seed['level']}, 목표 '{seed['goal']}'. "
-        "전략: 과목·파트별 기출로 출제 감을 잡고, 약한 영역을 집중 보완한 뒤 모의고사로 점검하세요."
+        "전략: 개념을 빠르게 훑은 뒤 과목·파트별 기출을 회독하고, 약한 영역을 보완해 모의고사로 점검하세요."
     )
-    todos = [PlanTask(title=_fit_title(sections[0]), due_date=today)]
-    rest = sections[1:]
+    titles = _fallback_titles(sections, horizon)
+    # 첫 항목은 오늘(todos), 나머지는 단계 순서대로 내일~D-horizon 에 비례 배치(C5 분기 준수).
+    todos = [PlanTask(title=titles[0], due_date=today)]
+    rest = titles[1:]
+    n = len(rest)
     events = [
-        PlanTask(
-            title=_fit_title(sec),
-            # 내일~D-(horizon-1) 사이에 균등 배치(결정론적), 마지막 날은 모의고사용으로 비움
-            due_date=today + timedelta(days=1 + (i * (horizon - 2)) // max(len(rest) - 1, 1)),
-        )
-        for i, sec in enumerate(rest)
+        PlanTask(title=t, due_date=today + timedelta(days=1 + (i * (horizon - 1)) // max(n, 1)))
+        for i, t in enumerate(rest)
     ]
-    events.append(
-        PlanTask(title="실전 모의고사 점검", due_date=today + timedelta(days=horizon))
-    )
     return PlanOutput(summary_text=summary, todos=todos, calendar_events=events)
 
 
@@ -176,6 +224,9 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
         "2) 항목 제목 대부분에 위 시험 구조의 실제 과목/파트/영역명을 넣어 공부 범위를 분명히 해 "
         "(예: '3과목 데이터베이스 구축 기출 풀이', 'RC Part5 문법 집중'). "
         "번호만 있는 기계적 분해('1단원 풀기')와 범위 없는 추상 표현('약점 보완'만)은 금지.\n"
+        "2-1) 남은 기간을 학습 단계 순서로 분해해: 개념 정리 → 기출 회독 → 약점 보완 → "
+        "모의고사 → 최종 점검. 단계 안에서 과목/파트를 다루고, 기간이 길면 기출을 2회독 이상 "
+        "반복해. 단계 순서가 날짜 순서와 일치해야 해(개념이 기출보다 앞).\n"
         "3) title 은 20자 이하 한국어. 시험명(토익, JLPT 등) 접두사는 빼고 바로 과목/파트명으로 "
         "시작해 — 시험명은 이미 알고 있어. due_date 는 YYYY-MM-DD.\n"
         "4) summary_text 에 목표·기간 맞춤 전략을 1~2문장.\n"
