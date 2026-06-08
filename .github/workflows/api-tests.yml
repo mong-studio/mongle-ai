@@ -1,0 +1,38 @@
+name: api-tests
+
+# FastAPI/에이전트 레이어(agents·adapters·api) 단위·통합 테스트.
+# sft-docker.yml 은 tests/ 를 돌리지 않아 deps import 회귀(예: 삭제된 모듈 import)가
+# 그동안 CI 를 통과했다. 이 워크플로가 그 공백을 메운다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 같은 PR/브랜치에서 새 푸시가 오면 진행 중 런을 취소
+concurrency:
+  group: api-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies (런타임 + dev)
+        run: uv sync --group dev
+
+      # contract 마커(외부 QWEN_BASE_URL 등 필요)는 pyproject addopts 에서 기본 제외됨.
+      # 커버리지 게이트(--cov-fail-under=80)도 addopts 에 포함.
+      - name: Run tests
+        run: uv run pytest
