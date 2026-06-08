@@ -19,6 +19,7 @@
       "preview": "{\"summary_text\":\"한국사능력검정시험 1급 합격을 위해 기출 문제를 중심으로 공부하고 약점을 보완"
     }
   ],
-  "eval_loss": 0.21607884764671326,
-  "overfit_warning": null
+  "eval_loss": 0.1946,
+  "eval_loss_note": "수기 보정: trainer_state.json에는 epoch-1 eval(step 261, 0.2161)만 기록됨(체크포인트 저장이 최종 eval 이전에 수행). 0.1946은 학습 종료(522/522) 시 콘솔 로그의 epoch-2 최종 eval_loss.",
+  "overfit_warning": "⚠️ 과적합 의심: eval_loss=0.195 < 0.2. epoch를 줄이거나(예: 1) 데이터를 늘리세요."
 }
