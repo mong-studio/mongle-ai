@@ -26,6 +26,7 @@ from sft_pipeline.build.plan_schemas import (
     _normalize_plan_dict,
     check_plan_consistency,
     dump_plan_for_training,
+    rebucket_by_date,
 )
 
 log = logging.getLogger(__name__)
@@ -84,6 +85,8 @@ def _parse_llm_sample(content: str, *, today: date) -> tuple[str, PlanOutput]:
         raise ValueError("empty user request")
     # 관용 정규화: calendar_events/todos 누락→[], due_date 별칭 매핑, tags 기본값.
     plan = PlanOutput.model_validate(_normalize_plan_dict(data.get("plan")))
+    # 버킷 재분류: LLM 분류 오류를 날짜 기준으로 정정(런타임 date_router 동일).
+    plan = rebucket_by_date(plan, today=today)
     errors = check_plan_consistency(plan, today=today, horizon_days=HORIZON_DAYS)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))

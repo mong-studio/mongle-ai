@@ -24,6 +24,7 @@ from sft_pipeline.build.plan_schemas import (
     _normalize_plan_dict,
     check_plan_consistency,
     dump_plan_for_training,
+    rebucket_by_date,
 )
 from sft_pipeline.latte.synthesize import make_local_client
 from sft_pipeline.structure.exam_structure import concreteness_ratio, structure_for
@@ -248,6 +249,8 @@ def _parse_llm_plan(
     # 관용 로드+정규화: 트레일링 잡설/제어문자 허용, calendar_events 누락→[], due_date 별칭 매핑.
     data = _loads_lenient(content)
     plan = PlanOutput.model_validate(_normalize_plan_dict(data))
+    # 버킷 재분류: LLM 이 todos/calendar_events 분류를 틀려도 날짜 기준으로 정정(런타임 date_router 동일).
+    plan = rebucket_by_date(plan, today=today)
     errors = check_plan_consistency(plan, today=today, horizon_days=horizon)
     if errors:
         raise ValueError("inconsistent plan: " + "; ".join(errors))

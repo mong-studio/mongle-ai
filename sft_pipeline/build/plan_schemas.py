@@ -57,6 +57,21 @@ def parse_plan(content: str) -> PlanOutput:
         raise ValueError(f"[파싱] 플랜 출력 파싱 실패: {exc}") from exc
 
 
+def rebucket_by_date(plan: PlanOutput, *, today: date) -> PlanOutput:
+    """todos/calendar_events 를 due_date 기준으로 재분류(런타임 date_router 와 동일).
+
+    버킷 분류는 모델이 아니라 날짜로부터 유도되는 결정론적 값이다
+    (agents/todo_creation/single_turn/nodes/date_router.py 참조). LLM 이 분류를 틀려도
+    날짜만 맞으면 올바른 버킷으로 옮긴다 — 의미 변경이 아닌 포맷 정규화. 입력은 불변.
+    """
+    tasks = list(plan.todos) + list(plan.calendar_events)
+    return PlanOutput(
+        summary_text=plan.summary_text,
+        todos=[t for t in tasks if t.due_date == today],
+        calendar_events=[t for t in tasks if t.due_date != today],
+    )
+
+
 def dump_plan_for_training(plan: PlanOutput) -> str:
     """학습용 직렬화 — tags 제외.
 

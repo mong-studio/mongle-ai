@@ -46,6 +46,13 @@
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
+- **합성 플랜 버킷 재분류 도입 (C5 분기 거부 → 자동 정정)**:
+  - LLM 이 todos/calendar_events 분류(C5: 오늘=todos, 미래=events)를 자주 틀려 정합성에서
+    대량 거부되던 문제. 버킷 분류는 모델이 아니라 due_date 에서 유도되는 결정론적 값
+    (런타임 `single_turn/nodes/date_router.py` 가 이미 날짜 기준 재분류함).
+  - `plan_schemas.rebucket_by_date` 신설: due_date==today→todos, 미래→calendar_events 로
+    재분류(입력 불변). exam_synth·latte synthesize 의 LLM 파싱에서 정합성 검사 직전 적용 —
+    런타임 date_router 와 동일 로직이라 train/serve 정합. 침묵 패치 아님(유도값 재계산).
 - **플랜 제목 길이 20→30자 상향 (시험 과목·파트명 수용)**:
   - 시험 과목명(예: '정보시스템 구축 관리')+행동 조합이 20자를 구조적으로 초과해 LLM 합성분의
     상당수가 길이 검증에서 폴백되던 문제. 구조적 상한 26자 + 회독 표기 여유로 30자 채택.

@@ -14,10 +14,12 @@ import pytest
 
 from sft_pipeline.build.plan_schemas import (
     PlanOutput,
+    PlanTask,
     _loads_lenient,
     _normalize_plan_dict,
     check_plan_consistency,
     parse_plan,
+    rebucket_by_date,
 )
 
 TODAY = date(2026, 6, 6)
@@ -228,6 +230,39 @@ def test_normalize_then_validate_recovers_missing_calendar_events():
     plan = PlanOutput.model_validate(_normalize_plan_dict(_loads_lenient(raw)))
     assert plan.calendar_events == []
     assert plan.todos[0].tags == []
+
+
+def test_rebucket_moves_tasks_by_date():
+    """런타임 date_router 와 동일: due_date==today → todos, 미래 → calendar_events."""
+    plan = PlanOutput(
+        summary_text="x",
+        # LLM 이 분류를 틀려 미래 항목을 todos 에, 오늘 항목을 events 에 넣은 상태
+        todos=[
+            PlanTask(title="오늘 개념", due_date=TODAY),
+            PlanTask(title="내일 기출", due_date=date(2026, 6, 7)),
+        ],
+        calendar_events=[PlanTask(title="오늘 정리", due_date=TODAY)],
+    )
+    fixed = rebucket_by_date(plan, today=TODAY)
+    assert {t.title for t in fixed.todos} == {"오늘 개념", "오늘 정리"}
+    assert {e.title for e in fixed.calendar_events} == {"내일 기출"}
+    assert all(t.due_date == TODAY for t in fixed.todos)
+    assert all(e.due_date != TODAY for e in fixed.calendar_events)
+    # 재분류 후 C5 분기 위반이 사라진다
+    assert check_plan_consistency(fixed, today=TODAY, horizon_days=7) == []
+
+
+def test_rebucket_preserves_summary_and_is_pure():
+    """summary 보존, 입력 plan 불변(새 객체 반환)."""
+    plan = PlanOutput(
+        summary_text="요약 보존",
+        todos=[PlanTask(title="내일 일", due_date=date(2026, 6, 7))],
+        calendar_events=[],
+    )
+    fixed = rebucket_by_date(plan, today=TODAY)
+    assert fixed.summary_text == "요약 보존"
+    assert plan.todos[0].title == "내일 일"  # 원본 불변
+    assert fixed.todos == [] and len(fixed.calendar_events) == 1
 
 
 def test_dump_plan_for_training_excludes_tags():
