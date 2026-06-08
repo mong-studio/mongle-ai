@@ -121,6 +121,51 @@ def test_exam_prompt_injects_structure():
     assert "과목/파트/영역명" in prompt  # 구체성 지시
 
 
+def test_exam_prompt_forbids_exam_name_prefix():
+    """20자 낭비 주범인 시험명 접두사('JLPT N1 ...') 금지 지시가 있는지 확인."""
+    prompt = build_exam_prompt(_SEED, today=TODAY, exemplars=[])
+    assert "시험명" in prompt and "접두사" in prompt
+
+
+def _fake_client_seq(contents: list[str]):
+    """호출 순서대로 다른 응답을 돌려주는 페이크 (재시도 검증용)."""
+    calls = {"i": 0}
+
+    class _Client:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    content = contents[min(calls["i"], len(contents) - 1)]
+                    calls["i"] += 1
+
+                    class _Msg:
+                        pass
+
+                    _Msg.content = content
+
+                    class _Choice:
+                        message = _Msg()
+
+                    class _Resp:
+                        choices = [_Choice()]
+
+                    return _Resp()
+
+    return _Client()
+
+
+def test_synthesize_retries_llm_before_fallback():
+    """1차 시도가 게이트에 거부돼도 2차 시도 성공이면 llm 으로 채택하는지 확인."""
+    abstract = _plan_payload().replace("LC Part2 기출 풀이", "약점 보완").replace(
+        "RC Part7 오답 정리", "최종 점검"
+    ).replace("오늘 파트5 집중", "기출 1회독")
+    sample = synthesize_sample(
+        _SEED, today=TODAY, client=_fake_client_seq([abstract, _plan_payload()])
+    )
+    assert sample["meta"]["synthesized_by"] == "llm"
+
+
 def test_fallback_titles_reference_exam_structure():
     """폴백 템플릿 제목이 시험 구조를 참조하는지 확인 (추상 문구 고정 금지)."""
     sample = synthesize_sample(_SEED, today=TODAY, client=None)

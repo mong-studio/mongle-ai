@@ -60,6 +60,9 @@ _SYSTEM = (
 # LLM 플랜 채택 최소 구체성(구조 키워드 포함 title 비율). 미달 시 reject → 템플릿 폴백.
 CONCRETENESS_MIN = 0.6
 
+# LLM 시도 횟수. temperature>0 재샘플이라 1회 거부돼도 재시도 가치가 큼(전부 실패 시 폴백).
+LLM_ATTEMPTS = 2
+
 
 def _pick_even(seq: list[dict], k: int) -> list[dict]:
     """seq 에서 k 개를 균등 간격으로 결정론적으로 고른다."""
@@ -173,7 +176,8 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
         "2) 항목 제목 대부분에 위 시험 구조의 실제 과목/파트/영역명을 넣어 공부 범위를 분명히 해 "
         "(예: '3과목 데이터베이스 구축 기출 풀이', 'RC Part5 문법 집중'). "
         "번호만 있는 기계적 분해('1단원 풀기')와 범위 없는 추상 표현('약점 보완'만)은 금지.\n"
-        "3) title 은 20자 이하 한국어, due_date 는 YYYY-MM-DD.\n"
+        "3) title 은 20자 이하 한국어. 시험명(토익, JLPT 등) 접두사는 빼고 바로 과목/파트명으로 "
+        "시작해 — 시험명은 이미 알고 있어. due_date 는 YYYY-MM-DD.\n"
         "4) summary_text 에 목표·기간 맞춤 전략을 1~2문장.\n"
         f"{shots}\n"
         "반드시 아래 JSON 형식으로만 출력:\n"
@@ -214,32 +218,39 @@ def synthesize_sample(
     by = "template"
     plan = _fallback_plan(seed, today)
     if client is not None:
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM},
-                    {
-                        "role": "user",
-                        "content": build_exam_prompt(
-                            seed, today=today, exemplars=exemplars or []
-                        ),
-                    },
-                ],
-                temperature=temperature,
-                timeout=request_timeout,
-            )
-            plan = _parse_llm_plan(
-                resp.choices[0].message.content,
-                today=today,
-                horizon=horizon,
-                exam_type=seed["exam_type"],
-            )
-            by = "llm"
-        except Exception as exc:  # noqa: BLE001 - 어떤 실패든 안전하게 템플릿 폴백
-            log.warning("exam 합성 LLM 실패, 템플릿 폴백 (%s): %s", seed.get("exam_type"), exc)
-            plan = _fallback_plan(seed, today)
-            by = "template"
+        for attempt in range(1, LLM_ATTEMPTS + 1):
+            try:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": _SYSTEM},
+                        {
+                            "role": "user",
+                            "content": build_exam_prompt(
+                                seed, today=today, exemplars=exemplars or []
+                            ),
+                        },
+                    ],
+                    temperature=temperature,
+                    timeout=request_timeout,
+                )
+                plan = _parse_llm_plan(
+                    resp.choices[0].message.content,
+                    today=today,
+                    horizon=horizon,
+                    exam_type=seed["exam_type"],
+                )
+                by = "llm"
+                break
+            except Exception as exc:  # noqa: BLE001 - 어떤 실패든 안전하게 재시도→템플릿 폴백
+                log.warning(
+                    "exam 합성 LLM 시도 %d/%d 실패 (%s): %s",
+                    attempt,
+                    LLM_ATTEMPTS,
+                    seed.get("exam_type"),
+                    exc,
+                )
+        # 전 시도 실패 시 plan/by 는 함수 첫머리의 폴백 값 그대로다.
 
     return {
         "messages": [
