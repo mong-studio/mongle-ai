@@ -14,7 +14,6 @@ from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
-from adapters.todo_creation.openai_llm import OpenAILLM as OpenAITodoLLM
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.character_creation.schemas import LLMPersonaResult
@@ -56,12 +55,18 @@ def _build_character_llm(cfg: AppConfig):
 
 
 def _build_todo_llm(cfg: AppConfig):
-    if cfg.llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
-        return QwenTodoLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    """TODO 생성은 Qwen 전용 (planning 어댑터). llm_provider 와 무관하게 항상 Qwen.
+
+    openai(gpt-4o)는 character 페르소나에만 쓰이고, TODO 분할은 학습된 Qwen
+    어댑터로만 수행한다. qwen 설정이 없으면 호출 시점에 명확히 실패시킨다.
+    """
+    if not (cfg.qwen_base_url and cfg.qwen_model):
+        raise RuntimeError(
+            "TODO 생성은 Qwen 전용입니다 — QWEN_BASE_URL/QWEN_MODEL 이 필요합니다"
         )
-    return OpenAITodoLLM()
+    return QwenTodoLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
 
 
 def _build_quest_llm(cfg: AppConfig):

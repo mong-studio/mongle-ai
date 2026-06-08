@@ -76,17 +76,20 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
 
-        qwen_base_url: str | None = None
-        qwen_model: str | None = None
-        qwen_persona_model: str | None = None
+        # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
+        # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
+        qwen_base_url = os.environ.get("QWEN_BASE_URL", "").strip() or None
+        qwen_model = os.environ.get("QWEN_MODEL", "").strip() or None
         qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
         if quest_llm_provider == "qwen" or llm_provider == "qwen":
-            qwen_base_url = need("QWEN_BASE_URL")
-            qwen_model = need("QWEN_MODEL")
-            # persona 어댑터를 따로 지정하지 않으면 planning(기본) 모델로 폴백
-            qwen_persona_model = (
-                os.environ.get("QWEN_PERSONA_MODEL", "").strip() or qwen_model
-            )
+            if not qwen_base_url:
+                missing.append("QWEN_BASE_URL")
+            if not qwen_model:
+                missing.append("QWEN_MODEL")
+        # persona 어댑터를 따로 지정하지 않으면 planning(기본) 모델로 폴백
+        qwen_persona_model = (
+            os.environ.get("QWEN_PERSONA_MODEL", "").strip() or qwen_model
+        )
 
         image_provider = (
             os.environ.get("IMAGE_PROVIDER", "local").strip().lower() or "local"

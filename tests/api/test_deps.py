@@ -44,19 +44,29 @@ def test_quest_ports_fake_provider_builds():
     assert ports.llm is not None
 
 
-def test_todo_generate_ports_openai_builds():
-    """openai 프로바이더로 todo 생성 포트가 빌드된다."""
-    ports = build_todo_generate_ports(_cfg(llm_provider="openai"))
+def test_todo_generate_ports_qwen_builds():
+    """todo 생성은 Qwen 전용 — qwen 설정으로 포트가 빌드된다."""
+    ports = build_todo_generate_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
     assert ports.llm is not None
+
+
+def test_todo_generate_ports_without_qwen_raises():
+    """todo 는 Qwen 전용이라 qwen 설정이 없으면 RuntimeError 를 던진다."""
+    with pytest.raises(RuntimeError, match="Qwen"):
+        build_todo_generate_ports(_cfg(qwen_base_url=None, qwen_model=None))
 
 
 # ---------------------------------------------------------------------------
 # build_todo_multiturn_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_openai():
-    """openai 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(_cfg(llm_provider="openai"))
+def test_build_todo_multiturn_ports_qwen():
+    """멀티턴 todo 도 Qwen 전용 — qwen 설정으로 빌드된다."""
+    ports = build_todo_multiturn_ports(
+        _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
+    )
     assert ports.llm is not None
 
 
