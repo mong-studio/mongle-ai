@@ -113,7 +113,7 @@
 | `todo_id`     | VARCHAR(36)                                        | **PK**, NOT NULL         | `(UUID())` |                               |
 | `user_id`     | VARCHAR(36)                                        | **FK** → `users.user_id` |            |                               |
 | `tag_id`      | INT                                                | **FK** → `tags.tag_id`   |            |                               |
-| `content`     | VARCHAR(20)                                        |                          |            | TODO 내용                     |
+| `content`     | VARCHAR(30)                                        |                          |            | TODO 내용 (시험 과목·파트명 수용 위해 20→30 상향) |
 | `status`      | ENUM(`PENDING`,`IN_PROGRESS`,`COMPLETED`,`FAILED`) |                          | `PENDING`  |                               |
 | `is_extended` | TINYINT(1)                                         |                          | `0`        | 24시간 연장 여부 (항목당 1회) |
 | `todo_date`   | DATE                                               |                          |            | 해당 TODO의 날짜              |
@@ -147,7 +147,7 @@
 | `schedule_id` | VARCHAR(36)  | **PK**, NOT NULL         | `(UUID())` |                |
 | `user_id`     | VARCHAR(36)  | **FK** → `users.user_id` |            |                |
 | `tag_id`      | INT          | **FK** → `tags.tag_id`   |            |                |
-| `title`       | VARCHAR(20)  |                          |            | 일정 제목      |
+| `title`       | VARCHAR(30)  |                          |            | 일정 제목 (시험 과목·파트명 수용 위해 20→30 상향) |
 | `start_date`  | DATE         |                          |            |                |
 | `end_date`    | DATE         |                          |            | 연속 일정 표현 |
 | `description` | VARCHAR(200) |                          |            |                |

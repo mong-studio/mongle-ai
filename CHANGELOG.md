@@ -46,6 +46,14 @@
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
+- **플랜 제목 길이 20→30자 상향 (시험 과목·파트명 수용)**:
+  - 시험 과목명(예: '정보시스템 구축 관리')+행동 조합이 20자를 구조적으로 초과해 LLM 합성분의
+    상당수가 길이 검증에서 폴백되던 문제. 구조적 상한 26자 + 회독 표기 여유로 30자 채택.
+  - 런타임 `TaskCandidate.title`·미러 `PlanTask.title` `max_length` 20→30(확대=하위호환),
+    동기화 테스트·`_phase_title` 상한 갱신. 프롬프트에 군더더기('N문항'·'및 검토'·'다시 풀이')
+    금지 지시 병행(길이만 늘리면 췌언 제목이 남으므로).
+  - **DB 마이그레이션 필요(웹팀)**: `todos.content`·`schedules.title` `VARCHAR(20)→VARCHAR(30)`,
+    React 입력/표시 제약 동반 상향. `docs/DATA_MODEL.md` 갱신 완료, 실제 ALTER 는 별도.
 - **exam_synth 시간축 분해를 phase×section 으로 (일정 분해 논리 강화)**:
   - 기존 폴백/프롬프트가 과목을 1열로 나열(목차 나열)해 학습 단계·회독 개념이 없고 기간(D-7 vs
     D-60) 차등이 없던 문제 수정. plan-coherence M1(분배 합리성)·M3(순서 논리) 대응.

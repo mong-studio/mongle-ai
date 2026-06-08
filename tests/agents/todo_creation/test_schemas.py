@@ -48,9 +48,9 @@ def test_task_candidate_rejects_empty_title() -> None:
         TaskCandidate(title="", due_date=date(2026, 5, 24))
 
 
-def test_task_candidate_rejects_title_over_20_chars() -> None:
+def test_task_candidate_rejects_title_over_30_chars() -> None:
     with pytest.raises(PydanticValidationError):
-        TaskCandidate(title="x" * 21, due_date=date(2026, 5, 24))
+        TaskCandidate(title="x" * 31, due_date=date(2026, 5, 24))
 
 
 # ---- GenerateResult ----

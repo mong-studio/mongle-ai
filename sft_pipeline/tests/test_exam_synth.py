@@ -221,12 +221,12 @@ def test_fallback_orders_concept_before_pastexam():
 
 
 def test_fallback_keeps_concreteness_and_title_limit():
-    """phase×section 폴백도 구체성≥0.6, 제목 20자 제약, 정합성을 만족한다."""
+    """phase×section 폴백도 구체성≥0.6, 제목 길이 제약, 정합성을 만족한다."""
     sample = synthesize_sample(_LONG_SEED, today=TODAY, client=None)
     plan = parse_plan(sample["messages"][-1]["content"])
     titles = [t.title for t in plan.todos] + [e.title for e in plan.calendar_events]
     assert concreteness_ratio(titles, "정보처리기사_필기") >= 0.6
-    assert all(len(t) <= 20 for t in titles)
+    assert all(len(t) <= 30 for t in titles)
     assert check_plan_consistency(plan, today=TODAY, horizon_days=30) == []
 
 

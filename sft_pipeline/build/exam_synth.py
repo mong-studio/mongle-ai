@@ -158,12 +158,15 @@ def _phases_for(horizon: int) -> list[tuple[str, bool]]:
     return _PHASE_PLANS[-1][1]
 
 
+_TITLE_MAX = 30  # 런타임 TaskCandidate.title / DB VARCHAR(30) 계약과 일치
+
+
 def _phase_title(core: str, label: str) -> str:
-    """과목명 + 단계 라벨로 20자 이하 제목. 초과 시 라벨을 보존하고 과목명을 줄인다."""
+    """과목명 + 단계 라벨로 제목. 제약 초과 시 라벨을 보존하고 과목명을 줄인다."""
     full = f"{core} {label}"
-    if len(full) <= 20:
+    if len(full) <= _TITLE_MAX:
         return full
-    keep = max(20 - len(label) - 1, 1)
+    keep = max(_TITLE_MAX - len(label) - 1, 1)
     return f"{core[:keep]} {label}"
 
 
@@ -227,8 +230,10 @@ def build_exam_prompt(seed: dict, *, today: date, exemplars: list[dict]) -> str:
         "2-1) 남은 기간을 학습 단계 순서로 분해해: 개념 정리 → 기출 회독 → 약점 보완 → "
         "모의고사 → 최종 점검. 단계 안에서 과목/파트를 다루고, 기간이 길면 기출을 2회독 이상 "
         "반복해. 단계 순서가 날짜 순서와 일치해야 해(개념이 기출보다 앞).\n"
-        "3) title 은 20자 이하 한국어. 시험명(토익, JLPT 등) 접두사는 빼고 바로 과목/파트명으로 "
-        "시작해 — 시험명은 이미 알고 있어. due_date 는 YYYY-MM-DD.\n"
+        "3) title 은 30자 이하 한국어. 시험명(토익, JLPT 등) 접두사는 빼고 바로 과목/파트명으로 "
+        "시작해 — 시험명은 이미 알고 있어. '과목/파트명 + 핵심 행동(개념·기출·약점·모의)'만 "
+        "간결하게 — 'N문항', '및 검토', '다시/마지막 풀이', '문제 풀이 연습' 같은 군더더기는 "
+        "넣지 마. due_date 는 YYYY-MM-DD.\n"
         "4) summary_text 에 목표·기간 맞춤 전략을 1~2문장.\n"
         f"{shots}\n"
         "반드시 아래 JSON 형식으로만 출력:\n"

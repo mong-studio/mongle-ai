@@ -65,7 +65,7 @@ def test_parse_plan_strips_code_fence():
 
 
 def test_parse_plan_rejects_long_title():
-    bad = _plan_json(todos=[{"title": "스" * 21, "due_date": "2026-06-06", "tags": []}])
+    bad = _plan_json(todos=[{"title": "스" * 31, "due_date": "2026-06-06", "tags": []}])
     with pytest.raises(ValueError):
         parse_plan(bad)
 
@@ -191,7 +191,7 @@ def test_mirror_matches_runtime_schema():
     mirror_meta = PlanTask.model_fields["title"].metadata
     runtime_len = [m.max_length for m in runtime_meta if hasattr(m, "max_length")]
     mirror_len = [m.max_length for m in mirror_meta if hasattr(m, "max_length")]
-    assert runtime_len == mirror_len == [20]
+    assert runtime_len == mirror_len == [30]
 
 
 # === LLM 출력 관용 정규화(합성 파서용) ===

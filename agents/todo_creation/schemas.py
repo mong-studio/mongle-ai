@@ -14,7 +14,7 @@ class SingleTurnInput(BaseModel):
 
 
 class TaskCandidate(BaseModel):
-    title: Annotated[str, Field(min_length=1, max_length=20)]
+    title: Annotated[str, Field(min_length=1, max_length=30)]
     due_date: date
     tags: Annotated[list[str], Field(default_factory=list)]
 
