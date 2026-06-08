@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +12,7 @@ AUTH = {"X-API-Key": API_KEY}
 
 
 def make_config(**over) -> AppConfig:
-    base = dict(
+    base: dict[str, Any] = dict(
         api_key=API_KEY,
         openai_api_key="sk-test",
         storage_backend="local",

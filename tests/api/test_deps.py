@@ -18,7 +18,7 @@ from api.deps import (
 
 
 def _cfg(**over) -> AppConfig:
-    base = dict(
+    base: dict[str, Any] = dict(
         api_key="k",
         openai_api_key="sk",
         storage_backend="local",

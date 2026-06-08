@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from agents.todo_creation.exceptions import ValidationError
 from agents.todo_creation.schemas import SingleTurnInput
 from agents.todo_creation.single_turn.state import GenerateGraphState
@@ -17,7 +19,7 @@ def check(input: SingleTurnInput) -> None:
 
 
 async def validate_node(
-    state: GenerateGraphState, config: dict[str, Any]
+    state: GenerateGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     check(state["input"])
     return {}

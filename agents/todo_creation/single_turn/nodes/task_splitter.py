@@ -4,6 +4,9 @@ import logging
 from datetime import date
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
+from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.single_turn.state import GenerateGraphState
@@ -25,9 +28,9 @@ def _correct(task: TaskCandidate, today: date) -> TaskCandidate:
 
 
 async def task_splitter_node(
-    state: GenerateGraphState, config: dict[str, Any]
+    state: GenerateGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
-    ports = config["configurable"]["ports"]
+    ports = get_ports(config)
     today = state["input"].today
 
     raw = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)

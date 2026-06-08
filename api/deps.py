@@ -9,7 +9,6 @@ from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
-from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
@@ -70,12 +69,10 @@ def _build_todo_llm(cfg: AppConfig):
 
 
 def _build_quest_llm(cfg: AppConfig):
-    if cfg.quest_llm_provider == "qwen":
-        assert cfg.qwen_base_url and cfg.qwen_model
-        return QwenQuestLLM(
-            model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
-        )
-    return FakeQuestLLM()
+    assert cfg.qwen_base_url and cfg.qwen_model
+    return QwenQuestLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
 
 
 def _get_image_generator(request: Request):

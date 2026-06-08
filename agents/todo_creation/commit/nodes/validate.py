@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
 from agents.todo_creation.commit.state import CommitGraphState
 
 
 async def validate_node(
-    state: CommitGraphState, config: dict[str, Any]
+    state: CommitGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     """C1/C2/C5 are enforced by Pydantic on CommitInput.
     C3: re-route items by due_date vs today.

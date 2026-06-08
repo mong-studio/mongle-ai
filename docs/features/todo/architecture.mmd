@@ -3,6 +3,15 @@ config:
   layout: fixed
 ---
 flowchart TB
+ API_SINGLE["FastAPI
+ /v1/todo/generate
+ /todo/generate"]
+ API_MULTI["FastAPI
+ /v1/todo/chat
+ /todo/chat"]
+ API_COMMIT["FastAPI
+ /v1/todo/commit
+ /todo/commit"]
  subgraph SINGLE["싱글턴 TODO 생성"]
     direction TB
         SA@{ label: "User Input\n        자연어 프롬프트 (≤200자)\n        예: '오전 코테 3개, 저녁 면접 스터디, 3일 뒤 발표'" }
@@ -58,6 +67,9 @@ flowchart TB
         QAGENT["캐릭터 퀘스트 분배 Agent"]
         END_OK[/"완료 응답"/]
   end
+    API_SINGLE --> SA
+    API_MULTI --> MA
+    API_COMMIT --> COMMIT
     SA --> SV
     SV -- 실패 --> SVE
     SV -- 통과 --> SL
@@ -86,6 +98,9 @@ flowchart TB
     SA@{ shape: lean-r}
     MA@{ shape: lean-r}
      SA:::input
+     API_SINGLE:::input
+     API_MULTI:::input
+     API_COMMIT:::input
      SV:::validation
      SVE:::error
      SL:::ai

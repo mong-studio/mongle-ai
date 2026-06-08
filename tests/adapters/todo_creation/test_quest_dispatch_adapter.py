@@ -4,7 +4,7 @@ import logging
 from datetime import date
 from uuid import uuid4
 
-from adapters.quest_generation.fake_llm import FakeLLM
+from agents.quest_generation.exceptions import LLMFailedError
 from adapters.quest_generation.memory_repo import (
     MemoryCharacterQueryRepo,
     MemoryQuestPersistenceRepo,
@@ -15,6 +15,19 @@ from adapters.todo_creation.quest_dispatch_adapter import (
     QuestDispatchAdapter,
     TodoRow,
 )
+
+
+class _FakeQuestLLM:
+    def __init__(self, *, fail_times: int = 0) -> None:
+        self.fail_times = fail_times
+        self.calls: list[CharacterRow] = []
+
+    async def generate_quest(self, *, character) -> str:
+        self.calls.append(character)
+        if self.fail_times > 0:
+            self.fail_times -= 1
+            raise LLMFailedError("simulated LLM failure")
+        return f"{character.name}가 잠깐 한숨 돌리고 있어요."
 
 
 def _today() -> date:
@@ -35,7 +48,7 @@ async def test_dispatch_inserts_generated_quests():
     todo_repo = MemoryTodoQueryRepo()
     char_repo = MemoryCharacterQueryRepo()
     quest_repo = MemoryQuestPersistenceRepo()
-    llm = FakeLLM()
+    llm = _FakeQuestLLM()
 
     today = _today()
     t1, t2 = TodoRow(todo_id=uuid4()), TodoRow(todo_id=uuid4())
@@ -61,7 +74,7 @@ async def test_dispatch_no_todos_is_silent_noop():
     todo_repo = MemoryTodoQueryRepo()
     char_repo = MemoryCharacterQueryRepo()
     quest_repo = MemoryQuestPersistenceRepo()
-    llm = FakeLLM()
+    llm = _FakeQuestLLM()
     char_repo.seed("u1", [_char()])
 
     adapter = QuestDispatchAdapter(
@@ -80,7 +93,7 @@ async def test_dispatch_no_characters_is_silent_noop():
     todo_repo = MemoryTodoQueryRepo()
     char_repo = MemoryCharacterQueryRepo()
     quest_repo = MemoryQuestPersistenceRepo()
-    llm = FakeLLM()
+    llm = _FakeQuestLLM()
     todo_repo.seed("u1", _today(), [TodoRow(todo_id=uuid4())])
 
     adapter = QuestDispatchAdapter(
@@ -99,7 +112,7 @@ async def test_dispatch_partial_failure_logs_warning_and_persists_successes(capl
     todo_repo = MemoryTodoQueryRepo()
     char_repo = MemoryCharacterQueryRepo()
     quest_repo = MemoryQuestPersistenceRepo()
-    llm = FakeLLM(fail_times=3)  # exhaust retries on first todo
+    llm = _FakeQuestLLM(fail_times=3)  # exhaust retries on first todo
 
     today = _today()
     todo_repo.seed("u1", today, [TodoRow(todo_id=uuid4()), TodoRow(todo_id=uuid4())])
