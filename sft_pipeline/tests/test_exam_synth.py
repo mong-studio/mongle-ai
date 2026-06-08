@@ -51,7 +51,8 @@ def test_fallback_is_consistent_exam_plan():
     assert meta["exam_type"] == "토익"
     assert meta["time_left_days"] == 14
     assert meta["today"] == "2026-06-06"
-    assert meta["turn_type"] == "single"
+    assert meta["task_type"] == "plan"
+    assert "turn_type" not in meta
     assert meta["synthesized_by"] == "template"
     assert [m["role"] for m in sample["messages"]] == ["user", "assistant"]
     plan = parse_plan(sample["messages"][-1]["content"])

@@ -2,8 +2,8 @@
 
 distractor 는 '플랜을 만들면 안 되는' 경계 사례다 — 잡담/감사, 과약속 거절,
 모호한 의도 되묻기, 프롬프트 인젝션 방어, 범위 밖·위험 요청 거절 등.
-assistant 출력이 플랜 JSON 이 아니라 평문 대화이므로 meta.provenance='distractor'
-로 표시해 validate 2층(플랜 정합성)을 건너뛰게 한다(1층 위생만 적용).
+assistant 출력이 플랜 JSON 이 아니라 평문 대화이므로 meta.task_type='chat'
+으로 표시해 validate 2층(플랜 정합성)을 건너뛰게 한다(1층 위생만 적용).
 
 이런 네거티브를 일정 비율 섞으면, 모든 입력에 플랜 JSON 을 토해내는 과생성을
 막고 '언제 플랜을 만들고 언제 대화/거절할지'의 경계를 학습시킬 수 있다.
@@ -26,11 +26,11 @@ def to_sample(rec: dict) -> dict:
         "messages": rec["messages"],
         "meta": {
             "provenance": PROVENANCE,
-            "turn_type": "single",
+            "task_type": "chat",
             "source_id": str(rec.get("id", "")),
+            # 원본 레코드 passthrough(값: todo|plan). 소비처는 없고 데이터 계보 보존용.
             "label": rec.get("label", ""),
             "distractor_type": rec.get("distractor_type", ""),
-            "is_distractor": True,
             "source": rec.get("source", ""),
         },
     }

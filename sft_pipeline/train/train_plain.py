@@ -34,7 +34,6 @@ DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 MAX_LEN = 4096
 EOS_MARKERS = ("<|im_end|>", "<|endoftext|>")
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
-PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
 
 
 def load_rows(path):
@@ -88,7 +87,7 @@ def _quick_eval(model, tok, valid_rows, n=20):
     model.eval()
     plan_rows = [
         r for r in valid_rows
-        if (r.get("meta") or {}).get("provenance") in PLAN_PROVENANCES
+        if (r.get("meta") or {}).get("task_type") == "plan"
     ][:n]
     if not plan_rows:
         return {}

@@ -132,7 +132,7 @@ def synthesize_sample(
         ],
         "meta": {
             "provenance": "daily-latte",
-            "turn_type": "single",
+            "task_type": "plan",
             "source_id": seed.get("id", ""),
             "license": "MIT",
             "place": seed.get("place_ko", ""),

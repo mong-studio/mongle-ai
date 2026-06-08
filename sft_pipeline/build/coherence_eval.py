@@ -19,7 +19,7 @@ from datetime import date
 from pathlib import Path
 
 from sft_pipeline.build.plan_schemas import check_plan_consistency, parse_plan
-from sft_pipeline.build.validate_dataset import PLAN_PROVENANCES, _horizon_days
+from sft_pipeline.build.validate_dataset import _horizon_days
 
 # M1(분배 합리성)의 자동 근사: 제목이 'N단원/N일차/N장/N주차/N강' 식 기계적 열거인지.
 # (evaluating-plan-coherence M1, validate 의 단조분해 정책과 동일 취지)
@@ -141,7 +141,7 @@ def eval_dataset(samples: list[dict]) -> dict:
     lens_sorted = sorted(lens)
 
     # --- 플랜 논리성(evaluating-plan-coherence) ---
-    plan_samples = [s for s in samples if _provenance(s) in PLAN_PROVENANCES]
+    plan_samples = [s for s in samples if (s.get("meta") or {}).get("task_type") == "plan"]
     n_plan = len(plan_samples)
     parsed = [(s, _parse_plan_or_none(_assistant(s))) for s in plan_samples]
     syntax_ok = [s for s, p in parsed if p is not None]

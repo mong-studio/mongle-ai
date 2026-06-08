@@ -41,6 +41,7 @@ def _good():
         ],
         "meta": {
             "provenance": "exam-crawl",
+            "task_type": "plan",
             "source_url": "https://example.com/1",
             "exam_type": "토익",
             "result": "합격",
@@ -71,6 +72,7 @@ def _good_daily():
         ],
         "meta": {
             "provenance": "daily-latte",
+            "task_type": "plan",
             "source_id": "latte-000123",
             "license": "MIT",
             "today": "2026-06-06",
@@ -200,8 +202,8 @@ def _good_distractor():
         ],
         "meta": {
             "provenance": "distractor",
+            "task_type": "chat",
             "distractor_type": "thanks_chitchat",
-            "is_distractor": True,
             "source_id": "1",
         },
     }
@@ -249,6 +251,7 @@ def _good_exam_synth():
         ],
         "meta": {
             "provenance": "exam-synth",
+            "task_type": "plan",
             "exam_type": "토익",
             "time_left_days": 14,
             "today": "2026-06-06",
@@ -266,6 +269,43 @@ def test_exam_synth_missing_meta_flagged(tmp_path):
     del bad["meta"]["exam_type"]
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("exam_type" in e for e in report["errors"])
+
+
+# === task_type(태스크 종류) - 2층 분기의 명시 축 ===
+
+
+def test_missing_task_type_flagged(tmp_path):
+    """meta.task_type 이 없으면 오류로 잡는지 확인."""
+    bad = _good()
+    del bad["meta"]["task_type"]
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("task_type" in e for e in report["errors"])
+
+
+def test_invalid_task_type_flagged(tmp_path):
+    """task_type 이 화이트리스트(plan|chat) 밖이면 오류로 잡는지 확인."""
+    bad = _good()
+    bad["meta"]["task_type"] = "dialogue"
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("task_type" in e for e in report["errors"])
+
+
+def test_chat_task_skips_plan_layer_regardless_of_provenance(tmp_path):
+    """2층 분기는 provenance 가 아니라 task_type 을 따른다 - chat 이면 평문도 통과."""
+    ok = _good_daily()
+    ok["meta"]["task_type"] = "chat"
+    ok["messages"][1]["content"] = "주말 마트는 아침이 한가해요. 좋은 하루 보내세요!"
+    report = validate_samples(_write(tmp_path, [ok]))
+    assert report["ok"] == 1, report["errors"]
+
+
+def test_plan_task_requires_structured_output_regardless_of_provenance(tmp_path):
+    """provenance=distractor 라도 task_type=plan 이면 2층(플랜 정합성)을 받는다."""
+    bad = _good_distractor()
+    bad["meta"]["task_type"] = "plan"
+    bad["meta"]["today"] = "2026-06-06"
+    report = validate_samples(_write(tmp_path, [bad]))
+    assert any("plan" in e for e in report["errors"])
 
 
 # === 언어 게이트(비한국어 스크립트 혼입) - 모든 출처의 1층 검사 ===

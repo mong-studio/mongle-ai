@@ -60,7 +60,7 @@ def build_samples(
                 ],
                 "meta": {
                     "provenance": "exam-crawl",
-                    "turn_type": "single",
+                    "task_type": "plan",
                     "source_url": case.get("source_url", ""),
                     "exam_type": case.get("exam_type", ""),
                     "result": case.get("result", ""),
@@ -68,7 +68,7 @@ def build_samples(
                     "daily_hours": _to_float(case.get("daily_hours_value", "")),
                     "today": today.isoformat(),
                     "evidence_spans": case.get("evidence_spans", ""),
-                    "rephrased_by": by,
+                    "synthesized_by": by,
                 },
             }
         )

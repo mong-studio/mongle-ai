@@ -26,6 +26,7 @@ def _exam():
         ],
         "meta": {
             "provenance": "exam-crawl",
+            "task_type": "plan",
             "source_url": "https://e.com/1",
             "exam_type": "토익",
             "result": "합격",
@@ -43,6 +44,7 @@ def _daily():
         ],
         "meta": {
             "provenance": "daily-latte",
+            "task_type": "plan",
             "source_id": "1",
             "license": "MIT",
             "today": "2026-06-06",
@@ -82,8 +84,8 @@ def _distractor():
         ],
         "meta": {
             "provenance": "distractor",
+            "task_type": "chat",
             "distractor_type": "thanks_chitchat",
-            "is_distractor": True,
             "source_id": "1",
         },
     }
@@ -108,7 +110,7 @@ def test_public_includes_distractor():
 def _exam_synth():
     return {
         "messages": _daily()["messages"],
-        "meta": {"provenance": "exam-synth", "exam_type": "토익", "time_left_days": 14, "today": "2026-06-06"},
+        "meta": {"provenance": "exam-synth", "task_type": "plan", "exam_type": "토익", "time_left_days": 14, "today": "2026-06-06"},
     }
 
 

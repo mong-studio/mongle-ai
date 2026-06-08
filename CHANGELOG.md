@@ -22,6 +22,15 @@
   "always import unsloth first"). 검증: RTX 4090에서 Qwen2.5-7B QLoRA 2epoch 정상 수렴(loss 1.33→0.21).
 
 ### Changed
+- **SFT meta 스키마에 `task_type` 도입 (plan/chat 분기의 명시 축)**:
+  - validate 2층(플랜 정합성) 분기를 `PLAN_PROVENANCES` 집합(provenance 간접 유추)에서
+    `meta.task_type`(`"plan"|"chat"`, 필수+화이트리스트) 명시 필드로 전환. 소비처 4곳 일괄 전환
+    (`validate_dataset`·`coherence_eval`·`train/postcheck`·`train/train_plain`).
+  - meta 정리: `turn_type` 제거(전 샘플 single 상수·소비처 0), `is_distractor` 제거(provenance 중복),
+    `rephrased_by`→`synthesized_by` 이름 통일. distractor `label`은 계보 보존용 주석 명시.
+  - `build/migrate_meta.py` 신설(멱등·messages 불변): 기존 클린셋 4파일(exam 12·daily_v1 979·
+    daily_v2 980·distractor 302) in-place 마이그레이션, 신 검증기 전건 통과. exam_synth 는
+    구조 인지형 빌더 재합성으로 대체 예정이라 마이그레이션 제외.
 - **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 stateless FastAPI AI 엔진(`api/`)으로 대체.
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
   `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 stateless 전환 (근거: `docs/adr/0001`~`0005`).

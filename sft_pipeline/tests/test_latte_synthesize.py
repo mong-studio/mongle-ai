@@ -84,7 +84,8 @@ def test_fallback_is_single_turn_structured_plan():
     assert meta["source_id"] == "1"
     assert meta["license"] == "MIT"
     assert meta["synthesized_by"] == "template"
-    assert meta["turn_type"] == "single"
+    assert meta["task_type"] == "plan"
+    assert "turn_type" not in meta
     assert meta["today"] == "2026-06-06"
 
 

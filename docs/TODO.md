@@ -17,6 +17,8 @@
 
 ## 백로그 (내부 메모)
 
+- [x] **(sft)** ~~다음 전체 재빌드 시~~ meta 스키마에 `task_type` 도입 (`"plan" | "chat"`) — **2026-06-08 완료**. 검증기 2층 분기를 `task_type` 명시 필드로 전환(소비처 4곳: validate/coherence_eval/postcheck/train_plain), 4개 빌더 갱신, `turn_type` 제거 결정·실행, `build/migrate_meta.py`로 기존 클린셋 4파일 마이그레이션(전건 검증 통과). meta 정리 3건(`rephrased_by`→`synthesized_by`, `is_distractor` 제거, distractor `label` 주석 문서화) 동시 완료. exam_synth 는 구조 인지형 빌더(ca25f5f)로 RunPod 재합성 예정이라 마이그레이션 제외.
+
 - [ ] **(backend)** character_creation 진입 전 C1(보유 ≤10)·C2(일일 재생성 ≤3) 검증을 백엔드/호출자에서 강제. 현재 Streamlit 사이드바는 카운터만 표시하고 차단하지 않으므로 실제 백엔드 연결 시 사전 거부 로직 필요. 에이전트는 더 이상 이 규칙을 알지 못한다 (`CharacterRepositoryPort` 에서 관련 메서드 제거됨).
 
 - [ ] **(api)** FastAPI 서비스로 에이전트 파이프라인 노출 — 4개 피처(character_creation / todo_creation[single_turn·commit·multi_turn] / quest_generation / feed_generation) 의 `async def run(...)` 진입점을 HTTP 라우터로 래핑. Streamlit 과 병존.

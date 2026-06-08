@@ -25,11 +25,12 @@ def test_to_sample_maps_to_messages_meta():
     assert s["messages"] == _REC["messages"]
     m = s["meta"]
     assert m["provenance"] == "distractor"
-    assert m["turn_type"] == "single"
+    assert m["task_type"] == "chat"
+    assert "turn_type" not in m
     assert m["source_id"] == "1"
     assert m["label"] == "todo"
     assert m["distractor_type"] == "thanks_chitchat"
-    assert m["is_distractor"] is True
+    assert "is_distractor" not in m
     assert m["source"] == "curated"
 
 

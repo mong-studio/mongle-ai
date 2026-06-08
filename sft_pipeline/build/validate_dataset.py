@@ -9,6 +9,7 @@
 사람이 재서술한 요약이어야 하며(원문 복붙 금지), 이는 수집 검수 체크리스트
 (reports/preprocessing_report_template.md)와 README 가이드로 강제한다.
 
+meta.task_type("plan"|"chat")이 2층 분기의 명시 축이다 - "chat"은 1층만 검사한다.
 meta.provenance 로 출처를 구분하며, exam-crawl 출처에만 exam_type/result 를 강제한다.
 horizon 은 exam-crawl 이면 meta.time_left_days, daily-latte 면 7일이다.
 """
@@ -44,10 +45,10 @@ MIN_OUTPUT_LEN = 20
 # latte.synthesize.HORIZON_DAYS 와 같은 값을 쓰는 게 정책
 DAILY_HORIZON_DAYS = 7
 
-# 마지막 assistant 출력이 "구조화 플랜 JSON"이어야 하는 출처들.
-# 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
-# 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
-PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
+# 샘플의 태스크 종류(meta.task_type) 화이트리스트. 2층 분기의 명시 축이다.
+# - "plan": 마지막 assistant 출력이 구조화 플랜 JSON → 2층(플랜 정합성) 검사 대상
+# - "chat": distractor 처럼 의도적으로 평문 대화 → 1층(형식 위생)만 검사
+TASK_TYPES = {"plan", "chat"}
 
 # === 언어 게이트: 한국어 서비스 데이터에 섞이면 안 되는 외국어 문자 ===
 # 한 글자만 있어도 오류인 "금지 스크립트". 합성 모델(Qwen 등)이 흘리는
@@ -162,6 +163,13 @@ def _validate_meta(meta: dict, idx: int) -> list[str]:
     # provenance(출처)는 모든 샘플의 필수 항목
     if "provenance" not in meta:
         errors.append(f"line {idx}: meta missing ['provenance']")
+    # task_type(태스크 종류)도 필수 - 2층(플랜 정합성) 분기의 기준이라
+    # 빠지거나 화이트리스트 밖 값이면 검사 자체가 성립하지 않는다
+    if meta.get("task_type") not in TASK_TYPES:
+        errors.append(
+            f"line {idx}: meta task_type must be one of {sorted(TASK_TYPES)} "
+            f"(got {meta.get('task_type')!r})"
+        )
     # 시험 크롤링 출처라면 추가 필수 항목 3개가 모두 있는지 확인
     # (집합 빼기: "필요한 키" - "실제 있는 키" = "빠진 키")
     if meta.get("provenance") == "exam-crawl":
@@ -239,9 +247,8 @@ def _validate_one(sample: dict, idx: int) -> list[str]:
     if not errors:
         # 형식 검사를 통과한 샘플만 2층(플랜 정합성)으로 내려보냄
         # (모양이 깨진 데이터에 플랜 검사를 하면 엉뚱한 에러만 나오기 때문)
-        # 단, distractor 처럼 의도적으로 평문 대화인 출처는 플랜이 아니므로 2층을 건너뛴다.
-        provenance = (sample.get("meta") or {}).get("provenance")
-        if provenance in PLAN_PROVENANCES:
+        # 분기는 출처가 아니라 task_type 을 따른다 - "chat"(평문 대화)은 2층을 건너뛴다.
+        if (sample.get("meta") or {}).get("task_type") == "plan":
             errors += _validate_plan(sample, idx)
     return errors
 

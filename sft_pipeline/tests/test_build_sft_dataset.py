@@ -56,10 +56,11 @@ def test_build_samples_messages_schema(tmp_path):
     assert meta["exam_type"] == "정보처리기사_필기"
     assert meta["result"] == "합격"
     assert meta["provenance"] == "exam-crawl"
-    assert meta["turn_type"] == "single"
+    assert meta["task_type"] == "plan"
+    assert "turn_type" not in meta
     assert meta["today"] == "2026-06-06"
     assert "evidence_spans" in meta
-    assert meta["rephrased_by"] == "template"
+    assert meta["synthesized_by"] == "template"
 
 
 def test_assistant_output_is_consistent_structured_plan(tmp_path):

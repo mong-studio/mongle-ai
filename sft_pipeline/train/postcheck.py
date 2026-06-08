@@ -5,7 +5,7 @@
 2. **과적합 경고**: validation loss < 0.2 면 암기(과적합) 의심(Phase 6).
 3. **파싱 성공률**: 생성물을 추론 파서 `plan_schemas.parse_plan` 로 파싱해 성공률 측정
    — 이게 SFT 의 진짜 목표(구조화 플랜 정합성). distractor 는 평문이라 제외하고
-   PLAN_PROVENANCES(시험/일상) 샘플로만 측정.
+   task_type='plan'(시험/일상) 샘플로만 측정.
 
 순수 함수(아래 4개)는 GPU 없이 테스트 가능하고, 실제 생성은 main 에서 unsloth 로 한다.
 
@@ -22,7 +22,6 @@ import json
 from pathlib import Path
 
 from sft_pipeline.build.plan_schemas import parse_plan
-from sft_pipeline.build.validate_dataset import PLAN_PROVENANCES
 from sft_pipeline.train.train_lora import MAX_SEQ_LEN
 
 # Qwen2.5 chat template 의 턴 종료/문서 종료 마커(EOS 계열).
@@ -74,14 +73,13 @@ def read_eval_loss(checkpoint_dir: str | Path) -> float | None:
 
 
 def _plan_prompts(valid_path: Path, limit: int) -> list[list[dict]]:
-    """valid 에서 PLAN_PROVENANCES 샘플만 골라 user 턴까지의 메시지를 반환(생성용)."""
+    """valid 에서 task_type='plan' 샘플만 골라 user 턴까지의 메시지를 반환(생성용)."""
     prompts: list[list[dict]] = []
     for line in valid_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         sample = json.loads(line)
-        prov = (sample.get("meta") or {}).get("provenance")
-        if prov not in PLAN_PROVENANCES:
+        if (sample.get("meta") or {}).get("task_type") != "plan":
             continue
         msgs = sample["messages"]
         # 마지막 assistant 를 떼고 user 까지만 모델에 준다.
@@ -105,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
 
     prompts = _plan_prompts(args.valid, args.n_samples)
     if not prompts:
-        raise SystemExit(f"[postcheck] PLAN_PROVENANCES 샘플이 없습니다: {args.valid}")
+        raise SystemExit(f"[postcheck] task_type='plan' 샘플이 없습니다: {args.valid}")
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=str(args.adapter), max_seq_length=MAX_SEQ_LEN, dtype=None, load_in_4bit=True

@@ -248,7 +248,7 @@ def synthesize_sample(
         ],
         "meta": {
             "provenance": "exam-synth",
-            "turn_type": "single",
+            "task_type": "plan",
             "exam_type": seed["exam_type"],
             "time_left_days": horizon,
             "daily_hours": seed["daily_hours"],

@@ -26,7 +26,7 @@ def _exam_synth(content=None):
             {"role": "user", "content": "시험: 토익 / D-14 / 기준일(오늘): 2026-06-06"},
             {"role": "assistant", "content": content if content is not None else _plan_content()},
         ],
-        "meta": {"provenance": "exam-synth", "exam_type": "토익", "time_left_days": 14, "today": "2026-06-06"},
+        "meta": {"provenance": "exam-synth", "task_type": "plan", "exam_type": "토익", "time_left_days": 14, "today": "2026-06-06"},
     }
 
 
@@ -36,7 +36,7 @@ def _distractor(content="도움이 됐다면 다행이야. 더 말해줘."):
             {"role": "user", "content": "고마워"},
             {"role": "assistant", "content": content},
         ],
-        "meta": {"provenance": "distractor", "distractor_type": "thanks_chitchat"},
+        "meta": {"provenance": "distractor", "task_type": "chat", "distractor_type": "thanks_chitchat"},
     }
 
 
