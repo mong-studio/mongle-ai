@@ -36,5 +36,5 @@ def api_client(monkeypatch):
     monkeypatch.setenv("MONGLE_API_KEY", API_KEY)
     app = create_app()
     app.state.config = make_config()
-    app.state.lora_generator = None
+    app.state.image_generator = None
     return TestClient(app, raise_server_exceptions=False)

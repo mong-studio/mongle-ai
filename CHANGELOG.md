@@ -21,6 +21,11 @@
   feed_generation 엔드포인트는 img2img/S3 어댑터 미비로 후속 작업으로 분리.
 
 ### Added
+- **캐릭터 이미지 생성 RunPod Serverless 분리** (`IMAGE_PROVIDER=local|runpod`):
+  - `adapters/character_creation/runpod_image`: RunPod `/run`+`/status` 폴링 어댑터 (일시 오류 내성 3회, 타임아웃/포기 시 `/cancel` 로 GPU 중복 과금 방지, 기본 타임아웃 600s).
+  - `runpod_workers/image_gen/`: SDXL+ControlNet+LoRA+rembg Serverless 워커 (Dockerfile 에 공개 모델 fp16 베이크, LoRA 는 런타임 `LORA_REPO_ID`+`HF_TOKEN` 로드).
+  - `api/config.py`/`api/deps.py`: provider 분기 — runpod 면 `RUNPOD_IMAGE_ENDPOINT_URL`/`RUNPOD_API_KEY` 필수, `LORA_DIR` 불필요. 배포(EC2 CPU 인스턴스)에서 GPU 없이 캐릭터 생성 가능.
+- `adapters/todo_creation/openai_llm` 복원: midm→qwen 마이그레이션 커밋(23628c7)이 파일은 삭제했으나 `api/deps.py` import 가 남아 FastAPI 기동이 불가했던 회귀 수정 (git 히스토리에서 복원).
 - `adapters/todo_creation/qwen_llm`: `Qwen/Qwen2.5-7B-Instruct` 전용 TODO 생성 어댑터. OpenAI-compatible 서버는 HTTP로 직접 호출하고, raw JSON 파싱·코드펜스 제거·스키마 재강화 1회 재시도를 제공.
 - `tools/todo_qwen_console.py`: Streamlit 없이 Qwen TODO 프롬프트를 입력하고 messages/raw/parsed 출력을 확인하는 콘솔 도구.
 - `agents/quest_generation`: 캐릭터 퀘스트 분배 에이전트 (1:1:1 매핑, 라운드 풀, LLM 2회 재시도, TODO 내용 격리). 상세: `docs/features/quest_generation/CLAUDE.md`, 설계 결정: `docs/superpowers/specs/2026-05-25-quest-generation-design.md`.

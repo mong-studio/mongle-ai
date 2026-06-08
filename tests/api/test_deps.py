@@ -1,10 +1,13 @@
 import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from api.config import AppConfig
 from api.deps import (
+    _get_image_generator,
+    _s3_client,
     build_commit_ports,
     build_quest_ports,
     build_todo_generate_ports,
@@ -166,3 +169,74 @@ def test_build_todo_multiturn_ports_midm_builds():
         )
     )
     assert ports.llm is not None
+
+
+# ---------------------------------------------------------------------------
+# _get_image_generator — provider 분기
+# ---------------------------------------------------------------------------
+
+def _fake_request(cfg: AppConfig) -> types.SimpleNamespace:
+    return types.SimpleNamespace(
+        app=types.SimpleNamespace(
+            state=types.SimpleNamespace(config=cfg, image_generator=None)
+        )
+    )
+
+
+def test_image_generator_runpod_builds_and_caches():
+    """runpod 프로바이더면 RunPodImageGenerator 를 만들고 재사용한다."""
+    from adapters.character_creation.runpod_image import RunPodImageGenerator
+
+    cfg = _cfg(
+        image_provider="runpod",
+        runpod_image_endpoint_url="https://api.runpod.ai/v2/ep-1",
+        runpod_api_key="rp-key",
+        lora_dir="",
+    )
+    request = _fake_request(cfg)
+
+    gen = _get_image_generator(request)
+
+    assert isinstance(gen, RunPodImageGenerator)
+    assert _get_image_generator(request) is gen
+
+
+# ---------------------------------------------------------------------------
+# _s3_client — presigned URL 307→403 회귀 방지
+#   endpoint_url 없이 client 를 만들면 presigned URL 이 글로벌 엔드포인트로 생성되어
+#   GET 시 리전으로 307 리다이렉트되고 SigV4 서명이 깨져 403 이 난다.
+# ---------------------------------------------------------------------------
+
+def test_s3_client_pins_regional_endpoint(monkeypatch):
+    """region 이 있으면 리전 엔드포인트를 명시해 boto3 client 를 만든다."""
+    captured: dict[str, object] = {}
+
+    def fake_client(service: str, **kwargs: object) -> MagicMock:
+        captured["service"] = service
+        captured["kwargs"] = kwargs
+        return MagicMock()
+
+    monkeypatch.setattr("boto3.client", fake_client)
+
+    _s3_client(_cfg(storage_backend="s3", aws_region="ap-northeast-2"))
+
+    assert captured["service"] == "s3"
+    assert captured["kwargs"] == {
+        "region_name": "ap-northeast-2",
+        "endpoint_url": "https://s3.ap-northeast-2.amazonaws.com",
+    }
+
+
+def test_s3_client_no_region_leaves_endpoint_none(monkeypatch):
+    """region 이 없으면 endpoint_url 을 None 으로 둔다(잘못된 URL 생성 방지)."""
+    captured: dict[str, object] = {}
+
+    def fake_client(service: str, **kwargs: object) -> MagicMock:
+        captured["kwargs"] = kwargs
+        return MagicMock()
+
+    monkeypatch.setattr("boto3.client", fake_client)
+
+    _s3_client(_cfg(storage_backend="s3", aws_region=None))
+
+    assert captured["kwargs"] == {"region_name": None, "endpoint_url": None}

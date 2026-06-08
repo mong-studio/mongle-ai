@@ -11,6 +11,7 @@ class MissingEnvError(RuntimeError):
 
 _VALID_QUEST_LLM_PROVIDERS = ("fake", "midm")
 _VALID_LLM_PROVIDERS = ("openai", "midm")
+_VALID_IMAGE_PROVIDERS = ("local", "runpod")
 
 
 def _split_s3_uri(value: str) -> tuple[str, str]:
@@ -39,6 +40,9 @@ class AppConfig:
     midm_model: str | None
     midm_api_key: str
     lora_dir: str
+    image_provider: str = "local"
+    runpod_image_endpoint_url: str | None = None
+    runpod_api_key: str = "EMPTY"
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -78,8 +82,23 @@ class AppConfig:
             midm_base_url = need("MIDM_BASE_URL")
             midm_model = need("MIDM_MODEL")
 
+        image_provider = (
+            os.environ.get("IMAGE_PROVIDER", "local").strip().lower() or "local"
+        )
+        if image_provider not in _VALID_IMAGE_PROVIDERS:
+            raise MissingEnvError(
+                f"IMAGE_PROVIDER 는 {'|'.join(_VALID_IMAGE_PROVIDERS)} 중 "
+                f"하나여야 합니다 (현재: {image_provider!r})"
+            )
+
+        runpod_image_endpoint_url: str | None = None
+        runpod_api_key = "EMPTY"
+        if image_provider == "runpod":
+            runpod_image_endpoint_url = need("RUNPOD_IMAGE_ENDPOINT_URL")
+            runpod_api_key = need("RUNPOD_API_KEY")
+
         lora_dir = os.environ.get("LORA_DIR", "").strip()
-        if not lora_dir:
+        if image_provider == "local" and not lora_dir:
             missing.append("LORA_DIR")
 
         common = dict(
@@ -91,6 +110,9 @@ class AppConfig:
             midm_model=midm_model,
             midm_api_key=midm_api_key,
             lora_dir=lora_dir,
+            image_provider=image_provider,
+            runpod_image_endpoint_url=runpod_image_endpoint_url,
+            runpod_api_key=runpod_api_key,
         )
 
         if backend == "s3":

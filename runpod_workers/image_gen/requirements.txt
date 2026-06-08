@@ -1,0 +1,12 @@
+runpod>=1.7
+torch>=2.4
+diffusers>=0.37
+transformers>=5
+accelerate>=1.13
+peft>=0.19
+safetensors>=0.4
+opencv-python-headless>=4.13
+rembg[cpu]>=2.0.75
+pillow>=12
+numpy
+huggingface-hub

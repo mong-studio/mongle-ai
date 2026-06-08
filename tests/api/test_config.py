@@ -139,6 +139,59 @@ def test_quest_llm_provider_midm_with_vars_succeeds(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# IMAGE_PROVIDER branch
+# ---------------------------------------------------------------------------
+
+def test_image_provider_defaults_to_local(monkeypatch):
+    """IMAGE_PROVIDER 미설정이면 local 이고 LORA_DIR 이 필수다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("IMAGE_PROVIDER", raising=False)
+    cfg = AppConfig.from_env()
+    assert cfg.image_provider == "local"
+    assert cfg.lora_dir == "/tmp/lora"
+
+
+def test_image_provider_local_missing_lora_dir_raises(monkeypatch):
+    """local 프로바이더인데 LORA_DIR 이 없으면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("LORA_DIR", raising=False)
+    with pytest.raises(MissingEnvError, match="LORA_DIR"):
+        AppConfig.from_env()
+
+
+def test_image_provider_runpod_loads_endpoint(monkeypatch):
+    """runpod 프로바이더면 엔드포인트·API 키가 로드되고 LORA_DIR 은 불필요하다."""
+    _base_env(monkeypatch)
+    monkeypatch.delenv("LORA_DIR", raising=False)
+    monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
+    monkeypatch.setenv("RUNPOD_IMAGE_ENDPOINT_URL", "https://api.runpod.ai/v2/ep-1")
+    monkeypatch.setenv("RUNPOD_API_KEY", "rp-key")
+    cfg = AppConfig.from_env()
+    assert cfg.image_provider == "runpod"
+    assert cfg.runpod_image_endpoint_url == "https://api.runpod.ai/v2/ep-1"
+    assert cfg.runpod_api_key == "rp-key"
+    assert cfg.lora_dir == ""
+
+
+def test_image_provider_runpod_missing_vars_raises(monkeypatch):
+    """runpod 프로바이더인데 RUNPOD_* 변수가 없으면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
+    monkeypatch.delenv("RUNPOD_IMAGE_ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    with pytest.raises(MissingEnvError):
+        AppConfig.from_env()
+
+
+def test_invalid_image_provider_raises(monkeypatch):
+    """알 수 없는 IMAGE_PROVIDER 값이면 MissingEnvError를 던진다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "bogus")
+    with pytest.raises(MissingEnvError, match="IMAGE_PROVIDER"):
+        AppConfig.from_env()
+
+
+# ---------------------------------------------------------------------------
 # _split_s3_uri pure function
 # ---------------------------------------------------------------------------
 
