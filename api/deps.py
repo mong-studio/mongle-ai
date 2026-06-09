@@ -9,6 +9,7 @@ from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
+from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
@@ -44,13 +45,7 @@ def _build_character_llm(cfg: AppConfig):
             base_url=cfg.qwen_base_url,
             api_key=cfg.qwen_api_key,
         )
-    from langchain_openai import ChatOpenAI
-
-    chat = ChatOpenAI(model="gpt-4o", api_key=cfg.openai_api_key)
-    runnable = chat.with_structured_output(
-        LLMPersonaResult, method="json_schema", strict=True
-    )
-    return OpenAICharacterLLM(runnable=runnable)
+    raise RuntimeError("character LLM 은 Qwen 전용입니다 — LLM_PROVIDER=qwen 으로 설정하세요")
 
 
 def _build_todo_llm(cfg: AppConfig):
@@ -142,6 +137,8 @@ def build_todo_multiturn_ports(cfg: AppConfig) -> MultiTurnPorts:
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:
+    if cfg.quest_llm_provider == "fake":
+        return QuestPorts(llm=FakeQuestLLM())
     return QuestPorts(llm=_build_quest_llm(cfg))
 
 

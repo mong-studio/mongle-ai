@@ -32,7 +32,6 @@ def _default_local_root() -> Path:
 @dataclass
 class AppConfig:
     api_key: str
-    openai_api_key: str
     storage_backend: str
     storage_prefix: str
     local_storage_root: Path
@@ -120,7 +119,6 @@ class AppConfig:
 
         common = dict(
             api_key=api_key,
-            openai_api_key=openai_api_key,
             quest_llm_provider=quest_llm_provider,
             llm_provider=llm_provider,
             qwen_base_url=qwen_base_url,
@@ -144,14 +142,7 @@ class AppConfig:
                 local_storage_root=_default_local_root(),
                 aws_region=need("AWS_REGION"),
                 aws_s3_bucket=bucket,
-                api_key=api_key,
-                openai_api_key=openai_api_key,
-                quest_llm_provider=quest_llm_provider,
-                llm_provider=llm_provider,
-                qwen_base_url=qwen_base_url,
-                qwen_model=qwen_model,
-                qwen_api_key=qwen_api_key,
-                lora_dir=lora_dir,
+                **common,
             )
         else:
             env_prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
@@ -164,14 +155,7 @@ class AppConfig:
                 local_storage_root=root,
                 aws_region=None,
                 aws_s3_bucket=None,
-                api_key=api_key,
-                openai_api_key=openai_api_key,
-                quest_llm_provider=quest_llm_provider,
-                llm_provider=llm_provider,
-                qwen_base_url=qwen_base_url,
-                qwen_model=qwen_model,
-                qwen_api_key=qwen_api_key,
-                lora_dir=lora_dir,
+                **common,
             )
 
         if missing:
