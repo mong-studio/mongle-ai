@@ -26,10 +26,10 @@ def _cfg(**over) -> AppConfig:
         local_storage_root=Path("/tmp"),
         aws_region=None,
         aws_s3_bucket=None,
-        quest_llm_provider="fake",
-        llm_provider="openai",
-        qwen_base_url=None,
-        qwen_model=None,
+        quest_llm_provider="qwen",
+        llm_provider="qwen",
+        qwen_base_url="http://qwen-host/v1",
+        qwen_model="planning-adapter",
         qwen_persona_model=None,
         qwen_api_key="EMPTY",
         lora_dir="/tmp/lora",
@@ -38,9 +38,9 @@ def _cfg(**over) -> AppConfig:
     return AppConfig(**base)
 
 
-def test_quest_ports_fake_provider_builds():
-    """fake 프로바이더로 quest 포트가 빌드된다."""
-    ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
+def test_quest_ports_qwen_provider_builds():
+    """qwen 프로바이더로 quest 포트가 빌드된다."""
+    ports = build_quest_ports(_cfg())
     assert ports.llm is not None
 
 

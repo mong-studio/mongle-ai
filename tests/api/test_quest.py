@@ -39,8 +39,8 @@ def test_quest_generate_returns_done(api_client):
     assert data["result"]["generated"][0]["todo_id"] == tid
 
 
-def test_quest_alias_accepts_server_spec_persona(api_client):
-    """Django 명세 경로 /quest는 persona 단일 필드 입력도 agent 입력으로 변환한다."""
+def test_quest_generate_accepts_server_spec_persona(api_client):
+    """/v1/quest/generate는 Django가 보내는 persona 단일 필드 입력도 변환한다."""
     api_client.app.dependency_overrides[get_quest_ports] = _override
     cid, tid = str(uuid4()), str(uuid4())
     body = {
@@ -54,7 +54,7 @@ def test_quest_alias_accepts_server_spec_persona(api_client):
         ],
         "remaining_daily_quota": 5,
     }
-    resp = api_client.post("/quest", json=body, headers=AUTH)
+    resp = api_client.post("/v1/quest/generate", json=body, headers=AUTH)
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "done"
@@ -76,7 +76,7 @@ def test_quest_rejects_todo_content_to_keep_context_isolated(api_client):
         ],
         "remaining_daily_quota": 5,
     }
-    resp = api_client.post("/quest", json=body, headers=AUTH)
+    resp = api_client.post("/v1/quest/generate", json=body, headers=AUTH)
     assert resp.status_code == 422
 
 

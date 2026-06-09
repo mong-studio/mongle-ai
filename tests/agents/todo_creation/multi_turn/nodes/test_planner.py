@@ -24,6 +24,7 @@ def _config(llm: AsyncMock) -> dict:
 
 @pytest.mark.asyncio
 async def test_sufficient_goes_to_plan_generator() -> None:
+    """planner 노드가 충분한 정보면 plan_generator로 분기하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(True, [], {"goal_text": "영어 말하기 시험", "goal_tag": "영어말하기시험"})
@@ -43,17 +44,22 @@ async def test_sufficient_goes_to_plan_generator() -> None:
 
 @pytest.mark.asyncio
 async def test_insufficient_goes_to_follow_up() -> None:
+    """planner 노드가 정보 부족 시 follow_up으로 분기하되 회수한 목표 정보는 보존하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(return_value=(False, ["목표 점수"], {}))
     cmd = await planner_node(_state(), _config(llm))
     assert cmd.goto == "follow_up"
     assert cmd.update["sufficiency"] is False
     assert cmd.update["missing_aspects"] == ["목표 점수"]
-    assert cmd.update["parsed_goal"] is None
+    assert cmd.update["parsed_goal"] == {
+        "deadline": date(2026, 5, 26),
+        "user_profile_memory": {},
+    }
 
 
 @pytest.mark.asyncio
 async def test_llm_output_error_propagates() -> None:
+    """planner 노드가 LLMOutputError를 감추지 않고 전파하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(side_effect=LLMOutputError("schema violation"))
     with pytest.raises(LLMOutputError):
@@ -62,6 +68,7 @@ async def test_llm_output_error_propagates() -> None:
 
 @pytest.mark.asyncio
 async def test_called_with_history_and_message() -> None:
+    """planner 노드가 LLM에 history/message/today를 그대로 전달하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(return_value=(True, [], {"goal_text": "g"}))
     state = _state()
@@ -76,6 +83,7 @@ async def test_called_with_history_and_message() -> None:
 
 @pytest.mark.asyncio
 async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
+    """follow_up가 여러 번 반복되면 보수적으로 plan 생성으로 넘어가는지 확인한다."""
     llm = AsyncMock()
     state = {
         **_state(),
@@ -103,6 +111,7 @@ async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
 
 @pytest.mark.asyncio
 async def test_recovers_long_goal_from_out_of_scope_misclassification() -> None:
+    """긴 목표가 out_of_scope로 오판돼도 원래 goal_text를 복구하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(False, [], {"intent": "out_of_scope", "goal_text": ""})
@@ -121,6 +130,7 @@ async def test_recovers_long_goal_from_out_of_scope_misclassification() -> None:
 
 @pytest.mark.asyncio
 async def test_ambiguous_deadline_sensitive_goal_goes_to_follow_up() -> None:
+    """기한이 중요한 목표인데 deadline이 모호하면 follow_up으로 되돌리는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -152,6 +162,7 @@ async def test_ambiguous_deadline_sensitive_goal_goes_to_follow_up() -> None:
 
 @pytest.mark.asyncio
 async def test_ambiguous_event_deadline_ignores_model_made_up_deadline() -> None:
+    """LLM이 꾸며낸 event deadline은 무시하고 추가 확인으로 돌리는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -183,6 +194,7 @@ async def test_ambiguous_event_deadline_ignores_model_made_up_deadline() -> None
 
 @pytest.mark.asyncio
 async def test_explicit_event_deadline_can_generate_plan() -> None:
+    """명시적인 event deadline이 있으면 추가 질문 없이 plan 생성으로 가는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -213,6 +225,7 @@ async def test_explicit_event_deadline_can_generate_plan() -> None:
 
 @pytest.mark.asyncio
 async def test_deadline_answer_after_follow_up_completes_missing_deadline() -> None:
+    """follow_up 뒤 사용자가 날짜를 답하면 parsed_goal의 deadline을 채우는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -244,6 +257,7 @@ async def test_deadline_answer_after_follow_up_completes_missing_deadline() -> N
 
 @pytest.mark.asyncio
 async def test_delegate_answer_after_follow_up_uses_existing_goal() -> None:
+    """follow_up 뒤 위임형 답변이 와도 기존 goal context를 유지하는지 확인한다."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(

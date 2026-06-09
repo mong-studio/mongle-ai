@@ -13,7 +13,6 @@ from api.quest_generation.schemas import QuestGenerationRequest
 from api.security import require_api_key
 
 router = APIRouter(prefix="/v1/quest", dependencies=[Depends(require_api_key)])
-compat_router = APIRouter(dependencies=[Depends(require_api_key)])
 
 
 async def _generate(
@@ -26,14 +25,6 @@ async def _generate(
 
 @router.post("/generate", response_model=Envelope[QuestDistributionResult])
 async def generate(
-    body: QuestGenerationRequest,
-    ports: QuestPorts = Depends(get_quest_ports),
-) -> Envelope[QuestDistributionResult]:
-    return await _generate(body, ports)
-
-
-@compat_router.post("/quest", response_model=Envelope[QuestDistributionResult])
-async def generate_compat(
     body: QuestGenerationRequest,
     ports: QuestPorts = Depends(get_quest_ports),
 ) -> Envelope[QuestDistributionResult]:
