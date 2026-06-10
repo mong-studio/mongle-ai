@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SingleTurnInput(BaseModel):
@@ -73,8 +73,17 @@ class MultiGenerateInput(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
     message: Annotated[str, Field(min_length=1, max_length=600)]
     today: date
-    thread_id: str | None = None  # 첫 호출은 None, 서버가 발급
+    thread_id: str | None = None
     user_profile_memory: dict[str, Any] | None = None
+
+    @field_validator("thread_id", mode="before")
+    @classmethod
+    def _normalize_thread_id(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 GenerateInput = Annotated[
