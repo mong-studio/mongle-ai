@@ -128,9 +128,12 @@ jobs:
                   "variables": {"i": {"id": template_id, "imageName": image}},
               }).encode()
               req = urllib.request.Request(
-                  f"https://api.runpod.io/graphql?api_key={api_key}",
+                  "https://api.runpod.io/graphql",
                   data=payload,
-                  headers={"Content-Type": "application/json"},
+                  headers={
+                      "Content-Type": "application/json",
+                      "Authorization": f"Bearer {api_key}",
+                  },
               )
               try:
                   with urllib.request.urlopen(req) as r:
@@ -168,9 +171,12 @@ jobs:
               "variables": {"i": {"id": tid, "imageName": image}},
           }).encode()
           req = urllib.request.Request(
-              f"https://api.runpod.io/graphql?api_key={api_key}",
+              "https://api.runpod.io/graphql",
               data=payload,
-              headers={"Content-Type": "application/json"},
+              headers={
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {api_key}",
+              },
           )
           with urllib.request.urlopen(req) as r:
               result = json.loads(r.read())
