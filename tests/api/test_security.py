@@ -14,7 +14,6 @@ def client(monkeypatch):
     app = FastAPI()
     app.state.config = AppConfig(
         api_key="secret-key",
-        openai_api_key="",
         storage_backend="local",
         storage_prefix="mongle-village",
         local_storage_root=Path("/tmp"),

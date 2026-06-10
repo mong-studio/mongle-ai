@@ -75,7 +75,7 @@ async def planner_node(
         )
 
     resolved_goal: ParsedGoal | None = (
-        cast(ParsedGoal, parsed.copy()) if parsed else None
+        cast(ParsedGoal, parsed.copy()) if parsed is not None else None
     )
     if resolved_goal is not None:
         merge_deadline_from_state(state, resolved_goal)
