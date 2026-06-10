@@ -14,9 +14,13 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("qwen",)
-_VALID_LLM_PROVIDERS = ("openai", "qwen")
+_VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
+_VALID_LLM_PROVIDERS = ("openai", "qwen", "runpod")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
+_LOCAL_FASTAPI_QWEN_BASE_URLS = (
+    "http://localhost:8000/v1",
+    "http://127.0.0.1:8000/v1",
+)
 
 
 def _split_s3_uri(value: str) -> tuple[str, str]:
@@ -37,7 +41,6 @@ def _default_lora_dir() -> Path:
 @dataclass
 class AppConfig:
     api_key: str
-    openai_api_key: str
     storage_backend: str
     storage_prefix: str
     local_storage_root: Path
@@ -53,6 +56,8 @@ class AppConfig:
     image_provider: str = "local"
     runpod_image_endpoint_url: str | None = None
     runpod_api_key: str = "EMPTY"
+    runpod_planner_endpoint_url: str | None = None
+    runpod_village_endpoint_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -90,6 +95,12 @@ class AppConfig:
         qwen_base_url = os.environ.get("QWEN_BASE_URL", "").strip() or None
         qwen_model = os.environ.get("QWEN_MODEL", "").strip() or None
         qwen_api_key = os.environ.get("QWEN_API_KEY", "").strip() or "EMPTY"
+        if qwen_base_url and qwen_base_url.rstrip("/") in _LOCAL_FASTAPI_QWEN_BASE_URLS:
+            raise MissingEnvError(
+                "QWEN_BASE_URL 이 FastAPI 서버(http://localhost:8000/v1)를 가리키고 "
+                "있습니다. Qwen/OpenAI 호환 LLM 서버 주소를 사용하세요 "
+                "(예: Ollama http://localhost:11434/v1)."
+            )
         if quest_llm_provider == "qwen" or llm_provider == "qwen":
             if not qwen_base_url:
                 missing.append("QWEN_BASE_URL")
@@ -109,11 +120,21 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {image_provider!r})"
             )
 
+        runpod_api_key = os.environ.get("RUNPOD_API_KEY", "").strip() or "EMPTY"
+
         runpod_image_endpoint_url: str | None = None
-        runpod_api_key = "EMPTY"
         if image_provider == "runpod":
             runpod_image_endpoint_url = need("RUNPOD_IMAGE_ENDPOINT_URL")
-            runpod_api_key = need("RUNPOD_API_KEY")
+            if runpod_api_key == "EMPTY":
+                missing.append("RUNPOD_API_KEY")
+
+        runpod_planner_endpoint_url: str | None = None
+        runpod_village_endpoint_url: str | None = None
+        if llm_provider == "runpod":
+            runpod_planner_endpoint_url = need("RUNPOD_PLANNER_ENDPOINT_URL")
+            runpod_village_endpoint_url = need("RUNPOD_VILLAGE_ENDPOINT_URL")
+            if runpod_api_key == "EMPTY":
+                missing.append("RUNPOD_API_KEY")
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
         if image_provider == "local" and not lora_dir:
@@ -121,7 +142,6 @@ class AppConfig:
 
         common = dict(
             api_key=api_key,
-            openai_api_key=openai_api_key,
             quest_llm_provider=quest_llm_provider,
             llm_provider=llm_provider,
             qwen_base_url=qwen_base_url,
@@ -132,6 +152,8 @@ class AppConfig:
             image_provider=image_provider,
             runpod_image_endpoint_url=runpod_image_endpoint_url,
             runpod_api_key=runpod_api_key,
+            runpod_planner_endpoint_url=runpod_planner_endpoint_url,
+            runpod_village_endpoint_url=runpod_village_endpoint_url,
         )
 
         if backend == "s3":

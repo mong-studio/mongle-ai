@@ -1,0 +1,213 @@
+name: Deploy RunPod Workers
+
+# worker 파일이 바뀌거나 v* 태그를 달 때만 빌드
+# — 일반 파이썬 코드 변경에는 Docker 빌드가 트리거되지 않음
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'runpod_workers/**'
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '빌드할 워커 (llm | image | all)'
+        required: false
+        default: all
+
+env:
+  LLM_IMAGE:   ${{ secrets.DOCKERHUB_USERNAME }}/mongle-llm-worker
+  IMAGE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mongle-image-worker
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── LLM 워커 (플래너 · 빌리지 공용 이미지) ──────────────────────────────────
+  build-llm:
+    name: LLM Worker — build & push
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["llm","all"]'), github.event.inputs.target)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.LLM_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,enable={{is_default_branch}}
+
+      # Docker Hub 레지스트리 캐시 사용
+      # — Qwen 7B 가중치 레이어(14 GB)는 bake.py 가 바뀌지 않으면 캐시 히트
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod_workers/llm
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ env.LLM_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.LLM_IMAGE }}:buildcache,mode=max
+
+  # ── 이미지 생성 워커 ──────────────────────────────────────────────────────────
+  build-image-gen:
+    name: Image Gen Worker — build & push
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["image","all"]'), github.event.inputs.target)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod_workers/image_gen
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ env.IMAGE_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.IMAGE_IMAGE }}:buildcache,mode=max
+
+  # ── RunPod 템플릿 자동 업데이트 (v* 태그 시에만) ────────────────────────────
+  update-runpod:
+    name: Update RunPod Templates
+    runs-on: ubuntu-latest
+    needs: [build-llm, build-image-gen]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Update LLM templates (planner + village)
+        env:
+          RUNPOD_API_KEY:             ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_PLANNER_TEMPLATE_ID: ${{ secrets.RUNPOD_PLANNER_TEMPLATE_ID }}
+          RUNPOD_VILLAGE_TEMPLATE_ID: ${{ secrets.RUNPOD_VILLAGE_TEMPLATE_ID }}
+          NEW_IMAGE: ${{ env.LLM_IMAGE }}:${{ github.ref_name }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          def update_template(api_key, template_id, image):
+              payload = json.dumps({
+                  "query": "mutation U($i: SaveTemplateInput!) { saveTemplate(input: $i) { id imageName } }",
+                  "variables": {"i": {"id": template_id, "imageName": image}},
+              }).encode()
+              req = urllib.request.Request(
+                  f"https://api.runpod.io/graphql?api_key={api_key}",
+                  data=payload,
+                  headers={"Content-Type": "application/json"},
+              )
+              with urllib.request.urlopen(req) as r:
+                  result = json.loads(r.read())
+              if "errors" in result:
+                  raise SystemExit(f"RunPod error: {result['errors']}")
+              print(f"  updated: {result['data']['saveTemplate']}")
+
+          api_key = os.environ["RUNPOD_API_KEY"]
+          image   = os.environ["NEW_IMAGE"]
+          for env_key in ("RUNPOD_PLANNER_TEMPLATE_ID", "RUNPOD_VILLAGE_TEMPLATE_ID"):
+              tid = os.environ[env_key]
+              print(f"Updating {env_key} -> {image}")
+              update_template(api_key, tid, image)
+          PYEOF
+
+      - name: Update Image Gen template
+        env:
+          RUNPOD_API_KEY:           ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_IMAGE_TEMPLATE_ID: ${{ secrets.RUNPOD_IMAGE_TEMPLATE_ID }}
+          NEW_IMAGE: ${{ env.IMAGE_IMAGE }}:${{ github.ref_name }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          api_key = os.environ["RUNPOD_API_KEY"]
+          tid     = os.environ["RUNPOD_IMAGE_TEMPLATE_ID"]
+          image   = os.environ["NEW_IMAGE"]
+          payload = json.dumps({
+              "query": "mutation U($i: SaveTemplateInput!) { saveTemplate(input: $i) { id imageName } }",
+              "variables": {"i": {"id": tid, "imageName": image}},
+          }).encode()
+          req = urllib.request.Request(
+              f"https://api.runpod.io/graphql?api_key={api_key}",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(req) as r:
+              result = json.loads(r.read())
+          if "errors" in result:
+              raise SystemExit(f"RunPod error: {result['errors']}")
+          print(f"Updated: {result['data']['saveTemplate']}")
+          PYEOF
+
+  # ── GitHub Release (v* 태그 시에만) ─────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-llm, build-image-gen]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '')
+            const llm   = `${{ env.LLM_IMAGE }}:${tag}`
+            const image = `${{ env.IMAGE_IMAGE }}:${tag}`
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              tag_name:               tag,
+              name:                   `Release ${tag}`,
+              generate_release_notes: true,
+              body: [
+                '## Docker Images',
+                '',
+                `- LLM Worker (플래너·빌리지): \`${llm}\``,
+                `- Image Gen Worker:           \`${image}\``,
+                '',
+                '> RunPod 템플릿은 CI/CD 에서 자동 업데이트됩니다.',
+              ].join('\n'),
+            })

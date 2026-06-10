@@ -11,6 +11,7 @@ def _base_env(monkeypatch):
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
     monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    monkeypatch.delenv("AWS_S3_PREFIX", raising=False)
 
 
 def test_from_env_local_backend(monkeypatch):
@@ -126,6 +127,15 @@ def test_llm_provider_qwen_with_vars_succeeds(monkeypatch):
     assert cfg.llm_provider == "qwen"
     assert cfg.qwen_base_url == "http://qwen-host/v1"
     assert cfg.qwen_model == "Qwen/Qwen2.5-7B-Instruct"
+
+
+def test_qwen_base_url_must_not_point_to_fastapi(monkeypatch):
+    """QWEN_BASE_URL 이 FastAPI 앱을 가리키면 /chat/completions 404 를 만들므로 차단한다."""
+    _base_env(monkeypatch)
+    monkeypatch.setenv("QWEN_BASE_URL", "http://localhost:8000/v1")
+    monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    with pytest.raises(MissingEnvError, match="QWEN_BASE_URL"):
+        AppConfig.from_env()
 
 
 def test_qwen_persona_model_defaults_to_qwen_model(monkeypatch):
