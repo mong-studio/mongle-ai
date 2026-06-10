@@ -38,6 +38,17 @@ def get_config(request: Request) -> AppConfig:
 
 
 def _build_character_llm(cfg: AppConfig):
+    if cfg.llm_provider == "runpod":
+        from adapters.character_creation.runpod_llm import RunPodQwenLLM as RunPodCharacterLLM
+
+        if not cfg.runpod_village_endpoint_url:
+            raise RuntimeError(
+                "LLM_PROVIDER=runpod 인데 RUNPOD_VILLAGE_ENDPOINT_URL 이 없습니다"
+            )
+        return RunPodCharacterLLM(
+            endpoint_url=cfg.runpod_village_endpoint_url,
+            api_key=cfg.runpod_api_key,
+        )
     if cfg.llm_provider == "qwen":
         assert cfg.qwen_base_url and cfg.qwen_persona_model
         return QwenCharacterLLM(
@@ -45,15 +56,21 @@ def _build_character_llm(cfg: AppConfig):
             base_url=cfg.qwen_base_url,
             api_key=cfg.qwen_api_key,
         )
-    raise RuntimeError("character LLM 은 Qwen 전용입니다 — LLM_PROVIDER=qwen 으로 설정하세요")
+    raise RuntimeError("character LLM 은 Qwen 또는 RunPod 전용입니다 — LLM_PROVIDER=qwen|runpod 으로 설정하세요")
 
 
 def _build_todo_llm(cfg: AppConfig):
-    """TODO 생성은 Qwen 전용 (planning 어댑터). llm_provider 와 무관하게 항상 Qwen.
+    if cfg.llm_provider == "runpod":
+        from adapters.todo_creation.runpod_llm import RunPodQwenLLM as RunPodTodoLLM
 
-    openai(gpt-4o)는 character 페르소나에만 쓰이고, TODO 분할은 학습된 Qwen
-    어댑터로만 수행한다. qwen 설정이 없으면 호출 시점에 명확히 실패시킨다.
-    """
+        if not cfg.runpod_planner_endpoint_url:
+            raise RuntimeError(
+                "LLM_PROVIDER=runpod 인데 RUNPOD_PLANNER_ENDPOINT_URL 이 없습니다"
+            )
+        return RunPodTodoLLM(
+            endpoint_url=cfg.runpod_planner_endpoint_url,
+            api_key=cfg.runpod_api_key,
+        )
     if not (cfg.qwen_base_url and cfg.qwen_model):
         raise RuntimeError(
             "TODO 생성은 Qwen 전용입니다 — QWEN_BASE_URL/QWEN_MODEL 이 필요합니다"
@@ -64,6 +81,17 @@ def _build_todo_llm(cfg: AppConfig):
 
 
 def _build_quest_llm(cfg: AppConfig):
+    if cfg.quest_llm_provider == "runpod":
+        from adapters.quest_generation.runpod_llm import RunPodQwenLLM as RunPodQuestLLM
+
+        if not cfg.runpod_planner_endpoint_url:
+            raise RuntimeError(
+                "QUEST_LLM_PROVIDER=runpod 인데 RUNPOD_PLANNER_ENDPOINT_URL 이 없습니다"
+            )
+        return RunPodQuestLLM(
+            endpoint_url=cfg.runpod_planner_endpoint_url,
+            api_key=cfg.runpod_api_key,
+        )
     assert cfg.qwen_base_url and cfg.qwen_model
     return QwenQuestLLM(
         model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key

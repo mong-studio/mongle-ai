@@ -9,8 +9,8 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("qwen",)
-_VALID_LLM_PROVIDERS = ("openai", "qwen")
+_VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
+_VALID_LLM_PROVIDERS = ("openai", "qwen", "runpod")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
     "http://localhost:8000/v1",
@@ -47,6 +47,8 @@ class AppConfig:
     image_provider: str = "local"
     runpod_image_endpoint_url: str | None = None
     runpod_api_key: str = "EMPTY"
+    runpod_planner_endpoint_url: str | None = None
+    runpod_village_endpoint_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -107,11 +109,21 @@ class AppConfig:
                 f"하나여야 합니다 (현재: {image_provider!r})"
             )
 
+        runpod_api_key = os.environ.get("RUNPOD_API_KEY", "").strip() or "EMPTY"
+
         runpod_image_endpoint_url: str | None = None
-        runpod_api_key = "EMPTY"
         if image_provider == "runpod":
             runpod_image_endpoint_url = need("RUNPOD_IMAGE_ENDPOINT_URL")
-            runpod_api_key = need("RUNPOD_API_KEY")
+            if runpod_api_key == "EMPTY":
+                missing.append("RUNPOD_API_KEY")
+
+        runpod_planner_endpoint_url: str | None = None
+        runpod_village_endpoint_url: str | None = None
+        if llm_provider == "runpod":
+            runpod_planner_endpoint_url = need("RUNPOD_PLANNER_ENDPOINT_URL")
+            runpod_village_endpoint_url = need("RUNPOD_VILLAGE_ENDPOINT_URL")
+            if runpod_api_key == "EMPTY":
+                missing.append("RUNPOD_API_KEY")
 
         lora_dir = os.environ.get("LORA_DIR", "").strip()
         if image_provider == "local" and not lora_dir:
@@ -129,6 +141,8 @@ class AppConfig:
             image_provider=image_provider,
             runpod_image_endpoint_url=runpod_image_endpoint_url,
             runpod_api_key=runpod_api_key,
+            runpod_planner_endpoint_url=runpod_planner_endpoint_url,
+            runpod_village_endpoint_url=runpod_village_endpoint_url,
         )
 
         if backend == "s3":
