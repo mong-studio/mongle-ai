@@ -132,13 +132,18 @@ jobs:
                   data=payload,
                   headers={"Content-Type": "application/json"},
               )
-              with urllib.request.urlopen(req) as r:
-                  result = json.loads(r.read())
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      result = json.loads(r.read())
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  raise SystemExit(f"HTTP {e.code} {e.reason}: {body}")
               if "errors" in result:
                   raise SystemExit(f"RunPod error: {result['errors']}")
               print(f"  updated: {result['data']['saveTemplate']}")
 
-          api_key = os.environ["RUNPOD_API_KEY"]
+          api_key = os.environ["RUNPOD_API_KEY"].strip()
+          print(f"API key length: {len(api_key)}")
           image   = os.environ["NEW_IMAGE"]
           for env_key in ("RUNPOD_PLANNER_TEMPLATE_ID", "RUNPOD_VILLAGE_TEMPLATE_ID"):
               tid = os.environ[env_key]
