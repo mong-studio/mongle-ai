@@ -24,7 +24,6 @@ from api.security import require_api_key
 from api.todo_creation.schemas import CommitRequest
 
 router = APIRouter(prefix="/v1/todo", dependencies=[Depends(require_api_key)])
-compat_router = APIRouter(prefix="/todo", dependencies=[Depends(require_api_key)])
 
 
 async def _generate(
@@ -60,14 +59,6 @@ async def generate(
     return await _generate(body, ports)
 
 
-@compat_router.post("/generate", response_model=Envelope[GenerateResult])
-async def generate_compat(
-    body: SingleTurnInput,
-    ports: GeneratePorts = Depends(get_todo_generate_ports),
-) -> Envelope[GenerateResult]:
-    return await _generate(body, ports)
-
-
 @router.post("/chat", response_model=Envelope[TurnResult])
 async def chat(
     body: MultiGenerateInput,
@@ -76,24 +67,8 @@ async def chat(
     return await _chat(body, ports)
 
 
-@compat_router.post("/chat", response_model=Envelope[TurnResult])
-async def chat_compat(
-    body: MultiGenerateInput,
-    ports: MultiTurnPorts = Depends(get_todo_multiturn_ports),
-) -> Envelope[TurnResult]:
-    return await _chat(body, ports)
-
-
 @router.post("/commit", response_model=Envelope[CommitResult])
 async def commit(
-    body: CommitRequest,
-    cfg: AppConfig = Depends(get_config),
-) -> Envelope[CommitResult]:
-    return await _commit(body, cfg)
-
-
-@compat_router.post("/commit", response_model=Envelope[CommitResult])
-async def commit_compat(
     body: CommitRequest,
     cfg: AppConfig = Depends(get_config),
 ) -> Envelope[CommitResult]:

@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
+from api.config import AppConfig
 from api.security import require_api_key
 
 
@@ -9,6 +12,21 @@ from api.security import require_api_key
 def client(monkeypatch):
     monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
     app = FastAPI()
+    app.state.config = AppConfig(
+        api_key="secret-key",
+        openai_api_key="",
+        storage_backend="local",
+        storage_prefix="mongle-village",
+        local_storage_root=Path("/tmp"),
+        aws_region=None,
+        aws_s3_bucket=None,
+        quest_llm_provider="qwen",
+        llm_provider="qwen",
+        qwen_base_url="http://qwen-host/v1",
+        qwen_model="Qwen/Qwen2.5-7B-Instruct",
+        qwen_api_key="EMPTY",
+        lora_dir="/tmp/lora",
+    )
 
     @app.get("/ping", dependencies=[Depends(require_api_key)])
     def ping():
@@ -34,8 +52,15 @@ def test_correct_key_passes(client):
     assert resp.json() == {"ok": True}
 
 
+def test_quoted_key_is_normalized(client):
+    """따옴표가 섞인 헤더 값도 동일 키로 정규화해 통과시킨다."""
+    resp = client.get("/ping", headers={"X-API-Key": "'secret-key'"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
 def test_unconfigured_server_returns_500(monkeypatch):
-    """서버에 MONGLE_API_KEY가 설정 안 됐으면 500을 반환한다."""
+    """app.state/config와 환경변수 모두 비어 있으면 500을 반환한다."""
     monkeypatch.delenv("MONGLE_API_KEY", raising=False)
     app = FastAPI()
 
@@ -45,3 +70,18 @@ def test_unconfigured_server_returns_500(monkeypatch):
 
     c = TestClient(app, raise_server_exceptions=False)
     assert c.get("/ping", headers={"X-API-Key": "anything"}).status_code == 500
+
+
+def test_environment_fallback_still_works(monkeypatch):
+    """앱 설정이 없으면 기존 환경변수 fallback으로도 인증 가능하다."""
+    monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
+    app = FastAPI()
+
+    @app.get("/ping", dependencies=[Depends(require_api_key)])
+    def ping():
+        return {"ok": True}
+
+    c = TestClient(app, raise_server_exceptions=False)
+    resp = c.get("/ping", headers={"X-API-Key": "secret-key"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}

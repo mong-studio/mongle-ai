@@ -4,6 +4,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 
 class MissingEnvError(RuntimeError):
     pass
@@ -29,6 +34,10 @@ def _default_local_root() -> Path:
     return Path(__file__).resolve().parents[1] / "data" / "local_storage"
 
 
+def _default_lora_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "data" / "lora"
+
+
 @dataclass
 class AppConfig:
     api_key: str
@@ -39,11 +48,11 @@ class AppConfig:
     aws_s3_bucket: str | None
     quest_llm_provider: str
     llm_provider: str
-    qwen_base_url: str | None
-    qwen_model: str | None
-    qwen_persona_model: str | None
-    qwen_api_key: str
-    lora_dir: str
+    qwen_base_url: str | None = None
+    qwen_model: str | None = None
+    qwen_persona_model: str | None = None
+    qwen_api_key: str = "EMPTY"
+    lora_dir: str = ""
     image_provider: str = "local"
     runpod_image_endpoint_url: str | None = None
     runpod_api_key: str = "EMPTY"
@@ -78,6 +87,8 @@ class AppConfig:
                 f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
+
+        openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
 
         # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
         # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
@@ -149,7 +160,11 @@ class AppConfig:
             raw_bucket = need("AWS_S3_BUCKET")
             bucket, embedded_prefix = _split_s3_uri(raw_bucket)
             env_prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
-            prefix = env_prefix or embedded_prefix or "mongle-village"
+            prefix = (
+                env_prefix
+                if env_prefix and (env_prefix != "mongle-village" or not embedded_prefix)
+                else embedded_prefix or env_prefix or "mongle-village"
+            )
             cfg = cls(
                 storage_backend="s3",
                 storage_prefix=prefix,

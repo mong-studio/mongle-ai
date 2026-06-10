@@ -37,9 +37,9 @@ def _cfg(**over) -> AppConfig:
     return AppConfig(**base)
 
 
-def test_quest_ports_fake_provider_builds():
-    """fake 프로바이더로 quest 포트가 빌드된다."""
-    ports = build_quest_ports(_cfg(quest_llm_provider="fake"))
+def test_quest_ports_qwen_provider_builds():
+    """qwen 프로바이더로 quest 포트가 빌드된다."""
+    ports = build_quest_ports(_cfg())
     assert ports.llm is not None
 
 

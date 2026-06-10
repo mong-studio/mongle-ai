@@ -39,19 +39,6 @@ def test_chat_first_turn_returns_follow_up(api_client):
     assert data["result"]["question"]
 
 
-def test_chat_compat_alias_returns_follow_up(api_client):
-    """Django 내부 호출용 /todo/chat alias도 follow_up 결과를 반환한다."""
-    api_client.app.dependency_overrides[get_todo_multiturn_ports] = _override
-    body = {"mode": "multi", "user_id": "u1", "message": "운동 계획", "today": "2026-06-04"}
-    resp = api_client.post("/todo/chat", json=body, headers=AUTH)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "done"
-    assert data["result"]["kind"] == "follow_up"
-    assert data["result"]["thread_id"]
-
-
 def test_chat_requires_api_key(api_client):
     """API 키 없이 /v1/todo/chat 호출 시 401을 반환한다."""
     assert api_client.post("/v1/todo/chat", json={"mode": "multi"}).status_code == 401
-    assert api_client.post("/todo/chat", json={"mode": "multi"}).status_code == 401
