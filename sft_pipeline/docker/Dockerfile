@@ -4,7 +4,8 @@
 #
 # 빌드(레포 루트를 컨텍스트로):
 #   docker build -f sft_pipeline/docker/Dockerfile -t sft-synthesis .
-FROM vllm/vllm-openai:latest
+# Pin to a specific release — bump tag intentionally when upgrading vLLM
+FROM vllm/vllm-openai:v0.6.3
 
 WORKDIR /app
 

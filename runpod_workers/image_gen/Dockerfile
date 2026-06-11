@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    HF_HOME=/app/hf-cache
+    HF_HOME=/runpod-volume/hf-cache
 
 WORKDIR /app
 
