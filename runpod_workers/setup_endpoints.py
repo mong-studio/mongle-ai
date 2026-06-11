@@ -30,6 +30,7 @@ _WORKERS = [
         "lora_repo_id": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora",
         "result_key": "RUNPOD_PLANNER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_PLANNER_TEMPLATE_ID",
+        "network_volume_id": "lmrw00ibp3",
     },
     {
         "label": "빌리지 LLM (character 페르소나)",
@@ -40,6 +41,7 @@ _WORKERS = [
         "lora_repo_id": "deeps1eep/qwen2.5-7b-mongle-village",
         "result_key": "RUNPOD_VILLAGE_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_VILLAGE_TEMPLATE_ID",
+        "network_volume_id": "lmrw00ibp3",
     },
     {
         "label": "이미지 생성 워커 (pixel art)",
@@ -50,6 +52,7 @@ _WORKERS = [
         "lora_repo_id": "Hadimeeee/pixel-art-lora-sdxl",
         "result_key": "RUNPOD_IMAGE_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_IMAGE_TEMPLATE_ID",
+        "network_volume_id": None,
     },
 ]
 
@@ -95,6 +98,7 @@ def create_template(
                 "imageName": image,
                 "containerDiskInGb": disk_gb,
                 "volumeInGb": 0,
+                "dockerArgs": "",
                 "env": env_list,
                 "isServerless": True,
             }
@@ -106,20 +110,22 @@ def create_template(
     return template_id
 
 
-def create_endpoint(api_key: str, name: str, template_id: str) -> str:
+def create_endpoint(
+    api_key: str, name: str, template_id: str, network_volume_id: str | None = None
+) -> str:
     data = _gql(
         _SAVE_ENDPOINT,
         {
             "input": {
                 "name": name,
                 "templateId": template_id,
-                "gpuIds": "AMPERE_24",  # RTX 3090 24 GB — Qwen 7B fp16 에 충분
+                "gpuIds": "AMPERE_24",  # RTX 3090/4090 24 GB — Qwen 7B fp16 에 충분
                 "workersMin": 0,
                 "workersMax": 3,
                 "idleTimeout": 5,
                 "scalerType": "QUEUE_DELAY",
                 "scalerValue": 4,
-                "networkVolumeId": None,
+                "networkVolumeId": network_volume_id,
             }
         },
         api_key,
@@ -155,7 +161,9 @@ def main() -> None:
         template_id = create_template(
             api_key, w["template_name"], image, env, w["container_disk_gb"]
         )
-        endpoint_id = create_endpoint(api_key, w["endpoint_name"], template_id)
+        endpoint_id = create_endpoint(
+            api_key, w["endpoint_name"], template_id, w.get("network_volume_id")
+        )
         results[w["result_key"]] = f"https://api.runpod.ai/v2/{endpoint_id}"
         template_ids[w["template_secret_key"]] = template_id
 

@@ -119,32 +119,44 @@ jobs:
           RUNPOD_VILLAGE_TEMPLATE_ID: ${{ secrets.RUNPOD_VILLAGE_TEMPLATE_ID }}
           NEW_IMAGE: ${{ env.LLM_IMAGE }}:${{ github.ref_name }}
         run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
+          # 현재 템플릿 전체 조회
+          FETCH=$(jq -nc '{"query":"{ myself { podTemplates { id name imageName containerDiskInGb dockerArgs env { key value } volumeInGb isServerless } } }"}')
 
-          def update_template(api_key, template_id, image):
-              payload = json.dumps({
-                  "query": "mutation U($i: SaveTemplateInput!) { saveTemplate(input: $i) { id imageName } }",
-                  "variables": {"i": {"id": template_id, "imageName": image}},
-              }).encode()
-              req = urllib.request.Request(
-                  f"https://api.runpod.io/graphql?api_key={api_key}",
-                  data=payload,
-                  headers={"Content-Type": "application/json"},
-              )
-              with urllib.request.urlopen(req) as r:
-                  result = json.loads(r.read())
-              if "errors" in result:
-                  raise SystemExit(f"RunPod error: {result['errors']}")
-              print(f"  updated: {result['data']['saveTemplate']}")
+          # 템플릿 전체 1회 조회
+          TEMPLATES=$(curl -sf \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RUNPOD_API_KEY" \
+            -d "$FETCH" \
+            https://api.runpod.io/graphql) || { echo "fetch failed"; exit 1; }
 
-          api_key = os.environ["RUNPOD_API_KEY"]
-          image   = os.environ["NEW_IMAGE"]
-          for env_key in ("RUNPOD_PLANNER_TEMPLATE_ID", "RUNPOD_VILLAGE_TEMPLATE_ID"):
-              tid = os.environ[env_key]
-              print(f"Updating {env_key} -> {image}")
-              update_template(api_key, tid, image)
-          PYEOF
+          for ENV_KEY in RUNPOD_PLANNER_TEMPLATE_ID RUNPOD_VILLAGE_TEMPLATE_ID; do
+            TID="${!ENV_KEY}"
+            echo "Updating $ENV_KEY ($TID) -> $NEW_IMAGE"
+
+            TMPL=$(echo "$TEMPLATES" | jq -c --arg tid "$TID" \
+              '.data.myself.podTemplates[] | select(.id == $tid)')
+
+            PAYLOAD=$(echo "$TMPL" | jq -c --arg img "$NEW_IMAGE" '{
+              query: "mutation U($i:SaveTemplateInput!){saveTemplate(input:$i){id imageName}}",
+              variables: { i: {
+                id: .id, name: .name, imageName: $img,
+                containerDiskInGb: .containerDiskInGb,
+                dockerArgs: (.dockerArgs // ""),
+                env: (.env // []),
+                volumeInGb: (.volumeInGb // 0),
+                isServerless: (.isServerless // true)
+              }}
+            }')
+
+            RESP=$(curl -sf \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $RUNPOD_API_KEY" \
+              -d "$PAYLOAD" \
+              https://api.runpod.io/graphql) || { echo "update failed"; exit 1; }
+            echo "$RESP" | jq -e '.errors == null' > /dev/null \
+              || { echo "GraphQL error: $RESP"; exit 1; }
+            echo "  updated: $(echo "$RESP" | jq -r '.data.saveTemplate')"
+          done
 
       - name: Update Image Gen template
         env:
@@ -152,27 +164,37 @@ jobs:
           RUNPOD_IMAGE_TEMPLATE_ID: ${{ secrets.RUNPOD_IMAGE_TEMPLATE_ID }}
           NEW_IMAGE: ${{ env.IMAGE_IMAGE }}:${{ github.ref_name }}
         run: |
-          python3 - <<'PYEOF'
-          import json, os, urllib.request
+          echo "Updating RUNPOD_IMAGE_TEMPLATE_ID ($RUNPOD_IMAGE_TEMPLATE_ID) -> $NEW_IMAGE"
+          FETCH=$(jq -nc '{"query":"{ myself { podTemplates { id name imageName containerDiskInGb dockerArgs env { key value } volumeInGb isServerless } } }"}')
+          TEMPLATES=$(curl -sf \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RUNPOD_API_KEY" \
+            -d "$FETCH" \
+            https://api.runpod.io/graphql) || { echo "fetch failed"; exit 1; }
 
-          api_key = os.environ["RUNPOD_API_KEY"]
-          tid     = os.environ["RUNPOD_IMAGE_TEMPLATE_ID"]
-          image   = os.environ["NEW_IMAGE"]
-          payload = json.dumps({
-              "query": "mutation U($i: SaveTemplateInput!) { saveTemplate(input: $i) { id imageName } }",
-              "variables": {"i": {"id": tid, "imageName": image}},
-          }).encode()
-          req = urllib.request.Request(
-              f"https://api.runpod.io/graphql?api_key={api_key}",
-              data=payload,
-              headers={"Content-Type": "application/json"},
-          )
-          with urllib.request.urlopen(req) as r:
-              result = json.loads(r.read())
-          if "errors" in result:
-              raise SystemExit(f"RunPod error: {result['errors']}")
-          print(f"Updated: {result['data']['saveTemplate']}")
-          PYEOF
+          TMPL=$(echo "$TEMPLATES" | jq -c --arg tid "$RUNPOD_IMAGE_TEMPLATE_ID" \
+            '.data.myself.podTemplates[] | select(.id == $tid)')
+
+          PAYLOAD=$(echo "$TMPL" | jq -c --arg img "$NEW_IMAGE" '{
+            query: "mutation U($i:SaveTemplateInput!){saveTemplate(input:$i){id imageName}}",
+            variables: { i: {
+              id: .id, name: .name, imageName: $img,
+              containerDiskInGb: .containerDiskInGb,
+              dockerArgs: (.dockerArgs // ""),
+              env: (.env // []),
+              volumeInGb: (.volumeInGb // 0),
+              isServerless: (.isServerless // true)
+            }}
+          }')
+
+          RESP=$(curl -sf \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RUNPOD_API_KEY" \
+            -d "$PAYLOAD" \
+            https://api.runpod.io/graphql) || { echo "update failed"; exit 1; }
+          echo "$RESP" | jq -e '.errors == null' > /dev/null \
+            || { echo "GraphQL error: $RESP"; exit 1; }
+          echo "Updated: $(echo "$RESP" | jq -r '.data.saveTemplate')"
 
   # ── GitHub Release (v* 태그 시에만) ─────────────────────────────────────────
   release:

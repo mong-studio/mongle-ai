@@ -25,6 +25,7 @@ from typing import Any
 
 import httpx
 
+from adapters.todo_creation._domain_wiki import load_wiki
 from adapters.todo_creation._prompts import (
     FOLLOW_UP_SYSTEM,
     GOAL_TAG_SYSTEM,
@@ -292,7 +293,11 @@ class QwenLLM:
         return bool(parsed.get("is_sufficient")), [str(x) for x in missing], goal
 
     async def generate_follow_up_question(
-        self, *, missing_aspects: list[str], history: list[Turn]
+        self,
+        *,
+        missing_aspects: list[str],
+        history: list[Turn],
+        enrichment_context: dict | None = None,
     ) -> str:
         messages = [
             {"role": "system", "content": FOLLOW_UP_SYSTEM},
@@ -301,6 +306,7 @@ class QwenLLM:
                 "content": follow_up_user(
                     missing_aspects=missing_aspects,
                     history=_as_jsonable(history),
+                    enrichment_context=enrichment_context,
                 ),
             },
         ]
@@ -313,8 +319,19 @@ class QwenLLM:
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
+        system = PLAN_GENERATOR_SYSTEM
+        goal_tag = str(parsed_goal.get("goal_tag") or "")
+        wiki = load_wiki(goal_tag) if goal_tag else None
+        if wiki:
+            system = (
+                system
+                + f"\n\n[도메인 지식 — {goal_tag}]\n"
+                "아래는 이 목표에 특화된 학습 전략 위키다. "
+                "플랜 생성 시 태스크 이름과 순서를 이 위키에 맞춰 만들어라.\n\n"
+                + wiki
+            )
         messages = [
-            {"role": "system", "content": PLAN_GENERATOR_SYSTEM},
+            {"role": "system", "content": system},
             {
                 "role": "user",
                 "content": plan_generator_user(

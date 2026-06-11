@@ -18,3 +18,5 @@ sft_pipeline/data/
 *.bak
 docs/
 notebooks/
+tests/
+sft_pipeline/
