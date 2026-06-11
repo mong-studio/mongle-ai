@@ -93,7 +93,7 @@ jobs:
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters "commands=[
-              \"cd ~/mongle-ai\",
+              \"cd /home/ubuntu/mongle-ai\",
               \"docker compose pull\",
               \"IMAGE_TAG=${IMAGE_TAG} docker compose up -d --remove-orphans\",
               \"docker image prune -f\",
