@@ -1,6 +1,8 @@
+# SFT pipeline (managed separately, not part of API server)
+sft_pipeline/
+
 # Model outputs (large binary files)
 outputs/
-sft_pipeline/outputs/
 
 # Python
 __pycache__/
