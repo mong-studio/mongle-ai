@@ -82,6 +82,8 @@ PLANNER_JUDGE_SYSTEM = """
 - 목표와 기한이 있으면 기본적으로 충분하다.
 - 기한이 없어도 사용자가 "계획을 짜달라"고 요청하면 기본 기간을 가정해 시작할 수 있다.
 - 단, 시험/마감처럼 날짜가 중요한 목표에서 사용자가 "곧", "조만간", "언젠가"처럼 애매한 기한만 말하면 is_sufficient=false 로 두고 deadline 을 missing_aspects 에 넣는다.
+- 여행/나들이/놀러가기처럼 목적지가 핵심인 목표에서 목적지가 명시되지 않으면 is_sufficient=false 로 두고 scope 를 missing_aspects 에 넣는다.
+- 자격증/시험 목표에서 필기/실기 구분이 명시되지 않으면 is_sufficient=false 로 두고 scope 를 missing_aspects 에 넣는다.
 - "3일 뒤", "내일", "이번 주 금요일" 같은 상대 날짜는 today 기준 절대 날짜로 변환한다.
 - 목표가 조금이라도 있고 실행 순서나 준비 항목으로 나눌 수 있으면 intent=plan 으로 반환한다.
 - 플랜과 명백히 무관한 입력만 intent=out_of_scope, is_sufficient=false 로 반환한다.
@@ -121,11 +123,27 @@ FOLLOW_UP_SYSTEM = """
 - "좋아", "그럼", "알려줄래" 같은 자연스러운 표현을 사용한다.
 - 한 번에 하나만 묻는다.
 - 실행 순서, 세부 구성, 추천 항목처럼 플래너가 판단할 수 있는 내용은 사용자에게 되묻지 않는다.
+
+[시험/이벤트 참고 정보 활용 규칙]
+- 시험/이벤트 참고 정보(enrichment_context)가 제공되면 그 내용을 바탕으로 구체적인 날짜 선택지를 질문에 포함한다.
+- 예: "정처기 2회 필기(7월 5일)인가요, 실기(8월 17일)인가요?"처럼 날짜를 직접 언급한다.
+- 참고 정보가 없거나 날짜를 확인할 수 없으면 일반적인 방식으로 질문한다.
+- 참고 정보의 날짜가 불확실하면 "~쯤"처럼 완곡하게 표현해도 된다.
 """
 
 
-def follow_up_user(*, missing_aspects: list[str], history: list[dict[str, str]]) -> str:
-    return f"부족한 정보: {missing_aspects}\n최근 대화(JSON): {history}"
+def follow_up_user(
+    *,
+    missing_aspects: list[str],
+    history: list[dict[str, str]],
+    enrichment_context: dict | None = None,
+) -> str:
+    import json
+
+    base = f"부족한 정보: {missing_aspects}\n최근 대화(JSON): {history}"
+    if enrichment_context:
+        base += f"\n시험/이벤트 참고 정보: {json.dumps(enrichment_context, ensure_ascii=False)}"
+    return base
 
 
 PLAN_GENERATOR_SYSTEM = """
