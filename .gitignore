@@ -46,3 +46,4 @@ vscode-extensions.txt
 
 # docs
 docs/requirements/*
+*.erd
