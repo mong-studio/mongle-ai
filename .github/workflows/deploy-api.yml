@@ -92,15 +92,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[
-              \"cd /home/ubuntu/mongle-ai\",
-              \"docker compose pull\",
-              \"IMAGE_TAG=${IMAGE_TAG} docker compose up -d --remove-orphans\",
-              \"docker image prune -f\",
-              \"sleep 10\",
-              \"curl -sf http://localhost:8010/health || { docker compose logs --tail=50 api; exit 1; }\",
-              \"echo Deployed: ${IMAGE_TAG}\"
-            ]" \
+            --parameters "{\"commands\":[\"set -ex && export PATH=\$PATH:/usr/local/bin:/usr/bin && cd /home/ubuntu/mongle-ai && docker compose pull && IMAGE_TAG=${IMAGE_TAG} docker compose up -d --remove-orphans && docker image prune -f && sleep 10 && curl -sf http://localhost:8010/health && echo Deployed: ${IMAGE_TAG}\"]}" \
             --query "Command.CommandId" \
             --output text)
 
