@@ -11,7 +11,7 @@ from api.deps import (
     build_commit_ports,
     build_quest_ports,
     build_todo_generate_ports,
-    build_todo_multiturn_ports,
+    build_todo_planner_ports,
     fetch_source_bytes,
     get_config,
 )
@@ -58,12 +58,12 @@ def test_todo_generate_ports_without_qwen_raises():
 
 
 # ---------------------------------------------------------------------------
-# build_todo_multiturn_ports
+# build_todo_planner_ports
 # ---------------------------------------------------------------------------
 
-def test_build_todo_multiturn_ports_qwen():
+def test_build_todo_planner_ports_qwen():
     """멀티턴 todo 도 Qwen 전용 — qwen 설정으로 빌드된다."""
-    ports = build_todo_multiturn_ports(
+    ports = build_todo_planner_ports(
         _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
     )
     assert ports.llm is not None
@@ -168,9 +168,9 @@ def test_build_todo_generate_ports_qwen_builds():
     assert ports.llm is not None
 
 
-def test_build_todo_multiturn_ports_qwen_builds():
+def test_build_todo_planner_ports_qwen_builds():
     """qwen 프로바이더로 멀티턴 포트가 빌드된다."""
-    ports = build_todo_multiturn_ports(
+    ports = build_todo_planner_ports(
         _cfg(
             llm_provider="qwen",
             qwen_base_url="http://qwen-host/v1",

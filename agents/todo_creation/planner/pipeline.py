@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from langgraph.types import Command
 
-from agents.todo_creation.multi_turn.graph import build_multi_turn_graph
+from agents.todo_creation.planner.graph import build_planner_graph
 from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import (
     FollowUpResult,
@@ -35,17 +35,17 @@ _ACCEPT_MESSAGES = {
 
 
 @dataclass
-class MultiTurnPorts:
+class PlannerPorts:
     llm: LLMPort
 
 
-_GRAPH = build_multi_turn_graph()
+_GRAPH = build_planner_graph()
 
 
 async def run(
     input: MultiGenerateInput,
     *,
-    ports: MultiTurnPorts,
+    ports: PlannerPorts,
     now: datetime,
 ) -> TurnResult:
     thread_id = input.thread_id or str(uuid4())
@@ -150,7 +150,7 @@ def _revision_state(
     }
 
 
-def get_debug_state(*, thread_id: str, ports: MultiTurnPorts) -> dict[str, Any]:
+def get_debug_state(*, thread_id: str, ports: PlannerPorts) -> dict[str, Any]:
     """콘솔/테스트에서 현재 MemorySaver 상태를 확인하기 위한 읽기 전용 헬퍼."""
 
     config = {"configurable": {"ports": ports, "thread_id": thread_id}}

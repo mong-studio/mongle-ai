@@ -5,15 +5,15 @@ from datetime import date
 import pytest
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.schemas import SingleTurnInput
-from agents.todo_creation.single_turn.nodes.validate import (
+from agents.todo_creation.schemas import TodoInput
+from agents.todo_creation.todo.nodes.validate import (
     check,
     validate_node,
 )
 
 
-def _input(prompt: str = "오늘 코테", user_id: str = "u1") -> SingleTurnInput:
-    return SingleTurnInput(user_id=user_id, prompt=prompt, today=date(2026, 5, 24))
+def _input(prompt: str = "오늘 코테", user_id: str = "u1") -> TodoInput:
+    return TodoInput(user_id=user_id, prompt=prompt, today=date(2026, 5, 24))
 
 
 def test_check_passes_for_normal_input() -> None:
@@ -22,8 +22,8 @@ def test_check_passes_for_normal_input() -> None:
 
 def test_check_rejects_201_chars() -> None:
     long = "가" * 201
-    # SingleTurnInput pydantic blocks construction first; build via model_construct
-    inp = SingleTurnInput.model_construct(
+    # TodoInput pydantic blocks construction first; build via model_construct
+    inp = TodoInput.model_construct(
         user_id="u1", prompt=long, today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
@@ -32,7 +32,7 @@ def test_check_rejects_201_chars() -> None:
 
 
 def test_check_rejects_whitespace_only_prompt() -> None:
-    inp = SingleTurnInput.model_construct(
+    inp = TodoInput.model_construct(
         user_id="u1", prompt="   ", today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
@@ -41,7 +41,7 @@ def test_check_rejects_whitespace_only_prompt() -> None:
 
 
 def test_check_rejects_empty_user_id() -> None:
-    inp = SingleTurnInput.model_construct(
+    inp = TodoInput.model_construct(
         user_id="", prompt="hi", today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
@@ -56,7 +56,7 @@ async def test_validate_node_returns_empty_diff_on_success() -> None:
 
 
 async def test_validate_node_raises_on_invalid() -> None:
-    bad = SingleTurnInput.model_construct(
+    bad = TodoInput.model_construct(
         user_id="u1", prompt="", today=date(2026, 5, 24)
     )
     state = {"input": bad, "now": None}

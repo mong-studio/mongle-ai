@@ -7,14 +7,14 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.config_utils import get_ports
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.state import ParsedGoal, PlanDay
 
 _MAX_SUMMARY_CHARS = 1500
 
 
 async def plan_generator_node(
-    state: MultiTurnGraphState, config: RunnableConfig
+    state: PlannerGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
     ports = get_ports(config)
     llm = ports.llm

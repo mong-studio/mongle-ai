@@ -19,8 +19,8 @@ from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.character_creation.schemas import LLMPersonaResult
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
-from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts
-from agents.todo_creation.single_turn.pipeline import GeneratePorts
+from agents.todo_creation.planner.pipeline import PlannerPorts
+from agents.todo_creation.todo.pipeline import GeneratePorts
 
 from api.config import AppConfig
 
@@ -160,8 +160,8 @@ def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
     return GeneratePorts(llm=_build_todo_llm(cfg))
 
 
-def build_todo_multiturn_ports(cfg: AppConfig) -> MultiTurnPorts:
-    return MultiTurnPorts(llm=_build_todo_llm(cfg))
+def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
+    return PlannerPorts(llm=_build_todo_llm(cfg))
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:
@@ -205,8 +205,8 @@ def get_todo_generate_ports(cfg: AppConfig = Depends(get_config)) -> GeneratePor
     return build_todo_generate_ports(cfg)
 
 
-def get_todo_multiturn_ports(cfg: AppConfig = Depends(get_config)) -> MultiTurnPorts:
-    return build_todo_multiturn_ports(cfg)
+def get_todo_planner_ports(cfg: AppConfig = Depends(get_config)) -> PlannerPorts:
+    return build_todo_planner_ports(cfg)
 
 
 def get_quest_ports(cfg: AppConfig = Depends(get_config)) -> QuestPorts:

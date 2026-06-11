@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
+from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay
 

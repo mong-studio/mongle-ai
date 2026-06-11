@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 import pytest
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
+from agents.todo_creation.planner.nodes.validate import multi_validate_node
 
 
 def _state(message: str, history: list | None = None) -> dict:

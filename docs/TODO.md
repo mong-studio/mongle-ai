@@ -19,7 +19,7 @@
 
 - [ ] **(backend)** character_creation 진입 전 C1(보유 ≤10)·C2(일일 재생성 ≤3) 검증을 백엔드/호출자에서 강제. 현재 Streamlit 사이드바는 카운터만 표시하고 차단하지 않으므로 실제 백엔드 연결 시 사전 거부 로직 필요. 에이전트는 더 이상 이 규칙을 알지 못한다 (`CharacterRepositoryPort` 에서 관련 메서드 제거됨).
 
-- [ ] **(api)** FastAPI 서비스로 에이전트 파이프라인 노출 — 4개 피처(character_creation / todo_creation[single_turn·commit·multi_turn] / quest_generation / feed_generation) 의 `async def run(...)` 진입점을 HTTP 라우터로 래핑. Streamlit 과 병존.
+- [ ] **(api)** FastAPI 서비스로 에이전트 파이프라인 노출 — 4개 피처(character_creation / todo_creation[todo·commit·planner] / quest_generation / feed_generation) 의 `async def run(...)` 진입점을 HTTP 라우터로 래핑. Streamlit 과 병존.
   - 재사용: `streamlit_app/ports_factory.py` 의 `AppConfig.from_env()` + `build_*_ports(cfg)` 빌더 → FastAPI `Depends` 로 이식. 누락된 `build_feed_ports`, `build_quest_ports` 분리 추가 필요.
   - 디렉토리: `api/{main,deps,auth,errors,logging}.py` + `api/routers/{character,todo,quest,feed}.py` + `tests/api/`.
   - 인증: Bearer 토큰 (`API_TOKEN` / `API_TOKENS` 환경변수, 상수시간 비교). 헬스체크 제외.

@@ -1,3 +1,7 @@
+# Model outputs (large binary files)
+outputs/
+sft_pipeline/outputs/
+
 # Python
 __pycache__/
 *.py[cod]

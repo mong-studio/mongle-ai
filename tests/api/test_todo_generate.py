@@ -2,7 +2,7 @@ from typing import cast
 
 from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import TaskCandidate
-from agents.todo_creation.single_turn.pipeline import GeneratePorts
+from agents.todo_creation.todo.pipeline import GeneratePorts
 from api.deps import get_todo_generate_ports
 from tests.api.conftest import AUTH
 

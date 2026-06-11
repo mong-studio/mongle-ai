@@ -5,18 +5,18 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
 from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
-from agents.todo_creation.multi_turn.nodes.out_of_scope import out_of_scope_node
-from agents.todo_creation.multi_turn.nodes.plan_generator import plan_generator_node
-from agents.todo_creation.multi_turn.nodes.planner import planner_node
-from agents.todo_creation.multi_turn.nodes.validate import multi_validate_node
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.planner.nodes.follow_up import follow_up_node
+from agents.todo_creation.planner.nodes.out_of_scope import out_of_scope_node
+from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
+from agents.todo_creation.planner.nodes.planner import planner_node
+from agents.todo_creation.planner.nodes.validate import multi_validate_node
+from agents.todo_creation.planner.state import PlannerGraphState
 
 _checkpointer = MemorySaver()
 
 
-def build_multi_turn_graph():
-    g = StateGraph(MultiTurnGraphState)
+def build_planner_graph():
+    g = StateGraph(PlannerGraphState)
 
     g.add_node("validate", multi_validate_node)
     g.add_node(

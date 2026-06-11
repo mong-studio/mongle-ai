@@ -1,0 +1,117 @@
+{
+  "exam_code": "information_processing_engineer",
+  "display_name": "정보처리기사",
+  "aliases": ["정처기", "정보처리기사", "Engineer Information Processing"],
+  "last_verified": "2026-06-09",
+  "official_sources": [
+    {
+      "name": "Q-Net 국가자격 종목별 상세정보 - 정보처리기사",
+      "url": "https://www.q-net.or.kr/crf005.do?gbnn=gbnSubtab2&id=crf00503&jmCd=1320",
+      "notes": ["관련부처: 과학기술정보통신부", "시행기관: 한국산업인력공단"]
+    },
+    {
+      "name": "Q-Net 정보처리기사 출제기준(2026.01.01~2026.12.31)",
+      "url": "/Users/jpaper/Downloads/1-20260609080522106.pdf",
+      "notes": ["사용자 제공 Q-Net 출제기준 PDF", "출제기준 기간: 2026.01.01~2026.12.31"]
+    }
+  ],
+  "exam_parts": {
+    "written": {
+      "name": "정보처리기사 필기",
+      "subjects": [
+        "소프트웨어설계",
+        "소프트웨어개발",
+        "데이터베이스구축",
+        "프로그래밍언어활용",
+        "정보시스템구축관리"
+      ],
+      "format": "객관식 4지 택일형",
+      "question_count": "과목당 20문항, 총 100문항",
+      "duration_minutes": 150,
+      "passing_rule": "100점 만점 기준 과목당 40점 이상, 전과목 평균 60점 이상"
+    },
+    "practical": {
+      "name": "정보처리기사 실기",
+      "subject": "정보처리실무",
+      "format": "필답형",
+      "duration_minutes": 150,
+      "passing_rule": "100점 만점 기준 60점 이상",
+      "study_areas": [
+        "요구사항 확인",
+        "데이터 입출력 구현",
+        "통합 구현",
+        "서버프로그램 구현",
+        "인터페이스 구현",
+        "화면 설계",
+        "애플리케이션 테스트 관리",
+        "SQL 응용",
+        "소프트웨어 개발 보안 구축",
+        "프로그래밍 언어 활용",
+        "응용 SW 기초 기술 활용",
+        "제품소프트웨어 패키징"
+      ]
+    }
+  },
+  "review_patterns": [
+    {
+      "case_id": "ipe-written-nonmajor-14d-pass",
+      "part": "written",
+      "time_left_days": 14,
+      "daily_hours": 3,
+      "start_level": "비전공, 개념 1회독 전",
+      "goal": "과락 없이 평균 70점",
+      "reported_score": "평균 70점대",
+      "result": "합격",
+      "process": "개념은 빠르게 훑고, 5개 필기 과목을 기출 3개년 중심으로 회독했다. 데이터베이스 구축과 프로그래밍 언어 활용은 오답을 따로 모아 반복했다.",
+      "evidence_summary": "단기 필기 합격 후기는 개념서 완독보다 기출 회독과 과락 방지를 우선하는 패턴이 많다."
+    },
+    {
+      "case_id": "ipe-written-worker-7d-pass",
+      "part": "written",
+      "time_left_days": 7,
+      "daily_hours": 2.5,
+      "start_level": "직장 병행, 전공 기초 있음",
+      "goal": "필기 합격",
+      "reported_score": "평균 60점대 후반",
+      "result": "합격",
+      "process": "평일에는 소프트웨어 설계, 소프트웨어 개발, 데이터베이스 구축 오답만 압축했고 주말에는 100문항 모의고사로 시간 감각을 맞췄다.",
+      "evidence_summary": "직장 병행 후기는 하루 공부시간이 짧아 약점 과목과 오답 중심으로 좁히는 경향이 있다."
+    },
+    {
+      "case_id": "ipe-written-cram-5d-fail",
+      "part": "written",
+      "time_left_days": 5,
+      "daily_hours": 4,
+      "start_level": "비전공, 기출 미완료",
+      "goal": "필기 합격",
+      "reported_score": "평균 60점 미만",
+      "result": "불합격",
+      "process": "소프트웨어 설계와 개발은 암기했지만 데이터베이스 구축과 프로그래밍 언어 활용 풀이량이 부족했고, 정보시스템 구축관리 과락 위험을 줄이지 못했다.",
+      "evidence_summary": "초단기 준비 실패 사례는 과락 과목 관리 실패와 실전 풀이 부족이 자주 드러난다."
+    },
+    {
+      "case_id": "ipe-practical-21d-pass",
+      "part": "practical",
+      "time_left_days": 21,
+      "daily_hours": 3,
+      "start_level": "필기 합격 직후, SQL 약점",
+      "goal": "실기 60점 이상",
+      "reported_score": "60점대",
+      "result": "합격",
+      "process": "정보처리 실무 범위에서 SQL 응용, 프로그래밍 언어 활용, 애플리케이션 테스트 관리를 먼저 잡고, 마지막 주에는 서술형 키워드와 보안 파트를 반복했다.",
+      "evidence_summary": "실기 합격 후기는 SQL, 프로그래밍, 테스트/보안 키워드 암기를 반복하는 전략이 많다."
+    },
+    {
+      "case_id": "ipe-practical-10d-fail",
+      "part": "practical",
+      "time_left_days": 10,
+      "daily_hours": 2,
+      "start_level": "필기 후 공백 6개월",
+      "goal": "실기 합격",
+      "reported_score": "50점대",
+      "result": "불합격",
+      "process": "요구사항 확인과 제품소프트웨어 패키징은 암기했지만 SQL 응용과 프로그래밍 언어 활용 문제 풀이가 부족해 점수를 잃었다.",
+      "evidence_summary": "실기 단기 실패 사례는 암기 위주 준비만 하고 계산·SQL·코드 문제 훈련이 부족한 경우가 많다."
+    }
+  ]
+}

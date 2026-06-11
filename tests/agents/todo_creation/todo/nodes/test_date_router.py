@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from datetime import date
 
-from agents.todo_creation.schemas import SingleTurnInput, TaskCandidate
-from agents.todo_creation.single_turn.nodes.date_router import date_router_node
+from agents.todo_creation.schemas import TodoInput, TaskCandidate
+from agents.todo_creation.todo.nodes.date_router import date_router_node
 
 
 def _state(split: list[TaskCandidate]) -> dict:
     return {
-        "input": SingleTurnInput(
+        "input": TodoInput(
             user_id="u1", prompt="x", today=date(2026, 5, 24)
         ),
         "now": None,

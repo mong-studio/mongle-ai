@@ -195,12 +195,12 @@
 ```
 agents/todo_creation/
 ├── __init__.py
-├── single_turn/
+├── todo/
 │   ├── pipeline.py        # 싱글턴 오케스트레이션
 │   ├── validation.py
 │   ├── task_splitter.py   # 4.2
 │   └── date_router.py     # 4.3
-├── multi_turn/
+├── planner/
 │   ├── pipeline.py        # 멀티턴 오케스트레이션
 │   ├── validation.py
 │   ├── planner.py         # 4.6
@@ -219,12 +219,12 @@ agents/todo_creation/
 
 ```python
 # schemas.py
-class SingleTurnInput(BaseModel):
+class TodoInput(BaseModel):
     user_id: str
     prompt: str = Field(max_length=200)
     today: date
 
-class MultiTurnInput(BaseModel):
+class PlannerInput(BaseModel):
     user_id: str
     session_id: str
     message: str = Field(max_length=600)
@@ -247,16 +247,16 @@ class CommitResult(BaseModel):
     quest_distribution_triggered: bool
 
 
-# single_turn/pipeline.py
-async def run(input: SingleTurnInput) -> list[TaskCandidate]:
+# todo/pipeline.py
+async def run(input: TodoInput) -> list[TaskCandidate]:
     validation.check(input)
     tasks = await task_splitter.split(input.prompt, today=input.today)
     todos, events = date_router.route(tasks, today=input.today)
     return todos + events  # UI로 반환, 사용자 확정 대기
 
 
-# multi_turn/pipeline.py
-async def turn(input: MultiTurnInput) -> PlannerTurnResult:
+# planner/pipeline.py
+async def turn(input: PlannerInput) -> PlannerTurnResult:
     validation.check(input)
     history = await session_store.get(input.session_id)
     judgment = await planner.judge(history, input.message)
@@ -304,12 +304,12 @@ async def commit(payload: CommitPayload) -> CommitResult:
 
 | #  | 항목                              | 결정                                                          | 출처 |
 |----|----------------------------------|--------------------------------------------------------------|------|
-| Q1 | 태그 어휘 (Tagger)                  | 자유 형식 문자열                                                  | 2026-05-25 multi_turn 설계 |
-| Q2 | 멀티턴 세션 저장소                       | 커스텀 `SessionStorePort` (in-memory → MySQL)                    | 2026-05-25 multi_turn 설계 |
-| Q3 | 수정 회귀 범위                         | edit_agent → plan_generator 직진 (Planner 거치지 않음)          | 2026-05-25 multi_turn 설계 |
+| Q1 | 태그 어휘 (Tagger)                  | 자유 형식 문자열                                                  | 2026-05-25 planner 설계 |
+| Q2 | 멀티턴 세션 저장소                       | 커스텀 `SessionStorePort` (in-memory → MySQL)                    | 2026-05-25 planner 설계 |
+| Q3 | 수정 회귀 범위                         | edit_agent → plan_generator 직진 (Planner 거치지 않음)          | 2026-05-25 planner 설계 |
 | Q4 | 싱글턴 time_hint 처리                | 사용하지 않음. AI 응답은 `title`, `due_date`, `tags` 만 반환                 | 2026-06-05 싱글턴 DB 응답 정합 |
-| Q5 | Plan Generator C3 초과              | 재생성 1회 → 실패 시 마침표 기준 잘라내기                                | 2026-05-25 multi_turn 설계 |
-| Q6 | 한국어 위주 검증                      | 한글 유니코드 비율 ≥ 0.3 휴리스틱                                    | 2026-05-25 multi_turn 설계 |
+| Q5 | Plan Generator C3 초과              | 재생성 1회 → 실패 시 마침표 기준 잘라내기                                | 2026-05-25 planner 설계 |
+| Q6 | 한국어 위주 검증                      | 한글 유니코드 비율 ≥ 0.3 휴리스틱                                    | 2026-05-25 planner 설계 |
 | Q7 | 퀘스트 분배 카운트 리셋                  | 기존 commit 모듈 결정 유지 (KST 자정)                                | PR #6 |
 
 ---

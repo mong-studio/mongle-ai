@@ -104,7 +104,7 @@ agents/{feature}/
 └── exceptions.py
 ```
 
-복잡한 피처(`todo`)는 `single_turn/`, `multi_turn/`, `commit/` 같은 하위 폴더로 분리. 자세한 예는 각 피처 `CLAUDE.md` §6.1 참조.
+복잡한 피처(`todo`)는 `todo/`, `planner/`, `commit/` 같은 하위 폴더로 분리. 자세한 예는 각 피처 `CLAUDE.md` §6.1 참조.
 
 ## 4. 완성 정의 (Definition of Done)
 

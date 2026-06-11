@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from agents.todo_creation.multi_turn.date_parser import (
+from agents.todo_creation.planner.date_parser import (
     has_explicit_deadline,
     parse_explicit_deadline,
 )
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.state import ParsedGoal, Turn
 
 _AMBIGUOUS_DEADLINE_WORDS = ("곧", "조만간", "언젠가", "나중에", "머지않아")
 _DEADLINE_SENSITIVE_WORDS = ("시험", "마감", "발표", "면접", "여행", "결혼식", "행사")
 
 
-def collect_user_text(state: MultiTurnGraphState) -> str:
+def collect_user_text(state: PlannerGraphState) -> str:
     """현재 턴과 이전 user turn 을 하나의 문자열로 합친다."""
 
     return " ".join(
@@ -37,7 +37,7 @@ def latest_user_goal(history: list[Turn], fallback: str) -> str:
     return fallback
 
 
-def build_recovery_goal(state: MultiTurnGraphState) -> ParsedGoal:
+def build_recovery_goal(state: PlannerGraphState) -> ParsedGoal:
     """LLM 이 out_of_scope 로 오판해도 기존 목표 정보를 유지한다."""
 
     previous: ParsedGoal = state.get("parsed_goal") or {}
@@ -55,7 +55,7 @@ def build_recovery_goal(state: MultiTurnGraphState) -> ParsedGoal:
 
 
 def merge_deadline_from_state(
-    state: MultiTurnGraphState, parsed_goal: ParsedGoal
+    state: PlannerGraphState, parsed_goal: ParsedGoal
 ) -> None:
     """사용자 입력에 명시 날짜가 있으면 parsed_goal.deadline 을 보정한다."""
 
@@ -75,7 +75,7 @@ def delegates_planning(message: str) -> bool:
     return any(word in compact for word in delegate_words)
 
 
-def should_accept_out_of_scope(state: MultiTurnGraphState) -> bool:
+def should_accept_out_of_scope(state: PlannerGraphState) -> bool:
     """아주 짧고 명백히 무관한 첫 입력만 out_of_scope 로 수용한다."""
 
     history = state.get("history", [])
@@ -93,7 +93,7 @@ def should_accept_out_of_scope(state: MultiTurnGraphState) -> bool:
 
 
 def needs_deadline_follow_up(
-    state: MultiTurnGraphState, parsed_goal: ParsedGoal | None
+    state: PlannerGraphState, parsed_goal: ParsedGoal | None
 ) -> bool:
     """날짜가 애매한 중요한 목표는 계획 대신 deadline 질문으로 되돌린다."""
 
@@ -110,7 +110,7 @@ def needs_deadline_follow_up(
     )
 
 
-def _has_explicit_deadline(text: str, *, state: MultiTurnGraphState) -> bool:
+def _has_explicit_deadline(text: str, *, state: PlannerGraphState) -> bool:
     """절대 날짜/상대 날짜가 있으면 계획 생성으로 진행한다."""
 
     today = state.get("today")

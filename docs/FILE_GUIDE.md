@@ -63,12 +63,12 @@ mongle-ai/
 | `builder.py` | 최종 캐릭터 엔티티 조립 |
 | `cleanup.py` | 에러 시 S3 원본 이미지 삭제 (보상 트랜잭션) |
 
-**todo_creation/** — single_turn vs multi_turn vs commit 3개로 나뉨
+**todo_creation/** — todo vs planner vs commit 3개로 나뉨
 
 | 폴더 | 언제 쓰임 |
 |---|---|
-| `single_turn/` | 한 번에 TODO 생성 |
-| `multi_turn/` | 대화형으로 TODO 생성 (follow-up 질문 포함) |
+| `todo/` | 한 번에 TODO 생성 |
+| `planner/` | 대화형으로 TODO 생성 (follow-up 질문 포함) |
 | `commit/` | 완료된 TODO를 저장하고 퀘스트 달성 체크 |
 
 **todo_creation/middleware/**

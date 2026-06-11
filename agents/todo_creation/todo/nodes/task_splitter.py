@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.schemas import TaskCandidate
-from agents.todo_creation.single_turn.state import GenerateGraphState
+from agents.todo_creation.todo.state import GenerateGraphState
 
 logger = logging.getLogger(__name__)
 

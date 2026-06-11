@@ -6,12 +6,12 @@ import pytest
 
 from tests.agents.todo_creation.fake_llm import FakeLLM
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
-from agents.todo_creation.schemas import SingleTurnInput, TaskCandidate
-from agents.todo_creation.single_turn.nodes.task_splitter import task_splitter_node
+from agents.todo_creation.schemas import TodoInput, TaskCandidate
+from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
 
 
-def _input(prompt: str = "오늘 코테") -> SingleTurnInput:
-    return SingleTurnInput(user_id="u1", prompt=prompt, today=date(2026, 5, 24))
+def _input(prompt: str = "오늘 코테") -> TodoInput:
+    return TodoInput(user_id="u1", prompt=prompt, today=date(2026, 5, 24))
 
 
 def _t(title: str = "코테", d: date = date(2026, 5, 24)) -> TaskCandidate:

@@ -6,7 +6,7 @@ from datetime import date, datetime
 import pytest
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.multi_turn.pipeline import MultiTurnPorts, get_debug_state, run
+from agents.todo_creation.planner.pipeline import PlannerPorts, get_debug_state, run
 from agents.todo_creation.schemas import (
     FollowUpResult,
     GenerateResult,
@@ -83,8 +83,8 @@ def _input(message: str = "프로젝트 완성하기", thread_id: str | None = N
     )
 
 
-def _ports(llm: _FakeLLM) -> MultiTurnPorts:
-    return MultiTurnPorts(llm=llm)
+def _ports(llm: _FakeLLM) -> PlannerPorts:
+    return PlannerPorts(llm=llm)
 
 
 # ---------------------------------------------------------------------------

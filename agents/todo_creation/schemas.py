@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class SingleTurnInput(BaseModel):
+class TodoInput(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
     prompt: Annotated[str, Field(min_length=1, max_length=200)]
     today: date
@@ -23,7 +23,7 @@ class GenerateResult(BaseModel):
     """후보 확정/검토 단계 응답 (single + multi 공통).
 
     `thread_id` 는 single 의 1-shot 호출에서도 발급된 값을 echo 한다.
-    기존 single_turn date_router 호출 시 default `""` 로 호환.
+    기존 todo date_router 호출 시 default `""` 로 호환.
     `summary_text` 는 multi 의 plan_generator 결과(C3 ≤ 1500자)만 채움.
     """
 

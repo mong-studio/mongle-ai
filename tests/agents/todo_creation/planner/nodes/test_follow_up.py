@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from agents.todo_creation.multi_turn.nodes.follow_up import follow_up_node
+from agents.todo_creation.planner.nodes.follow_up import follow_up_node
 
 
 def _state(history: list | None = None) -> dict:
@@ -25,7 +25,7 @@ async def test_calls_llm_and_interrupts_with_question() -> None:
     llm = AsyncMock()
     llm.generate_follow_up_question = AsyncMock(return_value="목표 점수는?")
     with patch(
-        "agents.todo_creation.multi_turn.nodes.follow_up.interrupt",
+        "agents.todo_creation.planner.nodes.follow_up.interrupt",
         return_value="800점",
     ) as mock_interrupt:
         out = await follow_up_node(_state(), _config(llm))
@@ -51,7 +51,7 @@ async def test_history_preserves_prior_turns() -> None:
     llm = AsyncMock()
     llm.generate_follow_up_question = AsyncMock(return_value="목표 점수?")
     with patch(
-        "agents.todo_creation.multi_turn.nodes.follow_up.interrupt",
+        "agents.todo_creation.planner.nodes.follow_up.interrupt",
         return_value="800점",
     ):
         out = await follow_up_node(_state(history=prior), _config(llm))

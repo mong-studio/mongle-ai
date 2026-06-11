@@ -10,11 +10,11 @@ from langgraph.types import RetryPolicy
 from agents.todo_creation.debug import log_end, log_start, log_step
 from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.protocols import LLMPort
-from agents.todo_creation.schemas import GenerateResult, SingleTurnInput
-from agents.todo_creation.single_turn.nodes.date_router import date_router_node
-from agents.todo_creation.single_turn.nodes.task_splitter import task_splitter_node
-from agents.todo_creation.single_turn.nodes.validate import validate_node
-from agents.todo_creation.single_turn.state import GenerateGraphState
+from agents.todo_creation.schemas import GenerateResult, TodoInput
+from agents.todo_creation.todo.nodes.date_router import date_router_node
+from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
+from agents.todo_creation.todo.nodes.validate import validate_node
+from agents.todo_creation.todo.state import GenerateGraphState
 
 
 @dataclass
@@ -45,7 +45,7 @@ _GRAPH = build_generate_graph()
 
 
 async def run(
-    input: SingleTurnInput,
+    input: TodoInput,
     *,
     ports: GeneratePorts,
     now: datetime,

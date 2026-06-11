@@ -16,19 +16,19 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 
 from agents.todo_creation.config_utils import get_ports
-from agents.todo_creation.multi_turn.goal_rules import (
+from agents.todo_creation.planner.goal_rules import (
     build_recovery_goal,
     delegates_planning,
     merge_deadline_from_state,
     needs_deadline_follow_up,
     should_accept_out_of_scope,
 )
-from agents.todo_creation.multi_turn.state import MultiTurnGraphState
+from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.state import ParsedGoal, Turn
 
 
 async def planner_node(
-    state: MultiTurnGraphState, config: RunnableConfig
+    state: PlannerGraphState, config: RunnableConfig
 ) -> Command[str]:
     llm = get_ports(config).llm
     if state.get("revision_request") and state.get("plan"):

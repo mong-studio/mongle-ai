@@ -5,11 +5,11 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.exceptions import ValidationError
-from agents.todo_creation.schemas import SingleTurnInput
-from agents.todo_creation.single_turn.state import GenerateGraphState
+from agents.todo_creation.schemas import TodoInput
+from agents.todo_creation.todo.state import GenerateGraphState
 
 
-def check(input: SingleTurnInput) -> None:
+def check(input: TodoInput) -> None:
     if len(input.prompt) > 200:
         raise ValidationError(code="A1", message="prompt exceeds 200 chars")
     if not input.prompt.strip():

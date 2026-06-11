@@ -7,7 +7,7 @@ from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 
 
-class MultiTurnGraphState(TypedDict, total=False):
+class PlannerGraphState(TypedDict, total=False):
     # required (pipeline populates)
     message: str
     today: date
