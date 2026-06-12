@@ -8,9 +8,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# 공개 베이스 모델(Qwen2.5-7B-Instruct)을 먼저 구워 둔다 (베이스 이미지의 hf 라이브러리 사용).
-# requirements.txt 변경이 이 15GB 다운로드 레이어 캐시를 무효화하지 않도록 pip install 앞에 둔다.
-# (의존성만 바뀔 때 재다운로드→HF 429 로 빌드가 깨지던 문제 방지)
+# 공개 베이스 모델(Qwen2.5-7B-Instruct)을 먼저 구워 둔다.
+# huggingface_hub 만 가볍게 깔아 굽고, 무거운 requirements 설치는 뒤로 미룬다.
+# (베이스 이미지엔 huggingface_hub 가 없으므로 반드시 먼저 설치해야 함)
+# 이렇게 하면 requirements.txt 변경이 이 15GB 다운로드 레이어 캐시를 무효화하지 않아,
+# 의존성만 바뀔 때 재다운로드→HF 429 로 빌드가 깨지던 문제를 막는다.
+RUN pip install --no-cache-dir "huggingface-hub>=0.24"
 COPY bake.py ./
 RUN python bake.py
 
