@@ -28,4 +28,10 @@ def handler(job: dict) -> dict:
     return {"text": text}
 
 
-runpod.serverless.start({"handler": handler})
+# __main__ 가드 필수: vLLM 은 CUDA 가 (RunPod fitness check 등으로) 이미 초기화된
+# 환경에서 워커를 'spawn' 으로 띄운다. spawn 은 이 모듈을 자식 프로세스에서 다시
+# import 하는데, 가드가 없으면 자식이 runpod.serverless.start() 를 재실행해
+# 또 다른 서버리스 워커로 부팅 → vLLM 엔진코어가 못 떠 부모가 영원히 대기(hang).
+# (증상: 모델 로딩 중 "Starting Serverless Worker" 가 두 번 찍히고 정지, completed=0)
+if __name__ == "__main__":
+    runpod.serverless.start({"handler": handler})
