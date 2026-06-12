@@ -33,6 +33,10 @@ class QwenLoraPipeline:
             dtype="float16",
             download_dir=hf_home,
             trust_remote_code=True,
+            # 콜드스타트 단축: torch.compile/CUDA graph 캡처(~2분) 생략.
+            # 생성 처리량이 ~10-20% 낮아지지만, 콜드스타트가 잦은 서버리스에선 이득.
+            # (상시 트래픽으로 전환되면 제거해 throughput 회복 가능)
+            enforce_eager=True,
         )
         self._tokenizer = self._llm.get_tokenizer()
         self._lora_request = LoRARequest("lora", 1, lora_path)

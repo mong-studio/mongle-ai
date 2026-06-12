@@ -1,3 +1,4 @@
 runpod>=1.7
-vllm>=0.6.3
+vllm==0.8.5.post1
+transformers==4.51.3
 huggingface-hub>=0.24
