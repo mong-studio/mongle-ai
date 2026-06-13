@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class TodoInput(BaseModel):
@@ -111,5 +111,27 @@ class OutOfScopeResult(BaseModel):
 
 TurnResult = Annotated[
     GenerateResult | FollowUpResult | OutOfScopeResult,
+    Field(discriminator="kind"),
+]
+
+
+# === Single-turn types ===
+
+OUT_OF_SCOPE_MESSAGE = (
+    "나는 목표를 TODO랑 일정으로 차근차근 나눠주는 이장님이야. "
+    "준비할 일이나 이루고 싶은 목표를 말해주면 같이 계획을 짜볼게."
+)
+
+
+class SplitResult(BaseModel):
+    """단일턴 split_tasks 의 출력: 범위 판단(intent) + 후보 목록."""
+
+    model_config = ConfigDict(frozen=True)
+    intent: Literal["plan", "out_of_scope"]
+    tasks: list[TaskCandidate]
+
+
+SingleTurnResult = Annotated[
+    GenerateResult | OutOfScopeResult,
     Field(discriminator="kind"),
 ]
