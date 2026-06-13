@@ -39,7 +39,7 @@ from adapters.todo_creation._prompts import (
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
-from agents.todo_creation.schemas import TaskCandidate
+from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 
 log = logging.getLogger(__name__)
@@ -73,14 +73,23 @@ def strip_json_fence(raw: str) -> str:
     return match.group(1).strip() if match else raw.strip()
 
 
-def parse_task_response(raw: str) -> list[TaskCandidate]:
+def parse_task_response(raw: str) -> SplitResult:
     stripped = strip_json_fence(raw)
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError as err:
         raise LLMOutputError(f"non-JSON response: {stripped[:200]}") from err
 
-    if not isinstance(parsed, dict) or "tasks" not in parsed:
+    if not isinstance(parsed, dict):
+        raise LLMOutputError(f"not a JSON object: {stripped[:200]}")
+
+    intent = parsed.get("intent")
+    if intent not in ("plan", "out_of_scope"):
+        intent = "plan"
+    if intent == "out_of_scope":
+        return SplitResult(intent="out_of_scope", tasks=[])
+
+    if "tasks" not in parsed:
         raise LLMOutputError(f"missing 'tasks' key: {stripped[:200]}")
     tasks_raw = parsed["tasks"]
     if not isinstance(tasks_raw, list):
@@ -98,7 +107,7 @@ def parse_task_response(raw: str) -> list[TaskCandidate]:
             )
         except (KeyError, ValueError, TypeError) as err:
             raise LLMOutputError(f"invalid task item {item!r}: {err}") from err
-    return out
+    return SplitResult(intent="plan", tasks=out)
 
 
 def reinforce_messages(
@@ -228,7 +237,7 @@ class QwenLLM:
                 f"invalid qwen response envelope: {response.text[:200]}"
             ) from err
 
-    async def split_tasks(self, *, prompt: str, today: date) -> list[TaskCandidate]:
+    async def split_tasks(self, *, prompt: str, today: date) -> SplitResult:
         messages = build_task_splitter_messages(prompt=prompt, today=today)
         last_err: LLMOutputError | None = None
 

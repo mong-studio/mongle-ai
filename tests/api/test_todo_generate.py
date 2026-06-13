@@ -1,7 +1,7 @@
 from typing import cast
 
 from agents.todo_creation.protocols import LLMPort
-from agents.todo_creation.schemas import TaskCandidate
+from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.todo.pipeline import GeneratePorts
 from api.deps import get_todo_generate_ports
 from tests.api.conftest import AUTH
@@ -9,7 +9,7 @@ from tests.api.conftest import AUTH
 
 class _FakeGenerateLLM:
     async def split_tasks(self, *, prompt, today):
-        return [TaskCandidate(title="장보기", due_date=today, tags=[])]
+        return SplitResult(intent="plan", tasks=[TaskCandidate(title="장보기", due_date=today, tags=[])])
 
 
 def _override():

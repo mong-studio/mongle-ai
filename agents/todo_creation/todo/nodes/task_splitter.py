@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.exceptions import LLMOutputError
-from agents.todo_creation.schemas import TaskCandidate
+from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.todo.state import GenerateGraphState
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,17 @@ async def task_splitter_node(
     ports = get_ports(config)
     today = state["input"].today
 
-    raw = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+    split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+    if split.intent == "out_of_scope":
+        return {"intent": "out_of_scope"}
+
+    raw = split.tasks
     if not raw:
-        # B2: one retry on empty
-        raw = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+        # B2: one retry on empty (plan 인데 비었을 때만)
+        split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+        if split.intent == "out_of_scope":
+            return {"intent": "out_of_scope"}
+        raw = split.tasks
         if not raw:
             raise LLMOutputError("task_splitter returned empty list after retry")
 
@@ -46,4 +53,4 @@ async def task_splitter_node(
         )
 
     corrected = [_correct(t, today) for t in raw]
-    return {"split_tasks": corrected}
+    return {"intent": "plan", "split_tasks": corrected}

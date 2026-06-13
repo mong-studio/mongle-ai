@@ -12,6 +12,7 @@ from agents.todo_creation.schemas import (
     GenerateResult,
     MultiGenerateInput,
     OutOfScopeResult,
+    SplitResult,
     TaskCandidate,
 )
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
@@ -63,7 +64,7 @@ class _FakeLLM:
         return plan
 
     async def split_tasks(self, *, prompt: str, today: date):
-        return []
+        return SplitResult(intent="plan", tasks=[])
 
 
 # ---------------------------------------------------------------------------

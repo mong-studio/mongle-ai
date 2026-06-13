@@ -6,7 +6,9 @@ from datetime import date
 import httpx
 import pytest
 
+from adapters.todo_creation.qwen_llm import QwenLLM
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
+from agents.todo_creation.schemas import SplitResult, TaskCandidate
 
 
 # 검증 대상 기능: Qwen OpenAI 호환 응답 껍데기에서 원문 content 를 꺼낸다.
@@ -93,9 +95,9 @@ async def test_split_tasks_parses_valid_json() -> None:
     out = await llm.split_tasks(
         prompt="오늘 코테, 3일 뒤 발표", today=date(2026, 5, 24)
     )
-    assert len(out) == 2
-    assert out[0].title == "코테"
-    assert out[0].tags == ["학습"]
+    assert len(out.tasks) == 2
+    assert out.tasks[0].title == "코테"
+    assert out.tasks[0].tags == ["학습"]
 
 
 async def test_complete_raw_uses_configured_timeout() -> None:
@@ -150,7 +152,7 @@ async def test_split_tasks_strips_code_fence() -> None:
 
     llm = QwenLLM(base_url="http://qwen.test/v1")
     out = await llm.split_tasks(prompt="오늘 운동 다녀올거야", today=date(2026, 5, 24))
-    assert out[0].title == "운동가기"
+    assert out.tasks[0].title == "운동가기"
 
 
 # 재시도: 첫 응답이 JSON 이 아니면 스키마 강화 메시지로 1회 재요청한다.
@@ -168,7 +170,7 @@ async def test_split_tasks_retries_once_on_invalid_json() -> None:
 
     llm = QwenLLM(base_url="http://qwen.test/v1")
     out = await llm.split_tasks(prompt="3일 뒤 발표 준비", today=date(2026, 5, 24))
-    assert out[0].title == "발표 준비"
+    assert out.tasks[0].title == "발표 준비"
     assert len(_FakeAsyncClient.calls) == 2
     retry_messages = _FakeAsyncClient.calls[1]["json"]["messages"]
     assert retry_messages[-1]["role"] == "user"
@@ -344,6 +346,42 @@ async def test_generate_goal_tag_parses_structured_tag() -> None:
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "전체 대화 목표" in serialized
     assert "task 별 태그" in serialized
+
+
+async def test_split_tasks_returns_split_result_with_plan_intent() -> None:
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload(json.dumps({
+            "intent": "plan",
+            "tasks": [{"title": "코테", "due_date": "2026-05-24", "tags": ["학습"]}],
+        })))
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.split_tasks(prompt="오늘 코테", today=date(2026, 5, 24))
+    assert isinstance(out, SplitResult)
+    assert out.intent == "plan"
+    assert out.tasks[0].title == "코테"
+
+
+async def test_split_tasks_missing_intent_defaults_to_plan() -> None:
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload(json.dumps({
+            "tasks": [{"title": "운동가기", "due_date": "2026-05-24", "tags": ["건강"]}],
+        })))
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.split_tasks(prompt="오늘 운동", today=date(2026, 5, 24))
+    assert out.intent == "plan"
+    assert out.tasks[0].title == "운동가기"
+
+
+async def test_split_tasks_out_of_scope_returns_empty_tasks() -> None:
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload(json.dumps({"intent": "out_of_scope", "tasks": []})))
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.split_tasks(prompt="배고프다", today=date(2026, 5, 24))
+    assert out.intent == "out_of_scope"
+    assert out.tasks == []
 
 
 async def test_tag_plan_does_not_call_qwen_and_applies_goal_tag() -> None:
