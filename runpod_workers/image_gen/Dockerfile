@@ -1,7 +1,12 @@
-FROM python:3.11-slim
+# RunPod GPU 드라이버(CUDA 12.x)와 호환되는 torch(2.4.0+cu124) 사전설치 베이스.
+# slim+미핀 torch 는 최신 cu 빌드를 끌어와 "NVIDIA driver too old" 로 런타임 사망한다.
+FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
+# HF_HOME 은 런타임 네트워크 볼륨(/runpod-volume)과 겹치면 안 된다.
+# 겹치면 빌드 시 구운 SDXL/ControlNet 가중치가 볼륨 마운트에 가려져(shadowed)
+# 콜드스타트마다 베이스를 재다운로드(HF 429 throttling)하게 된다.
 ENV PYTHONUNBUFFERED=1 \
-    HF_HOME=/runpod-volume/hf-cache
+    HF_HOME=/app/hf-cache
 
 WORKDIR /app
 
