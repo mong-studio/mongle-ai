@@ -34,10 +34,11 @@ _SIZE = (512, 512)
 _CANNY_LOW = 80
 _CANNY_HIGH = 180
 _CONTROLNET_SCALE = 0.8
-_STRENGTH = 0.6
-_STEPS = 30
+_STRENGTH = 0.75
+_STEPS = 50
 _GUIDANCE = 7.5
 _BG_MIN_RATIO = 0.40
+_N_COLORS = 32  # 모델 카드 기준 출력 팔레트 양자화(MEDIANCUT, dither 없음)
 
 _CONTROLNET_MODEL = "diffusers/controlnet-canny-sdxl-1.0"
 _BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -87,6 +88,13 @@ class PixelArtPipeline:
         edges = cv2.Canny(gray, _CANNY_LOW, _CANNY_HIGH)
         return Image.fromarray(np.stack([edges] * 3, axis=-1))
 
+    def _quantize(self, image: Image.Image) -> Image.Image:
+        """제한된 팔레트로 양자화해 진짜 도트 느낌을 만든다 (MEDIANCUT, dither 없음)."""
+        quantized = image.quantize(
+            colors=_N_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE
+        )
+        return quantized.convert("RGB")
+
     def _to_bytes(self, image: Image.Image) -> bytes:
         buf = io.BytesIO()
         image.save(buf, format="PNG")
@@ -127,7 +135,7 @@ class PixelArtPipeline:
                 strength=0.99,
             ).images[0]
 
-        return self._to_bytes(result)
+        return self._to_bytes(self._quantize(result))
 
 
 _pipeline: PixelArtPipeline | None = None
