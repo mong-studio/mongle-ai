@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 
 from agents.todo_creation.schemas import (
     FollowUpResult,
-    GenerateResult,
     MultiGenerateInput,
+    SingleTurnResult,
     TodoInput,
     TurnResult,
 )
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/v1/todo", dependencies=[Depends(require_api_key)])
 async def _generate(
     body: TodoInput,
     ports: GeneratePorts,
-) -> Envelope[GenerateResult]:
+) -> Envelope[SingleTurnResult]:
     result = await single_pipeline.run(body, ports=ports, now=datetime.now())
     return done(result)
 
@@ -51,11 +51,11 @@ async def _commit(
     return done(result)
 
 
-@router.post("/generate", response_model=Envelope[GenerateResult])
+@router.post("/generate", response_model=Envelope[SingleTurnResult])
 async def generate(
     body: TodoInput,
     ports: GeneratePorts = Depends(get_todo_generate_ports),
-) -> Envelope[GenerateResult]:
+) -> Envelope[SingleTurnResult]:
     return await _generate(body, ports)
 
 
