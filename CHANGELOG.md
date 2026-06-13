@@ -14,6 +14,13 @@
 
 ## [Unreleased]
 
+### Added
+- **단일 `/v1/todo/generate` out_of_scope 처리**: "배고프다"처럼 일정/TODO로 나눌 수 없는 입력을
+  억지 todo로 만들지 않고 `OutOfScopeResult`(`kind: "out_of_scope"`)로 안내한다. `split_tasks`가
+  `intent`("plan"|"out_of_scope")를 함께 반환하도록 확장(`SplitResult`), 단일 그래프에 조건 분기 추가,
+  응답모델을 `Envelope[SingleTurnResult]`로. LLM 호출 추가 없음. 설계·계획:
+  `docs/superpowers/specs|plans/2026-06-13-generate-out-of-scope*`.
+
 ### Fixed
 - **SFT LoRA 학습 `<EOS_TOKEN>` 반복 실패 해결**: `train_lora.py`가 `trl`을 `unsloth`보다 먼저 import해
   unsloth의 trl 몽키패치가 어긋나며 `eos_token`이 `<EOS_TOKEN>` placeholder로 새어 학습이 죽던 문제.

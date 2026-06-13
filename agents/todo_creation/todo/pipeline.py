@@ -10,8 +10,9 @@ from langgraph.types import RetryPolicy
 from agents.todo_creation.debug import log_end, log_start, log_step
 from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.protocols import LLMPort
-from agents.todo_creation.schemas import GenerateResult, TodoInput
+from agents.todo_creation.schemas import GenerateResult, OutOfScopeResult, TodoInput
 from agents.todo_creation.todo.nodes.date_router import date_router_node
+from agents.todo_creation.todo.nodes.out_of_scope import out_of_scope_node
 from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
 from agents.todo_creation.todo.nodes.validate import validate_node
 from agents.todo_creation.todo.state import GenerateGraphState
@@ -20,6 +21,10 @@ from agents.todo_creation.todo.state import GenerateGraphState
 @dataclass
 class GeneratePorts:
     llm: LLMPort
+
+
+def _route_after_split(state: GenerateGraphState) -> str:
+    return "out_of_scope" if state.get("intent") == "out_of_scope" else "date_router"
 
 
 def build_generate_graph():
@@ -32,11 +37,13 @@ def build_generate_graph():
         retry=RetryPolicy(max_attempts=3, retry_on=(LLMFailedError,)),
     )
     g.add_node("date_router", date_router_node)
+    g.add_node("out_of_scope", out_of_scope_node)
 
     g.add_edge(START, "validate")
     g.add_edge("validate", "task_splitter")
-    g.add_edge("task_splitter", "date_router")
+    g.add_conditional_edges("task_splitter", _route_after_split, ["date_router", "out_of_scope"])
     g.add_edge("date_router", END)
+    g.add_edge("out_of_scope", END)
 
     return g.compile()
 
@@ -49,7 +56,7 @@ async def run(
     *,
     ports: GeneratePorts,
     now: datetime,
-) -> GenerateResult:
+) -> GenerateResult | OutOfScopeResult:
     initial: GenerateGraphState = {"input": input, "now": now}
     config = {"configurable": {"ports": ports, "now": now}}
 

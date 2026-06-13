@@ -1,7 +1,7 @@
 from typing import cast
 
 from agents.todo_creation.protocols import LLMPort
-from agents.todo_creation.schemas import TaskCandidate
+from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.todo.pipeline import GeneratePorts
 from api.deps import get_todo_generate_ports
 from tests.api.conftest import AUTH
@@ -9,7 +9,7 @@ from tests.api.conftest import AUTH
 
 class _FakeGenerateLLM:
     async def split_tasks(self, *, prompt, today):
-        return [TaskCandidate(title="장보기", due_date=today, tags=[])]
+        return SplitResult(intent="plan", tasks=[TaskCandidate(title="장보기", due_date=today, tags=[])])
 
 
 def _override():
@@ -40,3 +40,26 @@ def test_generate_validation_error_returns_422(api_client):
     resp = api_client.post("/v1/todo/generate", json={"user_id": "u1"}, headers=AUTH)
     assert resp.status_code == 422
     assert resp.json()["error"]["code"] == "validation_error"
+
+
+class _FakeOutOfScopeLLM:
+    async def split_tasks(self, *, prompt, today):
+        from agents.todo_creation.schemas import SplitResult
+
+        return SplitResult(intent="out_of_scope", tasks=[])
+
+
+def _override_oos():
+    return GeneratePorts(llm=cast(LLMPort, _FakeOutOfScopeLLM()))
+
+
+def test_generate_returns_out_of_scope(api_client):
+    """플랜과 무관한 입력은 out_of_scope 봉투로 반환한다."""
+    api_client.app.dependency_overrides[get_todo_generate_ports] = _override_oos
+    body = {"user_id": "u1", "prompt": "배고프다", "today": "2026-06-13"}
+    resp = api_client.post("/v1/todo/generate", json=body, headers=AUTH)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "done"
+    assert data["result"]["kind"] == "out_of_scope"
+    assert data["result"]["message"]

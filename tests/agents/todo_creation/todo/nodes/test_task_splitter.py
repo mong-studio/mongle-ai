@@ -82,3 +82,20 @@ async def test_future_date_preserved() -> None:
     state, config = _state_and_config(llm)
     diff = await task_splitter_node(state, config)
     assert diff["split_tasks"][0].due_date == future
+
+
+async def test_out_of_scope_sets_intent_and_no_split() -> None:
+    llm = FakeLLM(responses=[[]], intents=["out_of_scope"])
+    state, config = _state_and_config(llm)
+    diff = await task_splitter_node(state, config)
+    assert diff["intent"] == "out_of_scope"
+    assert "split_tasks" not in diff
+    assert llm.calls == 1
+
+
+async def test_plan_intent_sets_split_tasks() -> None:
+    llm = FakeLLM(responses=[[_t("코테")]], intents=["plan"])
+    state, config = _state_and_config(llm)
+    diff = await task_splitter_node(state, config)
+    assert diff["intent"] == "plan"
+    assert len(diff["split_tasks"]) == 1

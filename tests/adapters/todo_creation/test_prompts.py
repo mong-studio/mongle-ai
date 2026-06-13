@@ -33,3 +33,9 @@ def test_user_builder_isolates_input_in_data_section() -> None:
 def test_user_builder_keeps_today() -> None:
     out = task_splitter_user("코테", date(2026, 5, 24))
     assert "2026-05-24" in out
+
+
+def test_task_splitter_prompt_declares_intent_and_out_of_scope() -> None:
+    assert "intent" in TASK_SPLITTER_SYSTEM
+    assert "out_of_scope" in TASK_SPLITTER_SYSTEM
+    assert '"intent"' in TASK_SPLITTER_SYSTEM

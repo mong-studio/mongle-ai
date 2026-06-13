@@ -211,3 +211,45 @@ def test_turn_result_discriminator() -> None:
     )
     assert isinstance(c, GenerateResult)
     assert isinstance(f, FollowUpResult)
+
+
+def test_single_turn_result_discriminates_out_of_scope() -> None:
+    from pydantic import TypeAdapter
+    from agents.todo_creation.schemas import SingleTurnResult, OutOfScopeResult
+
+    adapter = TypeAdapter(SingleTurnResult)
+    parsed = adapter.validate_python(
+        {"kind": "out_of_scope", "thread_id": "", "message": "안내"}
+    )
+    assert isinstance(parsed, OutOfScopeResult)
+
+
+def test_split_result_holds_intent_and_tasks() -> None:
+    from agents.todo_creation.schemas import SplitResult, TaskCandidate
+    from datetime import date
+
+    r = SplitResult(intent="plan", tasks=[TaskCandidate(title="x", due_date=date(2026, 6, 13))])
+    assert r.intent == "plan"
+    assert len(r.tasks) == 1
+
+
+def test_out_of_scope_message_constant_nonempty() -> None:
+    from agents.todo_creation.schemas import OUT_OF_SCOPE_MESSAGE
+
+    assert isinstance(OUT_OF_SCOPE_MESSAGE, str) and len(OUT_OF_SCOPE_MESSAGE) > 0
+
+
+def test_single_turn_result_discriminates_candidates() -> None:
+    from datetime import date
+    from pydantic import TypeAdapter
+    from agents.todo_creation.schemas import SingleTurnResult, GenerateResult
+
+    adapter = TypeAdapter(SingleTurnResult)
+    parsed = adapter.validate_python(
+        {
+            "kind": "candidates",
+            "todos": [{"title": "x", "due_date": "2026-06-13", "tags": []}],
+            "calendar_events": [],
+        }
+    )
+    assert isinstance(parsed, GenerateResult)

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from agents.todo_creation.schemas import (
     CommitResult,
+    SplitResult,
     TaskCandidate,
 )
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
@@ -15,7 +16,7 @@ class LLMPort(Protocol):
     # single
     async def split_tasks(
         self, *, prompt: str, today: date
-    ) -> list[TaskCandidate]: ...
+    ) -> SplitResult: ...
 
     # multi
     async def judge_sufficiency(
