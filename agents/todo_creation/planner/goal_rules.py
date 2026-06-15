@@ -121,17 +121,28 @@ def _has_explicit_deadline(text: str, *, state: PlannerGraphState) -> bool:
     return any(char.isdigit() for char in text) and any(marker in text for marker in date_markers)
 
 
-_AFFIRM_WORDS = (
-    "좋아", "좋아요", "응", "네", "예", "그래", "그렇게", "이대로", "확정", "맞아", "ㅇㅋ", "오케이",
+# 짧은 긍정 토큰은 단어 단위 정확 일치로만 인정한다("모르겠네"의 "네" 오탐 방지).
+_AFFIRM_TOKENS = frozenset(
+    {"좋아", "좋아요", "응", "넹", "네", "예", "그래", "그래요", "맞아", "맞아요", "ㅇㅋ", "ㅇㅇ", "오케이", "ok"}
 )
+# 긴 긍정 표현은 부분 일치를 허용한다.
+_AFFIRM_PHRASES = ("그렇게", "이대로", "그날짜", "그걸로", "그거로", "확정")
 
 
 def _affirms(text: str) -> bool:
-    """사용자가 직전 제안(시험일)을 긍정하는지 가볍게 판정한다."""
+    """사용자가 직전 제안(시험일)을 긍정하는지 가볍게 판정한다.
+
+    짧은 토큰(응/네 등)은 단어 단위 정확 일치로만 인정해 '모르겠네' 같은 오탐을
+    막고, 긴 표현(이대로/그렇게/확정 등)은 부분 일치를 허용한다.
+    """
     normalized = str(text).strip().replace(".", "").replace("!", "").replace("~", "")
     if not normalized:
         return False
-    return any(word in normalized for word in _AFFIRM_WORDS)
+    tokens = [t for t in normalized.replace(",", " ").split() if t]
+    if any(t in _AFFIRM_TOKENS for t in tokens):
+        return True
+    compact = normalized.replace(" ", "")
+    return any(phrase in compact for phrase in _AFFIRM_PHRASES)
 
 
 def _latest_user_answer(state: PlannerGraphState) -> str:
