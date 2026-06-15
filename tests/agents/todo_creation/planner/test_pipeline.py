@@ -41,7 +41,7 @@ class _FakeLLM:
         return self.sufficiency_responses.pop(0)
 
     async def generate_follow_up_question(
-        self, *, missing_aspects: list[str], history: list[Turn], enrichment_context=None
+        self, *, missing_aspects: list[str], history: list[Turn]
     ) -> str:
         return self.follow_up_responses.pop(0)
 
@@ -234,51 +234,3 @@ async def test_validation_error_propagates() -> None:
     )
     with pytest.raises(ValidationError):
         await run(bad, ports=_ports(llm), now=_NOW)
-
-
-@dataclass
-class _FakeEnrichment:
-    context: dict | None = None
-    calls: list[str] = field(default_factory=list)
-
-    async def lookup(self, *, keyword: str, today: date):
-        self.calls.append(keyword)
-        return self.context
-
-
-async def test_enrichment_suggests_exam_date_then_affirm_sets_deadline() -> None:
-    llm = _FakeLLM(
-        sufficiency_responses=[
-            (False, ["deadline"], {"intent": "plan", "plan_kind": "exam", "goal_text": "정처기 준비", "deadline": None}),
-            (False, ["deadline"], {"intent": "plan", "plan_kind": "exam", "goal_text": "정처기 준비", "deadline": None}),
-        ],
-        follow_up_responses=["정보처리기사 필기 시험일이 2026-07-05 같아요. 이 날짜로 짤까요?", "정보처리기사 필기 시험일이 2026-07-05 같아요. 이 날짜로 짤까요?"],
-        plan_responses=[("요약", [{"date": date(2026, 7, 5), "tasks": []}])],
-    )
-    enrichment = _FakeEnrichment(
-        context={
-            "keyword": "정보처리기사",
-            "exam_dates": [{"date": "2026-07-05", "part": "필기"}],
-            "suggested_deadline": "2026-07-05",
-        }
-    )
-    ports = PlannerPorts(llm=llm, enrichment=enrichment)
-
-    first = await run(_input("일주일 후 정처기 시험"), ports=ports, now=_NOW)
-    assert isinstance(first, FollowUpResult)
-    assert enrichment.calls == ["정보처리기사"]
-
-    second = await run(_input("응", thread_id=first.thread_id), ports=ports, now=_NOW)
-    assert isinstance(second, GenerateResult)
-    assert llm.seen_parsed_goals[-1]["deadline"] == date(2026, 7, 5)
-
-
-async def test_enrichment_skipped_when_no_port() -> None:
-    # enrichment 포트가 없으면 조용히 건너뛰고 기존 흐름대로 동작한다.
-    llm = _FakeLLM(
-        sufficiency_responses=[(True, [], {"intent": "plan", "goal_text": "산책", "deadline": date(2026, 6, 1)})],
-        plan_responses=[("요약", [{"date": date(2026, 6, 1), "tasks": []}])],
-    )
-    ports = PlannerPorts(llm=llm)  # no enrichment
-    result = await run(_input("산책 계획"), ports=ports, now=_NOW)
-    assert isinstance(result, GenerateResult)

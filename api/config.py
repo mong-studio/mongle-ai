@@ -58,7 +58,6 @@ class AppConfig:
     runpod_api_key: str = "EMPTY"
     runpod_planner_endpoint_url: str | None = None
     runpod_village_endpoint_url: str | None = None
-    tavily_api_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -155,7 +154,6 @@ class AppConfig:
             runpod_api_key=runpod_api_key,
             runpod_planner_endpoint_url=runpod_planner_endpoint_url,
             runpod_village_endpoint_url=runpod_village_endpoint_url,
-            tavily_api_key=os.environ.get("TAVILY_API_KEY", "").strip() or None,
         )
 
         if backend == "s3":

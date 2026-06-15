@@ -329,7 +329,6 @@ class QwenLLM:
         *,
         missing_aspects: list[str],
         history: list[Turn],
-        enrichment_context: dict | None = None,
     ) -> str:
         messages = [
             {"role": "system", "content": FOLLOW_UP_SYSTEM},
@@ -338,7 +337,6 @@ class QwenLLM:
                 "content": follow_up_user(
                     missing_aspects=missing_aspects,
                     history=_as_jsonable(history),
-                    enrichment_context=enrichment_context,
                 ),
             },
         ]

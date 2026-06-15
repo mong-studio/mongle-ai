@@ -17,7 +17,6 @@ from langgraph.types import Command
 
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.goal_rules import (
-    apply_suggested_deadline,
     build_recovery_goal,
     delegates_planning,
     merge_deadline_from_state,
@@ -80,7 +79,6 @@ async def planner_node(
     )
     if resolved_goal is not None:
         merge_deadline_from_state(state, resolved_goal)
-        apply_suggested_deadline(state, resolved_goal)
         if resolved_goal.get("deadline") and "deadline" in (missing or []):
             missing = [item for item in missing if item != "deadline"]
             if not missing:

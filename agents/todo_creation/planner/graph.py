@@ -5,7 +5,6 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
 from agents.todo_creation.exceptions import LLMFailedError
-from agents.todo_creation.planner.nodes.enrichment import enrichment_node
 from agents.todo_creation.planner.nodes.follow_up import follow_up_node
 from agents.todo_creation.planner.nodes.out_of_scope import out_of_scope_node
 from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
@@ -20,7 +19,6 @@ def build_planner_graph():
     g = StateGraph(PlannerGraphState)
 
     g.add_node("validate", multi_validate_node)
-    g.add_node("enrichment", enrichment_node)
     g.add_node(
         "planner",
         planner_node,
@@ -40,8 +38,7 @@ def build_planner_graph():
     g.add_node("out_of_scope", out_of_scope_node)
 
     g.add_edge(START, "validate")
-    g.add_edge("validate", "enrichment")
-    g.add_edge("enrichment", "planner")
+    g.add_edge("validate", "planner")
     # follow_up resumes after interrupt() and returns to planner for re-evaluation
     g.add_edge("follow_up", "planner")
     g.add_edge("plan_generator", END)

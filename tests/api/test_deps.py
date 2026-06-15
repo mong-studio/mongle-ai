@@ -69,30 +69,6 @@ def test_build_todo_planner_ports_qwen():
     assert ports.llm is not None
 
 
-def test_build_todo_planner_ports_injects_enrichment_when_tavily_key_set():
-    """tavily_api_key 가 있으면 enrichment 가 주입된다."""
-    ports = build_todo_planner_ports(
-        _cfg(
-            qwen_base_url="http://qwen-host/v1",
-            qwen_model="planning-adapter",
-            tavily_api_key="k",
-        )
-    )
-    assert ports.enrichment is not None
-
-
-def test_build_todo_planner_ports_no_enrichment_without_key():
-    """tavily_api_key 가 없으면 enrichment 가 None 이다."""
-    ports = build_todo_planner_ports(
-        _cfg(
-            qwen_base_url="http://qwen-host/v1",
-            qwen_model="planning-adapter",
-            tavily_api_key=None,
-        )
-    )
-    assert ports.enrichment is None
-
-
 # ---------------------------------------------------------------------------
 # build_commit_ports
 # ---------------------------------------------------------------------------
