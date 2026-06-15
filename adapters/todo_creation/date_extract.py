@@ -80,6 +80,7 @@ def _part(text: str, pos: int) -> ExamPart:
 def extract_exam_dates(text: str, *, today: date) -> list[ExamDateCandidate]:
     found: list[ExamDateCandidate] = []
     seen: set[tuple[date, ExamPart]] = set()
+    consumed: list[tuple[int, int]] = []  # ISO/FULL 이 이미 차지한 span (M월 D일 중복 방지)
 
     def _add(d: date | None, start: int, end: int) -> None:
         if d is None or d < today:
@@ -96,11 +97,17 @@ def extract_exam_dates(text: str, *, today: date) -> list[ExamDateCandidate]:
 
     for m in _P_ISO.finditer(text):
         y, mo, da = (int(g) for g in m.groups())
+        consumed.append((m.start(), m.end()))
         _add(_safe_date(y, mo, da), m.start(), m.end())
     for m in _P_FULL.finditer(text):
         y, mo, da = (int(g) for g in m.groups())
+        consumed.append((m.start(), m.end()))
         _add(_safe_date(y, mo, da), m.start(), m.end())
     for m in _P_MD.finditer(text):
+        # "YYYY년 M월 D일" / ISO 안의 'M월 D일' 재매칭은 무시한다.
+        # (연도가 today.year 와 다르면 dedup 으로도 못 걸러 유령 날짜가 생긴다.)
+        if any(s < m.end() and m.start() < e for s, e in consumed):
+            continue
         mo, da = (int(g) for g in m.groups())
         _add(_safe_date(today.year, mo, da), m.start(), m.end())
 

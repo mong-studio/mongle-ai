@@ -31,3 +31,10 @@ def test_separates_written_and_practical() -> None:
 def test_dedups_full_and_md_forms() -> None:
     out = extract_exam_dates("필기 2026년 7월 5일(7월 5일) 시험", today=date(2026, 6, 1))
     assert [c.date for c in out] == [date(2026, 7, 5)]
+
+
+def test_full_date_other_year_does_not_spawn_today_year_ghost() -> None:
+    # "2027년 7월 5일" 의 'M월 D일' 부분이 today.year(2026) 로 재해석되어
+    # 유령 날짜 2026-07-05 를 만들면 안 된다(연도 불일치 → dedup 도 못 거름).
+    out = extract_exam_dates("필기 시험 2027년 7월 5일", today=date(2026, 6, 1))
+    assert [c.date for c in out] == [date(2027, 7, 5)]
