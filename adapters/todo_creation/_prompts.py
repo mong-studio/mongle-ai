@@ -76,6 +76,8 @@ PLANNER_JUDGE_SYSTEM = """
   "missing_aspects": ["deadline" | "available_time" | "scope"],
   "parsed_goal": {
     "intent": "plan" | "out_of_scope",
+    "plan_kind": "exam" | "routine" | "vague_goal" | "lifestyle",
+    "slots": { "종류별 핵심 정보를 key:value 로, 사용자가 말한 값만": "..." },
     "goal_text": "목표 요약",
     "goal_tag": "목표를 대표하는 20자 이하 명사형 태그",
     "deadline": "YYYY-MM-DD 또는 null",
@@ -83,6 +85,13 @@ PLANNER_JUDGE_SYSTEM = """
     "profile_memory_patch": {"preferences": [], "constraints": []}
   }
 }
+
+[plan_kind 분류 — 목표를 아래 4종 중 하나로 본다]
+- exam: 시험·자격증처럼 정해진 날짜(마감)에 맞춰 준비하는 목표. slots 키: exam_part(필기/실기), exam_date, daily_hours, current_level.
+- routine: "매주 3번 헬스"처럼 반복되는 생활 습관. slots 키: activity, cadence(주N회 또는 요일), time_of_day, horizon.
+- vague_goal: "꾸준히 운동", "영어 잘하고 싶어"처럼 막연한 목표. slots 키: goal, first_action, weekly_cadence, horizon.
+- lifestyle: 여러 영역을 함께 설계하는 생활 전반. slots 키: domains, cadence_per_domain, horizon.
+- slots 에는 사용자가 이미 말한 값만 넣는다. 모르는 값은 키 자체를 넣지 않는다(빈 문자열·null 금지).
 
 [판단 기준]
 - 목표와 기한이 있으면 기본적으로 충분하다.

@@ -39,8 +39,12 @@ from adapters.todo_creation._prompts import (
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
+from agents.todo_creation.planner.slot_schemas import SLOT_SCHEMAS, missing_required
 from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
+
+# 스키마 뱅크로 충족을 코드 결정하는 일상 종류(exam 은 기존 모델·deadline 휴리스틱 유지).
+_SCHEMA_DRIVEN_KINDS = frozenset({"routine", "vague_goal", "lifestyle"})
 
 log = logging.getLogger(__name__)
 
@@ -300,6 +304,24 @@ class QwenLLM:
         missing = parsed.get("missing_aspects") or []
         if not isinstance(missing, list):
             raise LLMOutputError("'missing_aspects' is not a list")
+
+        plan_kind = goal.get("plan_kind")
+        raw_slots = goal.get("slots")
+        slots = raw_slots if isinstance(raw_slots, dict) else {}
+        goal["slots"] = slots
+        if plan_kind in SLOT_SCHEMAS:
+            goal["plan_kind"] = plan_kind
+        else:
+            goal.pop("plan_kind", None)
+            plan_kind = None
+
+        # 일상 종류(routine/vague_goal/lifestyle)는 스키마 뱅크로 충족을 코드 결정한다.
+        # exam·미분류는 모델의 is_sufficient/missing_aspects 를 그대로 신뢰(기존 거동 보존).
+        if intent == "plan" and plan_kind in _SCHEMA_DRIVEN_KINDS:
+            filled = {k for k, v in slots.items() if v not in (None, "", [], {})}
+            schema_missing = missing_required(plan_kind, filled)
+            return (not schema_missing), schema_missing, goal
+
         return bool(parsed.get("is_sufficient")), [str(x) for x in missing], goal
 
     async def generate_follow_up_question(
