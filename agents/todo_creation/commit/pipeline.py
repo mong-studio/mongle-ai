@@ -17,7 +17,7 @@ from agents.todo_creation.protocols import (
     QuestDispatchPort,
     TodoRepositoryPort,
 )
-from agents.todo_creation.schemas import CommitInput, CommitResult
+from agents.todo_creation.schemas import CommitPayload, CommitResult
 
 
 @dataclass
@@ -50,7 +50,7 @@ _GRAPH = build_commit_graph()
 
 
 async def run(
-    input: CommitInput,
+    input: CommitPayload,
     *,
     ports: CommitPorts,
     now: datetime,

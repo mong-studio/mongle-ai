@@ -14,7 +14,7 @@ def _input(prompt: str = "오늘 코테") -> TodoInput:
     return TodoInput(user_id="u1", prompt=prompt, today=date(2026, 5, 24))
 
 
-async def test_pipeline_run_returns_generate_result() -> None:
+async def test_pipeline_run_returns_candidates_result() -> None:
     llm = FakeLLM(
         responses=[[TaskCandidate(title="코테", due_date=date(2026, 5, 24))]]
     )

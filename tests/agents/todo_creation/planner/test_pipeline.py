@@ -9,8 +9,8 @@ from agents.todo_creation.exceptions import ValidationError
 from agents.todo_creation.planner.pipeline import PlannerPorts, get_debug_state, run
 from agents.todo_creation.schemas import (
     FollowUpResult,
-    GenerateResult,
-    MultiGenerateInput,
+    CandidatesResult,
+    PlannerInput,
     OutOfScopeResult,
     SplitResult,
     TaskCandidate,
@@ -75,8 +75,8 @@ _TODAY = date(2026, 5, 27)
 _NOW = datetime(2026, 5, 27, 9, 0)
 
 
-def _input(message: str = "프로젝트 완성하기", thread_id: str | None = None) -> MultiGenerateInput:
-    return MultiGenerateInput(
+def _input(message: str = "프로젝트 완성하기", thread_id: str | None = None) -> PlannerInput:
+    return PlannerInput(
         user_id="u1",
         message=message,
         today=_TODAY,
@@ -106,7 +106,7 @@ async def test_insufficient_on_first_call_returns_follow_up() -> None:
     assert result.thread_id  # non-empty
 
 
-async def test_resume_after_follow_up_returns_generate_result() -> None:
+async def test_resume_after_follow_up_returns_candidates_result() -> None:
     goal: ParsedGoal = {"goal_text": "프로젝트 완성하기"}
     llm = _FakeLLM(
         sufficiency_responses=[
@@ -127,18 +127,18 @@ async def test_resume_after_follow_up_returns_generate_result() -> None:
         ports=_ports(llm),
         now=_NOW,
     )
-    assert isinstance(second, GenerateResult)
+    assert isinstance(second, CandidatesResult)
     assert second.thread_id == first.thread_id
 
 
-async def test_sufficient_immediately_returns_generate_result() -> None:
+async def test_sufficient_immediately_returns_candidates_result() -> None:
     goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
     )
     result = await run(_input(message="이번 주까지 코테 준비"), ports=_ports(llm), now=_NOW)
 
-    assert isinstance(result, GenerateResult)
+    assert isinstance(result, CandidatesResult)
     assert result.thread_id
     assert llm.seen_history[0] == [{"role": "user", "content": "이번 주까지 코테 준비"}]
 
@@ -169,7 +169,7 @@ async def test_revision_after_generated_plan_uses_previous_plan() -> None:
     )
 
     first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
-    assert isinstance(first, GenerateResult)
+    assert isinstance(first, CandidatesResult)
 
     second = await run(
         _input(message="실전 문제를 더 많이 넣어줘", thread_id=first.thread_id),
@@ -177,7 +177,7 @@ async def test_revision_after_generated_plan_uses_previous_plan() -> None:
         now=_NOW,
     )
 
-    assert isinstance(second, GenerateResult)
+    assert isinstance(second, CandidatesResult)
     assert second.todos[0].title == second_task.title
     assert second.todos[0].tags == ["코테"]
     assert llm.seen_parsed_goals[-1]["revision_request"] == "실전 문제를 더 많이 넣어줘"
@@ -193,7 +193,7 @@ async def test_acceptance_after_generated_plan_returns_previous_candidates_witho
     )
 
     first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
-    assert isinstance(first, GenerateResult)
+    assert isinstance(first, CandidatesResult)
 
     second = await run(
         _input(message="그렇게 할게", thread_id=first.thread_id),
@@ -201,7 +201,7 @@ async def test_acceptance_after_generated_plan_returns_previous_candidates_witho
         now=_NOW,
     )
 
-    assert isinstance(second, GenerateResult)
+    assert isinstance(second, CandidatesResult)
     assert second.todos == first.todos
     assert second.summary_text == first.summary_text
     assert len(llm.seen_parsed_goals) == 1
@@ -218,7 +218,7 @@ async def test_debug_state_exposes_thread_memory_summary() -> None:
     ports = _ports(llm)
 
     result = await run(_input(message="3일 뒤 코테 준비"), ports=ports, now=_NOW)
-    assert isinstance(result, GenerateResult)
+    assert isinstance(result, CandidatesResult)
     state = get_debug_state(thread_id=result.thread_id, ports=ports)
 
     assert state["history_turns"] >= 1
@@ -229,7 +229,7 @@ async def test_debug_state_exposes_thread_memory_summary() -> None:
 
 async def test_validation_error_propagates() -> None:
     llm = _FakeLLM()
-    bad = MultiGenerateInput.model_construct(
+    bad = PlannerInput.model_construct(
         user_id="u1", message="hello", today=_TODAY, thread_id=None
     )
     with pytest.raises(ValidationError):

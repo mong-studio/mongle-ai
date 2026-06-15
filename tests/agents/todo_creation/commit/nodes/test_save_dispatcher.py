@@ -8,7 +8,7 @@ import pytest
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from agents.todo_creation.commit.nodes.save_dispatcher import save_dispatcher_node
 from agents.todo_creation.exceptions import SaveFailedError
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 def _t(title: str = "할 일", d: date = date(2026, 5, 24)) -> TaskCandidate:
@@ -24,7 +24,7 @@ def _state(
 ) -> tuple[dict, dict]:
     todos = todos if todos is not None else [_t()]
     events = events if events is not None else []
-    inp = CommitInput(
+    inp = CommitPayload(
         user_id="u1",
         idempotency_key=key or uuid4(),
         today=date(2026, 5, 24),

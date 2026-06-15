@@ -11,10 +11,10 @@ from agents.todo_creation.planner.graph import build_planner_graph
 from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import (
     FollowUpResult,
-    GenerateResult,
-    MultiGenerateInput,
+    CandidatesResult,
+    PlannerInput,
     OutOfScopeResult,
-    TurnResult,
+    PlannerResult,
 )
 
 
@@ -43,11 +43,11 @@ _GRAPH = build_planner_graph()
 
 
 async def run(
-    input: MultiGenerateInput,
+    input: PlannerInput,
     *,
     ports: PlannerPorts,
     now: datetime,
-) -> TurnResult:
+) -> PlannerResult:
     thread_id = input.thread_id or str(uuid4())
     config = {"configurable": {"ports": ports, "thread_id": thread_id}}
 
@@ -92,7 +92,7 @@ async def run(
             message=final.get("out_of_scope_message") or "",
         )
 
-    return GenerateResult(
+    return CandidatesResult(
         thread_id=thread_id,
         todos=final.get("todos") or [],
         calendar_events=final.get("calendar_events") or [],
@@ -108,10 +108,10 @@ def _is_acceptance(message: str) -> bool:
     return normalized in _ACCEPT_MESSAGES
 
 
-def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> GenerateResult:
+def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> CandidatesResult:
     """MemorySaver 에 남아 있는 직전 후보를 다시 반환한다."""
 
-    return GenerateResult(
+    return CandidatesResult(
         thread_id=thread_id,
         todos=values.get("todos") or [],
         calendar_events=values.get("calendar_events") or [],
@@ -120,7 +120,7 @@ def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> GenerateRes
     )
 
 
-def _initial_state(input: MultiGenerateInput, now: datetime) -> dict[str, Any]:
+def _initial_state(input: PlannerInput, now: datetime) -> dict[str, Any]:
     return {
         "message": input.message,
         "today": input.today,
@@ -133,7 +133,7 @@ def _initial_state(input: MultiGenerateInput, now: datetime) -> dict[str, Any]:
 
 
 def _revision_state(
-    input: MultiGenerateInput, now: datetime, previous: dict[str, Any]
+    input: PlannerInput, now: datetime, previous: dict[str, Any]
 ) -> dict[str, Any]:
     return {
         **previous,

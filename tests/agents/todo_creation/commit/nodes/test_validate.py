@@ -4,7 +4,7 @@ from datetime import date
 from uuid import uuid4
 
 from agents.todo_creation.commit.nodes.validate import validate_node
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 def _t(title: str, d: date) -> TaskCandidate:
@@ -15,8 +15,8 @@ def _input(
     todos: list[TaskCandidate] | None = None,
     events: list[TaskCandidate] | None = None,
     today: date = date(2026, 5, 24),
-) -> CommitInput:
-    return CommitInput(
+) -> CommitPayload:
+    return CommitPayload(
         user_id="u1",
         idempotency_key=uuid4(),
         today=today,
@@ -25,7 +25,7 @@ def _input(
     )
 
 
-def _state(inp: CommitInput) -> dict:
+def _state(inp: CommitPayload) -> dict:
     return {"input": inp, "now": None}
 
 
