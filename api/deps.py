@@ -14,6 +14,7 @@ from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
+from adapters.todo_creation.tavily_enrichment import TavilyEnrichment
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.character_creation.schemas import LLMPersonaResult
@@ -161,7 +162,10 @@ def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
-    return PlannerPorts(llm=_build_todo_llm(cfg))
+    enrichment = (
+        TavilyEnrichment(cfg.tavily_api_key) if cfg.tavily_api_key else None
+    )
+    return PlannerPorts(llm=_build_todo_llm(cfg), enrichment=enrichment)
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:
