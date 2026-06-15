@@ -171,6 +171,7 @@ async def test_sanitizes_goal_tag_without_domain_word_lists() -> None:
 async def test_drops_tasks_after_deadline() -> None:
     """parsed_goal.deadline 이후 날짜의 task 는 제거한다 (P1)."""
     deadline = _TODAY + timedelta(days=2)
+    # due_date 는 _prepare_plan_days 가 PlanDay["date"] 로 덮어쓰므로 여기 값은 임의값
     d0 = TaskCandidate(title="개념", due_date=_TODAY)
     d1 = TaskCandidate(title="기출", due_date=_TODAY + timedelta(days=1))
     after = TaskCandidate(title="회고", due_date=_TODAY + timedelta(days=3))  # 마감 이후
@@ -206,10 +207,12 @@ async def test_keeps_all_tasks_when_no_deadline() -> None:
 async def test_p1_no_task_strictly_after_deadline() -> None:
     """P1 회귀: 마감일 '이후'(>)에는 어떤 task 도 남지 않는다."""
     deadline = _TODAY + timedelta(days=6)  # "일주일 뒤" 류
+    d5 = _TODAY + timedelta(days=5)
+    d7 = _TODAY + timedelta(days=7)
     plan: list[PlanDay] = [
-        {"date": _TODAY + timedelta(days=5), "tasks": [TaskCandidate(title="최종점검", due_date=_TODAY + timedelta(days=5))]},
-        {"date": _TODAY + timedelta(days=6), "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY + timedelta(days=6))]},
-        {"date": _TODAY + timedelta(days=7), "tasks": [TaskCandidate(title="회고", due_date=_TODAY + timedelta(days=7))]},
+        {"date": d5, "tasks": [TaskCandidate(title="최종점검", due_date=d5)]},
+        {"date": deadline, "tasks": [TaskCandidate(title="시험 응시", due_date=deadline)]},
+        {"date": d7, "tasks": [TaskCandidate(title="회고", due_date=d7)]},
     ]
     llm = _FakeLLM(plan_response=("요약", plan))
 

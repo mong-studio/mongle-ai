@@ -67,11 +67,10 @@ def _clamp_to_deadline(
     """deadline 이후 날짜의 PlanDay 를 제거한다 (P1: 마감 이후 군더더기 차단).
 
     deadline 이 None 이면 원본을 그대로 돌려준다(기존 거동 보존).
-    빈 날짜는 만들지 않는다(통째 제거).
     """
     if deadline is None:
         return plan
-    return [day for day in plan if day.get("date") is None or day["date"] <= deadline]
+    return [day for day in plan if day["date"] <= deadline]
 
 
 def _prepare_plan_days(
