@@ -201,3 +201,23 @@ async def test_keeps_all_tasks_when_no_deadline() -> None:
 
     titles = [t.title for t in result["todos"] + result["calendar_events"]]
     assert "회고" in titles
+
+
+async def test_p1_no_task_strictly_after_deadline() -> None:
+    """P1 회귀: 마감일 '이후'(>)에는 어떤 task 도 남지 않는다."""
+    deadline = _TODAY + timedelta(days=6)  # "일주일 뒤" 류
+    plan: list[PlanDay] = [
+        {"date": _TODAY + timedelta(days=5), "tasks": [TaskCandidate(title="최종점검", due_date=_TODAY + timedelta(days=5))]},
+        {"date": _TODAY + timedelta(days=6), "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY + timedelta(days=6))]},
+        {"date": _TODAY + timedelta(days=7), "tasks": [TaskCandidate(title="회고", due_date=_TODAY + timedelta(days=7))]},
+    ]
+    llm = _FakeLLM(plan_response=("요약", plan))
+
+    result = await plan_generator_node(
+        _state({"goal_tag": "정처기", "deadline": deadline}), _config(llm)
+    )
+
+    all_tasks = result["todos"] + result["calendar_events"]
+    assert all(t.due_date <= deadline for t in all_tasks)
+    assert any(t.title == "시험 응시" and t.due_date == deadline for t in all_tasks)
+    assert all(t.title != "회고" for t in all_tasks)
