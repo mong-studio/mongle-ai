@@ -31,6 +31,7 @@ async def plan_generator_node(
         summary_text, plan = await llm.generate_plan(parsed_goal=parsed_goal, today=today)
     summary_text = _truncate_summary(summary_text)
     tagged_plan = _prepare_plan_days(plan, parsed_goal=parsed_goal, today=today)
+    tagged_plan = _clamp_to_deadline(tagged_plan, deadline=parsed_goal.get("deadline"))
 
     todos = []
     calendar_events = []
@@ -58,6 +59,18 @@ def _truncate_summary(value: str) -> str:
     if last_period > 0:
         return clipped[: last_period + 1].strip()
     return clipped.strip()
+
+
+def _clamp_to_deadline(
+    plan: list[PlanDay], *, deadline: date | None
+) -> list[PlanDay]:
+    """deadline 이후 날짜의 PlanDay 를 제거한다 (P1: 마감 이후 군더더기 차단).
+
+    deadline 이 None 이면 원본을 그대로 돌려준다(기존 거동 보존).
+    """
+    if deadline is None:
+        return plan
+    return [day for day in plan if day["date"] <= deadline]
 
 
 def _prepare_plan_days(
