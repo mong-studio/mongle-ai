@@ -19,7 +19,7 @@ class TaskCandidate(BaseModel):
     tags: Annotated[list[str], Field(default_factory=list)]
 
 
-class GenerateResult(BaseModel):
+class CandidatesResult(BaseModel):
     """후보 확정/검토 단계 응답 (single + multi 공통).
 
     `thread_id` 는 single 의 1-shot 호출에서도 발급된 값을 echo 한다.
@@ -35,7 +35,7 @@ class GenerateResult(BaseModel):
     profile_memory_patch: dict[str, Any] | None = None
 
 
-class CommitInput(BaseModel):
+class CommitPayload(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
     idempotency_key: UUID
     today: date
@@ -43,7 +43,7 @@ class CommitInput(BaseModel):
     calendar_events: list[TaskCandidate]
 
     @model_validator(mode="after")
-    def _check_size(self) -> CommitInput:
+    def _check_size(self) -> CommitPayload:
         total = len(self.todos) + len(self.calendar_events)
         if total == 0:
             raise ValueError("empty payload")
@@ -58,18 +58,10 @@ class CommitResult(BaseModel):
     quest_distribution_triggered: bool
 
 
-# === Unified single/multi generate I/O ===
+# === Multi-turn generate I/O ===
 
 
-class SingleGenerateInput(BaseModel):
-    mode: Literal["single"] = "single"
-    user_id: Annotated[str, Field(min_length=1)]
-    prompt: Annotated[str, Field(min_length=1, max_length=200)]
-    today: date
-
-
-class MultiGenerateInput(BaseModel):
-    mode: Literal["multi"] = "multi"
+class PlannerInput(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
     message: Annotated[str, Field(min_length=1, max_length=600)]
     today: date
@@ -84,12 +76,6 @@ class MultiGenerateInput(BaseModel):
         if isinstance(value, str) and not value.strip():
             return None
         return value
-
-
-GenerateInput = Annotated[
-    SingleGenerateInput | MultiGenerateInput,
-    Field(discriminator="mode"),
-]
 
 
 class FollowUpResult(BaseModel):
@@ -109,8 +95,8 @@ class OutOfScopeResult(BaseModel):
     message: str
 
 
-TurnResult = Annotated[
-    GenerateResult | FollowUpResult | OutOfScopeResult,
+PlannerResult = Annotated[
+    CandidatesResult | FollowUpResult | OutOfScopeResult,
     Field(discriminator="kind"),
 ]
 
@@ -131,7 +117,7 @@ class SplitResult(BaseModel):
     tasks: list[TaskCandidate]
 
 
-SingleTurnResult = Annotated[
-    GenerateResult | OutOfScopeResult,
+TodoResult = Annotated[
+    CandidatesResult | OutOfScopeResult,
     Field(discriminator="kind"),
 ]

@@ -4,11 +4,11 @@ from datetime import datetime
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 class CommitGraphState(TypedDict):
-    input: CommitInput
+    input: CommitPayload
     now: datetime
     re_routed_todos: NotRequired[list[TaskCandidate] | None]
     re_routed_events: NotRequired[list[TaskCandidate] | None]

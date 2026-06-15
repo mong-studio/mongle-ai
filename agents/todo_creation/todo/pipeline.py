@@ -10,7 +10,7 @@ from langgraph.types import RetryPolicy
 from agents.todo_creation.debug import log_end, log_start, log_step
 from agents.todo_creation.exceptions import LLMFailedError
 from agents.todo_creation.protocols import LLMPort
-from agents.todo_creation.schemas import GenerateResult, OutOfScopeResult, TodoInput
+from agents.todo_creation.schemas import CandidatesResult, OutOfScopeResult, TodoInput
 from agents.todo_creation.todo.nodes.date_router import date_router_node
 from agents.todo_creation.todo.nodes.out_of_scope import out_of_scope_node
 from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
@@ -56,7 +56,7 @@ async def run(
     *,
     ports: GeneratePorts,
     now: datetime,
-) -> GenerateResult | OutOfScopeResult:
+) -> CandidatesResult | OutOfScopeResult:
     initial: GenerateGraphState = {"input": input, "now": now}
     config = {"configurable": {"ports": ports, "now": now}}
 
