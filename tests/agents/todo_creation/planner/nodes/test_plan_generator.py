@@ -166,3 +166,38 @@ async def test_sanitizes_goal_tag_without_domain_word_lists() -> None:
     )
 
     assert result["todos"][0].tags == ["부산가족여행"]
+
+
+async def test_drops_tasks_after_deadline() -> None:
+    """parsed_goal.deadline 이후 날짜의 task 는 제거한다 (P1)."""
+    deadline = _TODAY + timedelta(days=2)
+    d0 = TaskCandidate(title="개념", due_date=_TODAY)
+    d1 = TaskCandidate(title="기출", due_date=_TODAY + timedelta(days=1))
+    after = TaskCandidate(title="회고", due_date=_TODAY + timedelta(days=3))  # 마감 이후
+    plan: list[PlanDay] = [
+        {"date": _TODAY, "tasks": [d0]},
+        {"date": _TODAY + timedelta(days=1), "tasks": [d1]},
+        {"date": _TODAY + timedelta(days=3), "tasks": [after]},
+    ]
+    llm = _FakeLLM(plan_response=("요약", plan))
+
+    result = await plan_generator_node(
+        _state({"goal_tag": "목표", "deadline": deadline}), _config(llm)
+    )
+
+    titles = [t.title for t in result["todos"] + result["calendar_events"]]
+    assert "회고" not in titles
+    assert "개념" in titles
+    assert "기출" in titles
+
+
+async def test_keeps_all_tasks_when_no_deadline() -> None:
+    """deadline 이 없으면 clamp 하지 않는다 (기존 거동 보존)."""
+    after = TaskCandidate(title="회고", due_date=_TODAY + timedelta(days=3))
+    plan: list[PlanDay] = [{"date": _TODAY + timedelta(days=3), "tasks": [after]}]
+    llm = _FakeLLM(plan_response=("요약", plan))
+
+    result = await plan_generator_node(_state({"goal_tag": "목표"}), _config(llm))
+
+    titles = [t.title for t in result["todos"] + result["calendar_events"]]
+    assert "회고" in titles
