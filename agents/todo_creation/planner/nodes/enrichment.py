@@ -11,6 +11,7 @@ EnrichmentPort 가 없거나 키워드가 없으면 즉시 빈 dict 반환.
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -19,6 +20,31 @@ from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.state import PlannerGraphState
 
 log = logging.getLogger(__name__)
+
+
+def _suggested_deadline(context: dict | None, today: date | None) -> date | None:
+    """구조화된 enrichment context 에서 today 이후 가장 가까운 시험일을 고른다."""
+    if not isinstance(context, dict) or today is None:
+        return None
+    raw = context.get("suggested_deadline")
+    if isinstance(raw, str):
+        try:
+            d = date.fromisoformat(raw)
+            return d if d >= today else None
+        except ValueError:
+            pass
+    candidates: list[date] = []
+    for item in context.get("exam_dates") or []:
+        value = item.get("date") if isinstance(item, dict) else None
+        if isinstance(value, str):
+            try:
+                d = date.fromisoformat(value)
+            except ValueError:
+                continue
+            if d >= today:
+                candidates.append(d)
+    return min(candidates) if candidates else None
+
 
 # TODO: 하드코딩보다는 이것을 관리해주는 DB
 # - 키워드 매핑 시에 질문
@@ -87,4 +113,8 @@ async def enrichment_node(
         log.warning("enrichment lookup failed for keyword=%r", keyword, exc_info=True)
         context = None
 
-    return {"enrichment_context": context, "enrichment_done": True}
+    update: dict[str, Any] = {"enrichment_context": context, "enrichment_done": True}
+    suggested = _suggested_deadline(context, today)
+    if suggested is not None:
+        update["suggested_deadline"] = suggested
+    return update

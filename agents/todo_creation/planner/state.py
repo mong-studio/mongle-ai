@@ -27,6 +27,11 @@ class PlannerGraphState(TypedDict, total=False):
     follow_up_question: str | None
     out_of_scope_message: str | None
 
+    # enrichment (D12 — Tavily 시험일 조회)
+    enrichment_context: dict | None
+    enrichment_done: bool
+    suggested_deadline: date | None
+
     # plan (P1: plan_generator 구현 시 채워짐)
     plan: list[PlanDay] | None
     summary_text: str | None

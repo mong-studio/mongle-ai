@@ -8,7 +8,7 @@ from uuid import uuid4
 from langgraph.types import Command
 
 from agents.todo_creation.planner.graph import build_planner_graph
-from agents.todo_creation.protocols import LLMPort
+from agents.todo_creation.protocols import EnrichmentPort, LLMPort
 from agents.todo_creation.schemas import (
     FollowUpResult,
     GenerateResult,
@@ -37,6 +37,7 @@ _ACCEPT_MESSAGES = {
 @dataclass
 class PlannerPorts:
     llm: LLMPort
+    enrichment: EnrichmentPort | None = None
 
 
 _GRAPH = build_planner_graph()

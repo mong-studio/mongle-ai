@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from agents.todo_creation.planner.date_parser import (
     has_explicit_deadline,
     parse_explicit_deadline,
@@ -121,3 +119,34 @@ def _has_explicit_deadline(text: str, *, state: PlannerGraphState) -> bool:
         return True
     date_markers = ("일 뒤", "주 뒤", "개월 뒤", "월", "-")
     return any(char.isdigit() for char in text) and any(marker in text for marker in date_markers)
+
+
+_AFFIRM_WORDS = (
+    "좋아", "좋아요", "응", "네", "예", "그래", "그렇게", "이대로", "확정", "맞아", "ㅇㅋ", "오케이",
+)
+
+
+def _affirms(text: str) -> bool:
+    """사용자가 직전 제안(시험일)을 긍정하는지 가볍게 판정한다."""
+    normalized = str(text).strip().replace(".", "").replace("!", "").replace("~", "")
+    if not normalized:
+        return False
+    return any(word in normalized for word in _AFFIRM_WORDS)
+
+
+def _latest_user_answer(state: PlannerGraphState) -> str:
+    for turn in reversed(state.get("history", []) or []):
+        if turn.get("role") == "user":
+            return str(turn.get("content", ""))
+    return ""
+
+
+def apply_suggested_deadline(
+    state: PlannerGraphState, parsed_goal: ParsedGoal
+) -> None:
+    """enrichment 이 제안한 시험일을, 사용자가 긍정했고 deadline 이 비어 있을 때만 확정한다."""
+    suggested = state.get("suggested_deadline")
+    if suggested is None or parsed_goal.get("deadline"):
+        return
+    if _affirms(_latest_user_answer(state)):
+        parsed_goal["deadline"] = suggested

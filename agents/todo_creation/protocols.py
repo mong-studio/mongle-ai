@@ -45,6 +45,12 @@ class LLMPort(Protocol):
     ) -> list[PlanDay]: ...
 
 
+class EnrichmentPort(Protocol):
+    async def lookup(
+        self, *, keyword: str, today: date
+    ) -> dict[str, Any] | None: ...
+
+
 class TodoRepositoryPort(Protocol):
     async def find_by_idempotency_key(
         self, *, user_id: str, key: UUID

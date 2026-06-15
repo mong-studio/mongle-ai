@@ -20,10 +20,14 @@ async def follow_up_node(
     state: dict[str, Any], config: RunnableConfig
 ) -> dict[str, Any]:
     ports = get_ports(config)
-    question = await ports.llm.generate_follow_up_question(
-        missing_aspects=state.get("missing_aspects", []),
-        history=state.get("history", []),
-    )
+    kwargs: dict[str, Any] = {
+        "missing_aspects": state.get("missing_aspects", []),
+        "history": state.get("history", []),
+    }
+    enrichment_context = state.get("enrichment_context")
+    if enrichment_context is not None:
+        kwargs["enrichment_context"] = enrichment_context
+    question = await ports.llm.generate_follow_up_question(**kwargs)
     user_answer = interrupt(question)
     history = state.get("history", [])
     appended = [
