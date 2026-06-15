@@ -309,7 +309,7 @@ class QwenLLM:
         raw_slots = goal.get("slots")
         slots = raw_slots if isinstance(raw_slots, dict) else {}
         goal["slots"] = slots
-        if plan_kind in SLOT_SCHEMAS:
+        if isinstance(plan_kind, str) and plan_kind in SLOT_SCHEMAS:
             goal["plan_kind"] = plan_kind
         else:
             goal.pop("plan_kind", None)

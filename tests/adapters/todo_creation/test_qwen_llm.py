@@ -342,6 +342,43 @@ async def test_judge_sufficiency_routine_missing_slot_follows_up() -> None:
     assert missing == ["cadence"]
 
 
+async def test_judge_sufficiency_malformed_plan_kind_does_not_crash() -> None:
+    # 모델이 plan_kind 를 비정상(리스트 등 unhashable)으로 주어도 크래시 없이
+    # 미분류로 폴백하고 모델 결정을 따른다.
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": True,
+                        "missing_aspects": [],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": ["routine"],
+                            "slots": {"activity": "헬스"},
+                            "goal_text": "헬스",
+                            "goal_tag": "헬스",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, goal = await llm.judge_sufficiency(
+        history=[], message="헬스", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is True
+    assert missing == []
+    assert "plan_kind" not in goal  # 비정상 값은 폴백되어 제거
+
+
 async def test_judge_sufficiency_exam_preserves_model_decision() -> None:
     # exam 은 스키마 override 하지 않고 모델의 is_sufficient/missing 을 유지(기존 거동·deadline 휴리스틱 보존).
     from adapters.todo_creation.qwen_llm import QwenLLM
