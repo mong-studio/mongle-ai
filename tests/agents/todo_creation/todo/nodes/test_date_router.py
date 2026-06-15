@@ -9,7 +9,7 @@ from agents.todo_creation.todo.nodes.date_router import date_router_node
 def _state(split: list[TaskCandidate]) -> dict:
     return {
         "input": TodoInput(
-            user_id="u1", prompt="x", today=date(2026, 5, 24)
+            user_id="u1", message="x", today=date(2026, 5, 24)
         ),
         "now": None,
         "split_tasks": split,

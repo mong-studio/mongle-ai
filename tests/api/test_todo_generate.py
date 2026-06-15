@@ -19,7 +19,7 @@ def _override():
 def test_generate_returns_done_envelope(api_client):
     """/v1/todo/generate는 후보 todo 목록을 done 봉투로 반환한다."""
     api_client.app.dependency_overrides[get_todo_generate_ports] = _override
-    body = {"user_id": "u1", "prompt": "내일 장보기", "today": "2026-06-04"}
+    body = {"user_id": "u1", "message": "내일 장보기", "today": "2026-06-04"}
     resp = api_client.post("/v1/todo/generate", json=body, headers=AUTH)
     assert resp.status_code == 200
     data = resp.json()
@@ -30,7 +30,7 @@ def test_generate_returns_done_envelope(api_client):
 
 def test_generate_requires_api_key(api_client):
     """API 키 없이 /v1/todo/generate 호출 시 401을 반환한다."""
-    body = {"user_id": "u1", "prompt": "x", "today": "2026-06-04"}
+    body = {"user_id": "u1", "message": "x", "today": "2026-06-04"}
     assert api_client.post("/v1/todo/generate", json=body).status_code == 401
 
 
@@ -56,7 +56,7 @@ def _override_oos():
 def test_generate_returns_out_of_scope(api_client):
     """플랜과 무관한 입력은 out_of_scope 봉투로 반환한다."""
     api_client.app.dependency_overrides[get_todo_generate_ports] = _override_oos
-    body = {"user_id": "u1", "prompt": "배고프다", "today": "2026-06-13"}
+    body = {"user_id": "u1", "message": "배고프다", "today": "2026-06-13"}
     resp = api_client.post("/v1/todo/generate", json=body, headers=AUTH)
     assert resp.status_code == 200
     data = resp.json()

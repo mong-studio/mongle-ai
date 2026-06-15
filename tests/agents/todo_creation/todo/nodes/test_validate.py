@@ -13,7 +13,7 @@ from agents.todo_creation.todo.nodes.validate import (
 
 
 def _input(prompt: str = "오늘 코테", user_id: str = "u1") -> TodoInput:
-    return TodoInput(user_id=user_id, prompt=prompt, today=date(2026, 5, 24))
+    return TodoInput(user_id=user_id, message=prompt, today=date(2026, 5, 24))
 
 
 def test_check_passes_for_normal_input() -> None:
@@ -24,7 +24,7 @@ def test_check_rejects_201_chars() -> None:
     long = "가" * 201
     # TodoInput pydantic blocks construction first; build via model_construct
     inp = TodoInput.model_construct(
-        user_id="u1", prompt=long, today=date(2026, 5, 24)
+        user_id="u1", message=long, today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
         check(inp)
@@ -33,7 +33,7 @@ def test_check_rejects_201_chars() -> None:
 
 def test_check_rejects_whitespace_only_prompt() -> None:
     inp = TodoInput.model_construct(
-        user_id="u1", prompt="   ", today=date(2026, 5, 24)
+        user_id="u1", message="   ", today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
         check(inp)
@@ -42,7 +42,7 @@ def test_check_rejects_whitespace_only_prompt() -> None:
 
 def test_check_rejects_empty_user_id() -> None:
     inp = TodoInput.model_construct(
-        user_id="", prompt="hi", today=date(2026, 5, 24)
+        user_id="", message="hi", today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError) as ei:
         check(inp)
@@ -57,7 +57,7 @@ async def test_validate_node_returns_empty_diff_on_success() -> None:
 
 async def test_validate_node_raises_on_invalid() -> None:
     bad = TodoInput.model_construct(
-        user_id="u1", prompt="", today=date(2026, 5, 24)
+        user_id="u1", message="", today=date(2026, 5, 24)
     )
     state = {"input": bad, "now": None}
     with pytest.raises(ValidationError):

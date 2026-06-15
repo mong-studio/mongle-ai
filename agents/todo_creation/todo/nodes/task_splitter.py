@@ -33,14 +33,14 @@ async def task_splitter_node(
     ports = get_ports(config)
     today = state["input"].today
 
-    split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+    split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].message, today=today)
     if split.intent == "out_of_scope":
         return {"intent": "out_of_scope"}
 
     raw = split.tasks
     if not raw:
         # B2: one retry on empty (plan 인데 비었을 때만)
-        split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+        split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].message, today=today)
         if split.intent == "out_of_scope":
             return {"intent": "out_of_scope"}
         raw = split.tasks

@@ -11,7 +11,7 @@ from agents.todo_creation.todo.pipeline import GeneratePorts, run
 
 
 def _input(prompt: str = "오늘 코테") -> TodoInput:
-    return TodoInput(user_id="u1", prompt=prompt, today=date(2026, 5, 24))
+    return TodoInput(user_id="u1", message=prompt, today=date(2026, 5, 24))
 
 
 async def test_pipeline_run_returns_candidates_result() -> None:
@@ -29,7 +29,7 @@ async def test_pipeline_run_returns_candidates_result() -> None:
 
 async def test_pipeline_run_raises_validation_error() -> None:
     bad = TodoInput.model_construct(
-        user_id="u1", prompt="", today=date(2026, 5, 24)
+        user_id="u1", message="", today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError):
         await run(
@@ -58,7 +58,7 @@ async def test_pipeline_returns_out_of_scope_result() -> None:
 
     ports = GeneratePorts(llm=FakeLLM(responses=[[]], intents=["out_of_scope"]))
     result = await single_pipeline.run(
-        TodoInput(user_id="u1", prompt="배고프다", today=date(2026, 6, 13)),
+        TodoInput(user_id="u1", message="배고프다", today=date(2026, 6, 13)),
         ports=ports,
         now=datetime(2026, 6, 13, 9, 0),
     )

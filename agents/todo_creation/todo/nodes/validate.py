@@ -10,10 +10,10 @@ from agents.todo_creation.todo.state import GenerateGraphState
 
 
 def check(input: TodoInput) -> None:
-    if len(input.prompt) > 200:
-        raise ValidationError(code="A1", message="prompt exceeds 200 chars")
-    if not input.prompt.strip():
-        raise ValidationError(code="A2", message="prompt is empty or whitespace")
+    if len(input.message) > 200:
+        raise ValidationError(code="A1", message="message exceeds 200 chars")
+    if not input.message.strip():
+        raise ValidationError(code="A2", message="message is empty or whitespace")
     if not input.user_id:
         raise ValidationError(code="A3", message="user_id is required")
 

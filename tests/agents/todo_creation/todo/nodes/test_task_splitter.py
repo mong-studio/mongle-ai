@@ -11,7 +11,7 @@ from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
 
 
 def _input(prompt: str = "오늘 코테") -> TodoInput:
-    return TodoInput(user_id="u1", prompt=prompt, today=date(2026, 5, 24))
+    return TodoInput(user_id="u1", message=prompt, today=date(2026, 5, 24))
 
 
 def _t(title: str = "코테", d: date = date(2026, 5, 24)) -> TaskCandidate:

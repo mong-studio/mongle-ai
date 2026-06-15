@@ -18,7 +18,7 @@ class _Ports:
 def _state(prompt: str = "오늘 코테") -> dict:
     return {
         "input": TodoInput(
-            user_id="u1", prompt=prompt, today=date(2026, 5, 24)
+            user_id="u1", message=prompt, today=date(2026, 5, 24)
         ),
         "now": None,
     }
@@ -72,7 +72,7 @@ async def test_graph_rejects_long_prompt() -> None:
     graph = build_generate_graph()
     long_prompt = "가" * 201
     inp = TodoInput.model_construct(
-        user_id="u1", prompt=long_prompt, today=date(2026, 5, 24)
+        user_id="u1", message=long_prompt, today=date(2026, 5, 24)
     )
     with pytest.raises(ValidationError):
         await graph.ainvoke(
