@@ -4,9 +4,9 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from agents.todo_creation.schemas import CommitInput
+from agents.todo_creation.schemas import CommitPayload
 
 
-class CommitRequest(BaseModel):
-    input: CommitInput
+class CommitInput(BaseModel):
+    input: CommitPayload
     remaining_daily_quota: Annotated[int, Field(ge=0)]

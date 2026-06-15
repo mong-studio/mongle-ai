@@ -10,7 +10,7 @@ from agents.todo_creation.commit.state import CommitGraphState
 async def validate_node(
     state: CommitGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
-    """C1/C2/C5 are enforced by Pydantic on CommitInput.
+    """C1/C2/C5 are enforced by Pydantic on CommitPayload.
     C3: re-route items by due_date vs today.
     C4 (user_id match) is the caller/router layer's responsibility.
     """

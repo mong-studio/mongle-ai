@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from agents.todo_creation.schemas import GenerateResult
+from agents.todo_creation.schemas import CandidatesResult
 from agents.todo_creation.todo.state import GenerateGraphState
 
 
@@ -19,4 +19,4 @@ async def date_router_node(
             todos.append(task)
         else:
             events.append(task)
-    return {"result": GenerateResult(todos=todos, calendar_events=events)}
+    return {"result": CandidatesResult(todos=todos, calendar_events=events)}

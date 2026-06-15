@@ -4,7 +4,7 @@ from datetime import date
 from uuid import uuid4
 
 from agents.todo_creation.commit.nodes.quest_dispatch import quest_dispatch_node
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 class _SuccessPort:
@@ -21,7 +21,7 @@ class _FailingPort:
 
 
 def _state_and_ports(port) -> tuple[dict, dict]:
-    inp = CommitInput(
+    inp = CommitPayload(
         user_id="u1",
         idempotency_key=uuid4(),
         today=date(2026, 5, 24),

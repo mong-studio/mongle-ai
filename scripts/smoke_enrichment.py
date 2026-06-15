@@ -21,7 +21,7 @@ from datetime import date, datetime
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
 
 from agents.todo_creation.planner.pipeline import PlannerPorts, run
-from agents.todo_creation.schemas import FollowUpResult, GenerateResult, MultiGenerateInput
+from agents.todo_creation.schemas import FollowUpResult, CandidatesResult, PlannerInput
 
 
 class _FakeLLM:
@@ -85,8 +85,7 @@ async def _scenario(label: str, message: str, *, with_enrichment: bool) -> None:
         llm=_FakeLLM(),
         enrichment=_FakeEnrichment() if with_enrichment else None,
     )
-    inp = MultiGenerateInput(
-        mode="multi",
+    inp = PlannerInput(
         user_id="smoke_user",
         message=message,
         today=date(2026, 6, 10),
@@ -97,7 +96,7 @@ async def _scenario(label: str, message: str, *, with_enrichment: bool) -> None:
         print(f"[follow_up 질문]")
         print(f"  → {result.question}")
         print(f"  missing: {result.missing_aspects}")
-    elif isinstance(result, GenerateResult):
+    elif isinstance(result, CandidatesResult):
         print(f"[플랜 생성] todos={len(result.todos)}, events={len(result.calendar_events)}")
     else:
         print(f"[결과] {result}")

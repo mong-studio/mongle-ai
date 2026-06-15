@@ -9,7 +9,7 @@ from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from agents.todo_creation.commit.pipeline import build_commit_graph
 from agents.todo_creation.exceptions import SaveFailedError
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 class _SuccessDispatch:
@@ -41,8 +41,8 @@ def _input(
     today_count: int = 1,
     future_count: int = 0,
     key=None,
-) -> CommitInput:
-    return CommitInput(
+) -> CommitPayload:
+    return CommitPayload(
         user_id="u1",
         idempotency_key=key or uuid4(),
         today=_today(),
@@ -57,7 +57,7 @@ def _input(
     )
 
 
-def _state(inp: CommitInput) -> dict:
+def _state(inp: CommitPayload) -> dict:
     return {"input": inp, "now": None}
 
 
@@ -151,7 +151,7 @@ async def test_commit_graph_c3_auto_reroute() -> None:
     repo = MemoryTodoRepository()
     counter = MemoryQuestCounter()
     dispatch = _SuccessDispatch()
-    inp = CommitInput(
+    inp = CommitPayload(
         user_id="u1",
         idempotency_key=uuid4(),
         today=_today(),

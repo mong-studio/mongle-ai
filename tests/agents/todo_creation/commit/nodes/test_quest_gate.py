@@ -7,7 +7,7 @@ from langgraph.graph import END
 
 from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from agents.todo_creation.commit.nodes.quest_gate import quest_gate
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 def _today_task() -> TaskCandidate:
@@ -19,7 +19,7 @@ def _state(
     re_routed_todos: list[TaskCandidate],
     idempotent_hit: bool,
 ) -> tuple[dict, dict, MemoryQuestCounter]:
-    inp = CommitInput(
+    inp = CommitPayload(
         user_id="u1",
         idempotency_key=uuid4(),
         today=date(2026, 5, 24),

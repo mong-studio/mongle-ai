@@ -9,7 +9,7 @@ from adapters.todo_creation.memory_quest_counter import MemoryQuestCounter
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
 from agents.todo_creation.commit.pipeline import CommitPorts, run
 from agents.todo_creation.exceptions import SaveFailedError
-from agents.todo_creation.schemas import CommitInput, TaskCandidate
+from agents.todo_creation.schemas import CommitPayload, TaskCandidate
 
 
 class _Dispatch:
@@ -20,8 +20,8 @@ class _Dispatch:
         self.calls.append(user_id)
 
 
-def _input() -> CommitInput:
-    return CommitInput(
+def _input() -> CommitPayload:
+    return CommitPayload(
         user_id="u1",
         idempotency_key=uuid4(),
         today=date(2026, 5, 24),
