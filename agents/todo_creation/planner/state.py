@@ -19,7 +19,7 @@ class PlannerGraphState(TypedDict, total=False):
     memory_summary: dict | None
     recent_turns: list[Turn]
     user_profile_memory: dict | None
-    profile_memory_patch: dict | None
+    personalization_patch: dict | None
     revision_request: str | None
     sufficiency: bool | None
     missing_aspects: list[str]

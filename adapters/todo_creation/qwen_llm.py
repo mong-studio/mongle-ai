@@ -371,8 +371,13 @@ class QwenLLM:
         ]
         parsed = await _complete_json_with_retry(self, messages=messages, label="plan")
         summary = str(parsed.get("summary_text") or "").strip()
-        if "profile_memory_patch" in parsed:
-            parsed_goal["profile_memory_patch"] = parsed.get("profile_memory_patch") or {}
+        # 배포된 모델이 옛 키(profile_memory_patch)를 emit 해도 호환되도록 둘 다 수용한다.
+        if "personalization_patch" in parsed or "profile_memory_patch" in parsed:
+            parsed_goal["personalization_patch"] = (
+                parsed.get("personalization_patch")
+                or parsed.get("profile_memory_patch")
+                or {}
+            )
         return summary, _parse_plan_days(parsed.get("days"))
 
     async def generate_goal_tag(
