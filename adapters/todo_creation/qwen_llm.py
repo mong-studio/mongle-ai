@@ -59,6 +59,11 @@ _JSON_REINFORCE = (
     "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
 )
 
+# 후보2(구조화 출력): split_tasks 의 디코딩 단계 JSON 구조 강제용 스키마.
+# SplitResult 에서 파생 → 구조/타입/길이/enum 만 강제하고 CJK character-class
+# pattern 은 없다(PoC 결과: pattern 은 byte-level 백엔드에서 한국어를 깨뜨림).
+_SPLIT_RESULT_SCHEMA = SplitResult.model_json_schema()
+
 
 def build_task_splitter_messages(
     *, prompt: str, today: date
@@ -201,7 +206,11 @@ class QwenLLM:
     timeout_seconds: float = 90.0
 
     async def complete_raw(
-        self, *, messages: list[dict[str, str]], label: str = "qwen"
+        self,
+        *,
+        messages: list[dict[str, str]],
+        label: str = "qwen",
+        json_schema: dict[str, Any] | None = None,
     ) -> str:
         endpoint = self.base_url.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = {
@@ -210,6 +219,12 @@ class QwenLLM:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
+        # 후보2: 디코딩 단계 JSON 구조 강제(OpenAI 호환 response_format).
+        if json_schema is not None:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "split_result", "schema": json_schema},
+            }
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
@@ -243,7 +258,11 @@ class QwenLLM:
         last_err: LLMOutputError | None = None
 
         for attempt in range(2):
-            raw = await self.complete_raw(messages=messages, label="split_tasks")
+            raw = await self.complete_raw(
+                messages=messages,
+                label="split_tasks",
+                json_schema=_SPLIT_RESULT_SCHEMA,
+            )
             try:
                 return parse_task_response(raw)
             except LLMOutputError as err:

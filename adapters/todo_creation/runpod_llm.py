@@ -44,15 +44,21 @@ class RunPodQwenLLM(QwenLLM):
         self._poll_timeout = poll_timeout
 
     async def complete_raw(
-        self, *, messages: list[dict[str, str]], label: str = "qwen"
+        self,
+        *,
+        messages: list[dict[str, str]],
+        label: str = "qwen",
+        json_schema: dict | None = None,
     ) -> str:
-        payload = {
-            "input": {
-                "messages": messages,
-                "temperature": self.temperature,
-                "max_tokens": self.max_tokens,
-            }
+        job_input: dict = {
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
         }
+        # 후보2: 디코딩 단계 JSON 구조 강제 — 워커가 StructuredOutputsParams 로 변환.
+        if json_schema is not None:
+            job_input["json_schema"] = json_schema
+        payload = {"input": job_input}
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:

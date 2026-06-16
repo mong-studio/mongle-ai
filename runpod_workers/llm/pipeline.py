@@ -47,11 +47,24 @@ class QwenLoraPipeline:
         messages: list[dict[str, Any]],
         temperature: float = 0.1,
         max_tokens: int = 800,
+        json_schema: dict[str, Any] | None = None,
     ) -> str:
         prompt: str = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        params = SamplingParams(temperature=temperature, max_tokens=max_tokens)
+        sampling_kwargs: dict[str, Any] = {
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        # 후보2: 디코딩 단계 JSON 구조 강제. CJK pattern 없는 스키마만 받는다
+        # (pattern 은 byte-level 백엔드에서 한국어를 깨뜨림 — PoC 결과).
+        if json_schema is not None:
+            from vllm.sampling_params import StructuredOutputsParams
+
+            sampling_kwargs["structured_outputs"] = StructuredOutputsParams(
+                json=json_schema
+            )
+        params = SamplingParams(**sampling_kwargs)
         outputs = self._llm.generate(
             [prompt], params, lora_request=self._lora_request
         )

@@ -401,3 +401,20 @@ async def test_tag_plan_does_not_call_qwen_and_applies_goal_tag() -> None:
 
     assert days[0]["tasks"][0].tags == ["코테"]
     assert _FakeAsyncClient.calls == []
+
+
+# 후보2(구조화 출력): split_tasks 는 JSON 스키마를 response_format 으로 강제한다.
+# 단 PoC 교훈상 한국어를 깨뜨리는 CJK character-class pattern 은 스키마에 없어야 한다.
+async def test_split_tasks_sends_json_schema_response_format() -> None:
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload(json.dumps({"intent": "plan", "tasks": []})))
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.split_tasks(prompt="오늘 코테", today=date(2026, 5, 24))
+
+    body = _FakeAsyncClient.calls[0]["json"]
+    rf = body.get("response_format")
+    assert rf is not None and rf["type"] == "json_schema"
+    schema_str = json.dumps(rf["json_schema"]["schema"], ensure_ascii=False)
+    assert "intent" in schema_str and "tasks" in schema_str
+    assert "pattern" not in schema_str  # CJK pattern 재유입 차단(한국어 손상 방지)

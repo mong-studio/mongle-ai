@@ -19,11 +19,13 @@ def handler(job: dict) -> dict:
 
     temperature = float(job_input.get("temperature", 0.1))
     max_tokens = int(job_input.get("max_tokens", 800))
+    json_schema = job_input.get("json_schema")  # 후보2: 있으면 JSON 구조 강제
 
     text = get_pipeline().generate(
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
+        json_schema=json_schema,
     )
     return {"text": text}
 

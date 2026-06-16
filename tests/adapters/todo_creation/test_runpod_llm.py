@@ -110,3 +110,40 @@ async def test_timeout_raises() -> None:
     with patch(_PATCH, return_value=client):
         with pytest.raises(LLMFailedError, match="timed out"):
             await _llm(poll_timeout=0.0).complete_raw(messages=MESSAGES)
+
+
+# 후보2(구조화 출력): json_schema 가 주어지면 RunPod job input 에 실어 보낸다.
+@pytest.mark.asyncio
+async def test_complete_raw_includes_json_schema_in_input() -> None:
+    client = _mock_client(statuses=[{"status": "COMPLETED", "output": {"text": "결과"}}])
+    schema = {"type": "object", "properties": {"intent": {"type": "string"}}}
+    with patch(_PATCH, return_value=client):
+        await _llm().complete_raw(messages=MESSAGES, json_schema=schema)
+    posted = client.post.call_args.kwargs["json"]
+    assert posted["input"]["json_schema"] == schema
+
+
+# json_schema 미지정 시 input 에 키를 넣지 않는다(기존 거동 보존).
+@pytest.mark.asyncio
+async def test_complete_raw_omits_json_schema_when_none() -> None:
+    client = _mock_client(statuses=[{"status": "COMPLETED", "output": {"text": "x"}}])
+    with patch(_PATCH, return_value=client):
+        await _llm().complete_raw(messages=MESSAGES)
+    posted = client.post.call_args.kwargs["json"]
+    assert "json_schema" not in posted["input"]
+
+
+# split_tasks 는 RunPod 경로에서도 pattern 없는 스키마를 input 에 실어 보낸다.
+@pytest.mark.asyncio
+async def test_split_tasks_sends_json_schema_in_input() -> None:
+    import json as _json
+    from datetime import date
+
+    client = _mock_client(
+        statuses=[{"status": "COMPLETED", "output": {"text": '{"intent":"plan","tasks":[]}'}}]
+    )
+    with patch(_PATCH, return_value=client):
+        await _llm().split_tasks(prompt="오늘 코테", today=date(2026, 5, 24))
+    posted = client.post.call_args.kwargs["json"]
+    assert "json_schema" in posted["input"]
+    assert "pattern" not in _json.dumps(posted["input"]["json_schema"])
