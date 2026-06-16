@@ -112,11 +112,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Update LLM templates (planner + village)
+      - name: Update LLM templates (planner + character)
         env:
-          RUNPOD_API_KEY:             ${{ secrets.RUNPOD_API_KEY }}
-          RUNPOD_PLANNER_TEMPLATE_ID: ${{ secrets.RUNPOD_PLANNER_TEMPLATE_ID }}
-          RUNPOD_VILLAGE_TEMPLATE_ID: ${{ secrets.RUNPOD_VILLAGE_TEMPLATE_ID }}
+          RUNPOD_API_KEY:               ${{ secrets.RUNPOD_API_KEY }}
+          RUNPOD_PLANNER_TEMPLATE_ID:   ${{ secrets.RUNPOD_PLANNER_TEMPLATE_ID }}
+          RUNPOD_CHARACTER_TEMPLATE_ID: ${{ secrets.RUNPOD_CHARACTER_TEMPLATE_ID }}
           NEW_IMAGE: ${{ env.LLM_IMAGE }}:${{ github.ref_name }}
         run: |
           # 현재 템플릿 전체 조회
@@ -129,7 +129,7 @@ jobs:
             -d "$FETCH" \
             https://api.runpod.io/graphql) || { echo "fetch failed"; exit 1; }
 
-          for ENV_KEY in RUNPOD_PLANNER_TEMPLATE_ID RUNPOD_VILLAGE_TEMPLATE_ID; do
+          for ENV_KEY in RUNPOD_PLANNER_TEMPLATE_ID RUNPOD_CHARACTER_TEMPLATE_ID; do
             TID="${!ENV_KEY}"
             echo "Updating $ENV_KEY ($TID) -> $NEW_IMAGE"
 

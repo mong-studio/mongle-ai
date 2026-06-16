@@ -26,6 +26,7 @@ class RunPodQwenLLM(QwenLLM):
         *,
         endpoint_url: str,
         api_key: str,
+        adapter: str,
         model: str = DEFAULT_QWEN_MODEL,
         temperature: float = 0.1,
         max_tokens: int = 800,
@@ -40,6 +41,7 @@ class RunPodQwenLLM(QwenLLM):
             max_tokens=max_tokens,
         )
         self._endpoint_url = endpoint_url.rstrip("/")
+        self._adapter = adapter
         self._poll_interval = poll_interval
         self._poll_timeout = poll_timeout
 
@@ -48,6 +50,7 @@ class RunPodQwenLLM(QwenLLM):
     ) -> str:
         payload = {
             "input": {
+                "adapter": self._adapter,
                 "messages": messages,
                 "temperature": self.temperature,
                 "max_tokens": self.max_tokens,

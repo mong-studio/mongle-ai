@@ -26,7 +26,7 @@ IMAGE_IMAGE := $(REGISTRY)/$(DOCKER_USER)/mongle-image-worker
         build-image push-image deploy-image \
         deploy-all setup-endpoints
 
-# ── LLM 워커 (플래너 · 빌리지 공용 이미지) ────────────────────────────────────
+# ── LLM 워커 (플래너·캐릭터 공용 이미지, 엔드포인트는 분리) ───────────────────
 build-llm:
 	docker build --platform linux/amd64 \
 	  -t $(LLM_IMAGE):$(IMAGE_TAG) \
