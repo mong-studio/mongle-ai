@@ -10,7 +10,7 @@ from agents.quest_generation.exceptions import LLMFailedError
 
 ENDPOINT = "https://api.runpod.ai/v2/test-ep"
 MESSAGES = [{"role": "user", "content": "안녕"}]
-_PATCH = "adapters.quest_generation.runpod_llm.httpx.AsyncClient"
+_PATCH = "adapters._shared.runpod_client.httpx.AsyncClient"
 
 
 def _llm(**kw) -> RunPodQwenLLM:

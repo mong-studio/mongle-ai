@@ -6,7 +6,6 @@ from fastapi import Depends, FastAPI, Request
 
 from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
-from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
