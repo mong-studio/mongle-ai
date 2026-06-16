@@ -1,6 +1,6 @@
 """RunPod Serverless 엔드포인트 최초 생성 스크립트.
 
-세 개의 워커(플래너 LLM · 빌리지 LLM · 이미지 생성)를 RunPod API 로
+세 개의 워커(플래너 LLM · 캐릭터 페르소나 LLM · 이미지 생성)를 RunPod API 로
 자동 생성하고, .env 에 붙여 넣을 URL 을 출력한다.
 
 필수 환경변수:
@@ -27,20 +27,20 @@ _WORKERS = [
         "endpoint_name": "mongle-planner-llm",
         "image_env": "LLM_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "lora_repo_id": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora",
+        "env": {"LORA_PLANNER_REPO": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora"},
         "result_key": "RUNPOD_PLANNER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_PLANNER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
     },
     {
-        "label": "빌리지 LLM (character 페르소나)",
-        "template_name": "mongle-village-llm",
-        "endpoint_name": "mongle-village-llm",
+        "label": "캐릭터 페르소나 LLM",
+        "template_name": "mongle-character-llm",
+        "endpoint_name": "mongle-character-llm",
         "image_env": "LLM_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "lora_repo_id": "deeps1eep/qwen2.5-7b-mongle-village",
-        "result_key": "RUNPOD_VILLAGE_ENDPOINT_URL",
-        "template_secret_key": "RUNPOD_VILLAGE_TEMPLATE_ID",
+        "env": {"LORA_CHARACTER_REPO": "deeps1eep/qwen2.5-7b-mongle-village"},
+        "result_key": "RUNPOD_CHARACTER_ENDPOINT_URL",
+        "template_secret_key": "RUNPOD_CHARACTER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
     },
     {
@@ -49,7 +49,7 @@ _WORKERS = [
         "endpoint_name": "mongle-image-gen",
         "image_env": "IMAGE_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "lora_repo_id": "Hadimeeee/pixel-art-lora-sdxl",
+        "env": {"LORA_REPO_ID": "Hadimeeee/pixel-art-lora-sdxl"},
         "result_key": "RUNPOD_IMAGE_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_IMAGE_TEMPLATE_ID",
         "network_volume_id": None,
@@ -154,7 +154,7 @@ def main() -> None:
         print(f"\n[{idx}/{len(_WORKERS)}] {w['label']}")
         print(f"    image: {image}")
 
-        env = {"LORA_REPO_ID": w["lora_repo_id"]}
+        env = dict(w["env"])
         if hf_token:
             env["HF_TOKEN"] = hf_token
 

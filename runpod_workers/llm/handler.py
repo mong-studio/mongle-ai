@@ -1,6 +1,7 @@
-"""RunPod Serverless 핸들러 — Qwen2.5 + LoRA LLM 추론.
+"""RunPod Serverless 핸들러 — Qwen2.5 + 멀티 LoRA LLM 추론.
 
-입력:  {"input": {"messages": [...], "temperature": 0.1, "max_tokens": 800}}
+입력:  {"input": {"adapter": "planner|character", "messages": [...],
+                  "temperature": 0.1, "max_tokens": 800}}
 출력:  {"text": "<생성된 텍스트>"}
 실패:  예외 전파 → RunPod 이 job 을 FAILED 로 마킹
 """
@@ -13,6 +14,11 @@ from pipeline import get_pipeline
 
 def handler(job: dict) -> dict:
     job_input = job.get("input") or {}
+
+    adapter = job_input.get("adapter")
+    if not adapter or not isinstance(adapter, str):
+        raise ValueError("'adapter' 필드가 필요합니다 (planner|character)")
+
     messages = job_input.get("messages")
     if not messages or not isinstance(messages, list):
         raise ValueError("'messages' 필드가 필요합니다 (list of chat messages)")
@@ -21,6 +27,7 @@ def handler(job: dict) -> dict:
     max_tokens = int(job_input.get("max_tokens", 800))
 
     text = get_pipeline().generate(
+        adapter=adapter,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,

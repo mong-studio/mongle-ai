@@ -1,7 +1,10 @@
 """Qwen2.5-7B-Instruct + LoRA 추론 파이프라인 (RunPod Serverless 워커용).
 
-두 LLM 엔드포인트(플래너·빌리지)가 동일한 Docker 이미지를 공유한다.
-LORA_REPO_ID 환경변수로 로드할 LoRA 를 구분한다.
+한 이미지로 단독(엔드포인트당 LoRA 1개) 또는 멀티-LoRA 를 모두 지원한다.
+베이스 모델은 VRAM 에 한 번만 올라가고, 요청의 adapter 이름으로 LoRA 를 고른다.
+LoRA repo 는 환경변수로 주입하며, 설정된 어댑터만 등록한다:
+  LORA_PLANNER_REPO    — adapter="planner"  (todo · quest)
+  LORA_CHARACTER_REPO  — adapter="character" (캐릭터 페르소나)
 """
 from __future__ import annotations
 
@@ -14,21 +17,24 @@ from vllm.lora.request import LoRARequest
 
 _BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
+# 어댑터 이름 → LoRA HF repo 를 지정하는 환경변수
+_ADAPTER_ENV = {
+    "planner": "LORA_PLANNER_REPO",
+    "character": "LORA_CHARACTER_REPO",
+}
+
 
 class QwenLoraPipeline:
-    """vLLM 기반 Qwen2.5-7B + LoRA 추론 파이프라인."""
+    """vLLM 기반 Qwen2.5-7B + LoRA 추론 파이프라인 (단독·멀티 겸용)."""
 
-    def __init__(self, *, lora_repo_id: str) -> None:
+    def __init__(self, *, adapters: dict[str, str]) -> None:
         hf_home = os.environ.get("HF_HOME", "/app/hf-cache")
         hf_token = os.environ.get("HF_TOKEN") or None
-
-        lora_path = snapshot_download(
-            lora_repo_id, cache_dir=hf_home, token=hf_token
-        )
 
         self._llm = LLM(
             model=_BASE_MODEL,
             enable_lora=True,
+            max_loras=len(adapters),  # 등록된 어댑터를 동시 상주
             max_lora_rank=64,
             dtype="float16",
             download_dir=hf_home,
@@ -39,22 +45,33 @@ class QwenLoraPipeline:
             enforce_eager=True,
         )
         self._tokenizer = self._llm.get_tokenizer()
-        self._lora_request = LoRARequest("lora", 1, lora_path)
+        # LoRA int id 는 1 부터 부여(0 은 베이스로 예약).
+        self._lora_requests = {
+            name: LoRARequest(
+                name, idx, snapshot_download(repo, cache_dir=hf_home, token=hf_token)
+            )
+            for idx, (name, repo) in enumerate(adapters.items(), start=1)
+        }
 
     def generate(
         self,
         *,
+        adapter: str,
         messages: list[dict[str, Any]],
         temperature: float = 0.1,
         max_tokens: int = 800,
     ) -> str:
+        lora_request = self._lora_requests.get(adapter)
+        if lora_request is None:
+            raise ValueError(
+                f"알 수 없는 adapter: {adapter!r} "
+                f"(이 엔드포인트가 서빙하는 어댑터: {sorted(self._lora_requests)})"
+            )
         prompt: str = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
         params = SamplingParams(temperature=temperature, max_tokens=max_tokens)
-        outputs = self._llm.generate(
-            [prompt], params, lora_request=self._lora_request
-        )
+        outputs = self._llm.generate([prompt], params, lora_request=lora_request)
         return outputs[0].outputs[0].text
 
 
@@ -62,10 +79,21 @@ _pipeline: QwenLoraPipeline | None = None
 
 
 def get_pipeline() -> QwenLoraPipeline:
+    """워커 프로세스에서 파이프라인을 한 번만 로드(지연).
+
+    환경변수가 설정된 어댑터만 등록한다(단독 엔드포인트는 1개, 합본은 2개).
+    """
     global _pipeline
     if _pipeline is None:
-        lora_repo_id = os.environ.get("LORA_REPO_ID", "").strip()
-        if not lora_repo_id:
-            raise RuntimeError("LORA_REPO_ID 환경변수가 필요합니다")
-        _pipeline = QwenLoraPipeline(lora_repo_id=lora_repo_id)
+        adapters = {
+            name: repo
+            for name, env_key in _ADAPTER_ENV.items()
+            if (repo := os.environ.get(env_key, "").strip())
+        }
+        if not adapters:
+            raise RuntimeError(
+                f"LoRA repo 환경변수가 최소 1개 필요합니다: "
+                f"{', '.join(_ADAPTER_ENV.values())}"
+            )
+        _pipeline = QwenLoraPipeline(adapters=adapters)
     return _pipeline
