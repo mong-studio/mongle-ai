@@ -62,7 +62,7 @@
 
 ## 5. 프롬프트 카탈로그 관리
 
-> ⚠ **위치 확정 필요** — 본 스펙에서는 `src/prompts/{feature}/...` 를 제안.
+> **위치 확정** — 프롬프트 `.md` 카탈로그는 소비하는 어댑터 옆에 둔다: `adapters/{feature}/prompts/{name}_v1.md`. 로더는 해당 어댑터의 `_prompts.py` (`load("name")`).
 
 **원칙:**
 

@@ -2,7 +2,7 @@
 
 adapters/character_creation/lora_image.py 의 디퓨전 로직 사본 — 변경 시 동기화.
 차이점: 동기 실행, CUDA 전용, LoRA 를 로컬 폴더 대신 HF repo 에서 로드.
-사람이 읽는 프롬프트 카탈로그: src/prompts/character_creation/image_gen_v1.md
+사람이 읽는 프롬프트 카탈로그: adapters/character_creation/prompts/image_gen_v1.md
 """
 from __future__ import annotations
 
