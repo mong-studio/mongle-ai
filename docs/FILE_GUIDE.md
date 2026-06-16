@@ -10,8 +10,8 @@
 mongle-ai/
 ├── streamlit_app/       ← 화면 (UI)
 ├── agents/              ← AI 두뇌 (파이프라인 로직)
-├── adapters/            ← AI 두뇌가 외부와 연결되는 플러그
-├── src/                 ← 유틸리티 스크립트
+├── adapters/            ← AI 두뇌가 외부와 연결되는 플러그 (프롬프트 .md 카탈로그 포함)
+├── scripts/             ← 유틸리티 스크립트 (S3 동기화 등)
 ├── tests/               ← 테스트
 ├── docs/                ← 문서
 ├── notebooks/           ← 개발용 시각화
@@ -122,12 +122,13 @@ mongle-ai/
 
 ---
 
-## src/ — 유틸리티
+## scripts/ — 유틸리티
 
 | 파일 | 역할 |
 |---|---|
-| `ingestion/s3_sync.py` | 로컬 `data/raw/` ↔ S3 동기화 스크립트. `python -m ingestion.s3_sync push/pull`로 수동 실행 |
-| `prompts/*/` | 마크다운으로 작성된 프롬프트 템플릿 |
+| `s3_sync.py` | 로컬 `data/raw/` ↔ S3 동기화 스크립트. `python -m scripts.s3_sync push/pull`로 수동 실행 |
+
+> 프롬프트 `.md` 카탈로그는 각 어댑터 옆에 둔다: `adapters/{feature}/prompts/*.md` (로더: 해당 어댑터의 `_prompts.py`).
 
 ---
 

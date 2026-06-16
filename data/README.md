@@ -23,8 +23,8 @@ data/
 
 ```bash
 # 환경변수 로드 후
-python -m ingestion.s3_sync push   # data/raw/ → S3, 매니페스트 갱신
-python -m ingestion.s3_sync pull   # 매니페스트 기준 S3 → data/raw/
+python -m scripts.s3_sync push   # data/raw/ → S3, 매니페스트 갱신
+python -m scripts.s3_sync pull   # 매니페스트 기준 S3 → data/raw/
 ```
 
 `push`는 `data/raw/` 안의 모든 파일을 업로드하고 매니페스트를 다시 작성합니다.

@@ -1,8 +1,8 @@
 """Sync raw data files between local ``data/raw/`` and a private S3 bucket.
 
 Usage:
-    python -m ingestion.s3_sync push   # upload local data/raw/ to S3, rewrite manifest
-    python -m ingestion.s3_sync pull   # download files listed in manifest from S3
+    python -m scripts.s3_sync push   # upload local data/raw/ to S3, rewrite manifest
+    python -m scripts.s3_sync pull   # download files listed in manifest from S3
 
 Configuration is read from environment variables (see .env.example).
 """
@@ -18,7 +18,7 @@ from typing import TypedDict
 
 import boto3
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "raw"
 MANIFEST_PATH = ROOT / "data" / "manifest.json"
 CHUNK = 1024 * 1024
