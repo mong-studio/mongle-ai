@@ -10,7 +10,7 @@ from agents.todo_creation.exceptions import LLMFailedError
 
 ENDPOINT = "https://api.runpod.ai/v2/test-ep"
 MESSAGES = [{"role": "user", "content": "안녕"}]
-_PATCH = "adapters.todo_creation.runpod_llm.httpx.AsyncClient"
+_PATCH = "adapters._shared.runpod_client.httpx.AsyncClient"
 
 
 def _llm(**kw) -> RunPodQwenLLM:

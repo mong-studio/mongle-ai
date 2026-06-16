@@ -15,7 +15,7 @@ class MissingEnvError(RuntimeError):
 
 
 _VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
-_VALID_LLM_PROVIDERS = ("openai", "qwen", "runpod")
+_VALID_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
     "http://localhost:8000/v1",
@@ -87,8 +87,6 @@ class AppConfig:
                 f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
-
-        openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
 
         # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
         # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
