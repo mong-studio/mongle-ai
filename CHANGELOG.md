@@ -35,6 +35,14 @@
   지배적·고변동이라 격리; planner 는 `workersMin=0` 으로 시작. 근거 `docs/adr/0005`). 오케스트레이터는
   `RUNPOD_PLANNER_ENDPOINT_URL`·`RUNPOD_CHARACTER_ENDPOINT_URL` 사용, payload 에 `adapter` 동봉.
   워커 env 는 `LORA_PLANNER_REPO`·`LORA_CHARACTER_REPO`.
+- **FastAPI AI 엔진 RunPod 상시 CPU Pod 이전 (EC2 → RunPod)**: AI 서버 배포를 EC2(SSM +
+  docker-compose)에서 **RunPod Secure Cloud 상시 CPU Pod**로 이전("운영 단일화", 근거 `docs/adr/0005`).
+  기존 CPU `Dockerfile`(uvicorn :8010) 재사용. `runpod_workers/setup_pod.py`(신규)로 Pod 1회 생성
+  (REST `POST /v1/pods`, HTTP 8010 노출, 앱 env 주입). `deploy-api.yml` 의 deploy 잡을 EC2 SSM →
+  **Pod stop→start 재시작**(컨테이너 디스크 wipe → `:latest` 재-pull)으로 교체하고 프록시
+  `https://{podId}-8010.proxy.runpod.net/health` 를 폴링한다. Pod ID 고정으로 프록시 URL 안정 →
+  mongle-server `MONGLE_AI_API_BASE` 는 1회 설정. ⚠️ 프록시 100s 타임아웃 — 동기 엔드포인트는
+  100s 내 응답 필요(무거운 작업은 워커 위임+폴링/비동기 Job). 배포 시 GitHub Secret `RUNPOD_POD_ID` 등록 필요.
 - **RunPod 이미지 워커 멀티-어댑터화 (character + bg 합본)**: 이미지 워커를 LLM 과 동일한
   멀티-어댑터 구조로(설정된 어댑터만 등록, `input.adapter`로 분기) 만들어 한 엔드포인트에서
   **character**(사진→픽셀아트 스프라이트, SDXL+ControlNet img2img)와 **bg**(텍스트→배경 장면,
