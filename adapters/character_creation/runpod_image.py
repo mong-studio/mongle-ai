@@ -51,7 +51,7 @@ class RunPodImageGenerator:
             raise
         except Exception as err:
             raise ImageGenerationFailedError(
-                f"RunPod image generation failed: {err}"
+                f"[ERROR] RunPod image generation failed: {err}"
             ) from err
 
     async def _submit_and_poll(self, source_image_bytes: bytes | None) -> bytes:
@@ -60,7 +60,9 @@ class RunPodImageGenerator:
             if source_image_bytes is not None
             else None
         )
-        payload = {"input": {"source_image_b64": source_b64}}
+        # 멀티-어댑터 이미지 워커에서 캐릭터 픽셀아트 모드를 선정
+        # TODO: feed 파이프라인 생성 시 추가
+        payload = {"input": {"source_image_b64": source_b64, "adapter": "character"}}
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         client = self._client or httpx.AsyncClient()
@@ -94,7 +96,7 @@ class RunPodImageGenerator:
                     if time.monotonic() >= deadline:
                         await self._cancel_job(client, headers, job_id)
                         raise ImageGenerationFailedError(
-                            f"RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
+                            f"[ERROR] RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
                         )
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -107,18 +109,18 @@ class RunPodImageGenerator:
                     image_b64 = (data.get("output") or {}).get("image_b64")
                     if not image_b64:
                         raise ImageGenerationFailedError(
-                            "RunPod COMPLETED 응답에 output.image_b64 가 없습니다"
+                            "[ERROR] RunPod COMPLETED 응답에 output.image_b64 가 없습니다"
                         )
                     return base64.b64decode(image_b64)
 
                 if status in _TERMINAL_FAILURE_STATUSES:
                     detail = str(data.get("error"))[:_ERROR_DETAIL_MAX_LEN]
-                    raise ImageGenerationFailedError(f"RunPod job {status}: {detail}")
+                    raise ImageGenerationFailedError(f"[ERROR] RunPod job {status}: {detail}")
 
                 if time.monotonic() >= deadline:
                     await self._cancel_job(client, headers, job_id)
                     raise ImageGenerationFailedError(
-                        f"RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
+                        f"[ERROR] RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
                     )
                 await asyncio.sleep(self._poll_interval)
         finally:
