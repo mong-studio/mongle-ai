@@ -90,7 +90,25 @@ async def test_generate_without_source_sends_null_b64() -> None:
 
     await _call(_generator(handler), source=None)
 
-    assert payloads == [{"input": {"source_image_b64": None}}]
+    assert payloads == [{"input": {"source_image_b64": None, "adapter": "character"}}]
+
+
+@pytest.mark.asyncio
+async def test_generate_sends_character_adapter() -> None:
+    """멀티-어댑터 이미지 워커가 모드를 고르도록 input.adapter='character' 를 보낸다."""
+    payloads: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/run"):
+            payloads.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": "job-1"})
+        return httpx.Response(
+            200, json={"status": "COMPLETED", "output": {"image_b64": PNG_B64}}
+        )
+
+    await _call(_generator(handler), source=b"x")
+
+    assert payloads[0]["input"]["adapter"] == "character"
 
 
 @pytest.mark.asyncio

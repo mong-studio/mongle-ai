@@ -21,9 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY bake.py ./
 RUN python bake.py
 
-COPY pipeline.py handler.py ./
+COPY pipeline.py handler.py character_mode.py bg_mode.py ./
 
-# 런타임 필수 env:
-#   LORA_REPO_ID — 픽셀아트 LoRA HF repo ID
-#   HF_TOKEN     — private repo 면 필요
+# 런타임 env (설정된 어댑터만 등록 — 단독/합본 겸용):
+#   LORA_CHARACTER_REPO — 캐릭터 픽셀아트 LoRA HF repo ID (adapter="character")
+#   LORA_BG_REPO        — 배경 LoRA HF repo ID            (adapter="bg")
+#   HF_TOKEN            — private repo 면 필요
 CMD ["python", "-u", "handler.py"]

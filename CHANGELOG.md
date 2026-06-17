@@ -34,7 +34,15 @@
   LoRA 를 고른다. 같은 이미지를 **planner 단독·character 단독 두 엔드포인트**로 배포(persona 가
   지배적·고변동이라 격리; planner 는 `workersMin=0` 으로 시작. 근거 `docs/adr/0005`). 오케스트레이터는
   `RUNPOD_PLANNER_ENDPOINT_URL`·`RUNPOD_CHARACTER_ENDPOINT_URL` 사용, payload 에 `adapter` 동봉.
-  워커 env 는 `LORA_PLANNER_REPO`·`LORA_CHARACTER_REPO`. (이미지 워커 character+bg 합본은 후속.)
+  워커 env 는 `LORA_PLANNER_REPO`·`LORA_CHARACTER_REPO`.
+- **RunPod 이미지 워커 멀티-어댑터화 (character + bg 합본)**: 이미지 워커를 LLM 과 동일한
+  멀티-어댑터 구조로(설정된 어댑터만 등록, `input.adapter`로 분기) 만들어 한 엔드포인트에서
+  **character**(사진→픽셀아트 스프라이트, SDXL+ControlNet img2img)와 **bg**(텍스트→배경 장면,
+  SDXL text2img + LCM 8-step)를 모두 서빙한다. 모드별 파일 분리(`character_mode.py`·`bg_mode.py`),
+  env `LORA_CHARACTER_REPO`·`LORA_BG_REPO`(`Hadimeeee/mongle-character-lora`·`mongle-bg-lora`).
+  character LoRA 를 공식 `mongle-character-lora`(트리거 `monglestyle`, 30-step, ControlNet 0.75)로
+  교체. 오케스트레이터 `runpod_image` 는 payload 에 `adapter="character"` 동봉. bg 의 feed
+  파이프라인 배선은 후속(feed 는 아직 미배선). 각 모드는 독립 SDXL 로드(`from_pipe` 공유는 후속 최적화).
 - **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 stateless FastAPI AI 엔진(`api/`)으로 대체.
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
   `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 stateless 전환 (근거: `docs/adr/0001`~`0005`).
