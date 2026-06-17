@@ -21,6 +21,7 @@ from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.planner.pipeline import PlannerPorts
 from agents.todo_creation.todo.pipeline import GeneratePorts
 
+from api.character_creation.jobs import CharacterJobStore
 from api.config import AppConfig
 
 
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     """앱 시작 시 설정 1회 로드. 이미지 생성기는 첫 character 요청에서 지연 생성."""
     app.state.config = AppConfig.from_env()
     app.state.image_generator = None
+    app.state.character_jobs = CharacterJobStore()
     yield
 
 

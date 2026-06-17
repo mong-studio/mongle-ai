@@ -46,6 +46,7 @@ class LLMPersonaResult(BaseModel):
     personality: str
     speech_style: str
     background: str
+    appearance: str
 
 
 class CharacterEntity(BaseModel):
@@ -56,6 +57,7 @@ class CharacterEntity(BaseModel):
     personality: str
     speech_style: str
     background: str
+    appearance: str
     image_url: str
     source_image_url: str | None
     created_at: datetime

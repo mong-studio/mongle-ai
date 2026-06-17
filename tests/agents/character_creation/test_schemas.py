@@ -53,6 +53,7 @@ def test_character_entity_serializes_round_trip(sample_user_id: str) -> None:
         personality="다정함",
         speech_style="존댓말",
         background="숲에서 옴",
+        appearance="둥근 갈색 몸에 큰 눈",
         image_url="https://s3/characters/x.png",
         source_image_url=None,
         created_at=datetime(2026, 5, 22, 12, 0, 0),
@@ -60,3 +61,4 @@ def test_character_entity_serializes_round_trip(sample_user_id: str) -> None:
     dumped = entity.model_dump()
     assert dumped["source_image_url"] is None
     assert dumped["name"] == "몽글이"
+    assert dumped["appearance"] == "둥근 갈색 몸에 큰 눈"
