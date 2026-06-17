@@ -17,3 +17,9 @@ class CharacterCreationRequest(BaseModel):
     source_image_key: str | None = None
     source_image_url: str | None = None
     source_image_content_type: str | None = None
+
+
+class CharacterJobRef(BaseModel):
+    """submit(202) 응답의 result — 폴링에 쓸 job_id."""
+
+    job_id: str

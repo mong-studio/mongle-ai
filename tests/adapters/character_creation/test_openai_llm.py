@@ -25,6 +25,7 @@ async def test_generate_persona_returns_structured_result() -> None:
         personality="씩씩하고 호기심 많아 매일 새로운 모험을 찾는다. 친구를 잘 챙긴다.",
         speech_style="어미를 늘여 말한다. 자주 '아하—' 하고 감탄한다.",
         background="마을 뒷산 작은 굴에서 자랐다. 매일 아침 산책을 한다.",
+        appearance="둥근 갈색 몸에 큰 눈, 빨간 목줄을 한 강아지.",
     )
     runnable = _make_runnable(expected)
     llm = OpenAILLM(runnable=runnable)
@@ -39,7 +40,7 @@ async def test_generate_persona_returns_structured_result() -> None:
 
 @pytest.mark.asyncio
 async def test_generate_persona_sends_system_and_user_messages() -> None:
-    expected = LLMPersonaResult(personality="a", speech_style="b", background="c")
+    expected = LLMPersonaResult(personality="a", speech_style="b", background="c", appearance="d")
     runnable = _make_runnable(expected)
     llm = OpenAILLM(runnable=runnable)
 

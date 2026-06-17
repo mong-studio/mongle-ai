@@ -33,6 +33,7 @@ def build(
         personality=llm_result.personality,
         speech_style=llm_result.speech_style,
         background=llm_result.background,
+        appearance=llm_result.appearance,
         image_url=generated_image_url,
         source_image_url=source_image_url,
         created_at=now,

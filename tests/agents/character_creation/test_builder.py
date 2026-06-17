@@ -24,6 +24,7 @@ def _llm() -> LLMPersonaResult:
         personality="다정한 성격",
         speech_style="존댓말",
         background="숲에서 옴",
+        appearance="둥근 갈색 몸에 큰 눈",
     )
 
 
@@ -63,7 +64,7 @@ async def test_builder_node_assembles_entity() -> None:
     state = CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
         is_regeneration=False,
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b"),
+        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
         generated_url="https://fake-s3.local/characters/u1/x.png",
     )
     out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
