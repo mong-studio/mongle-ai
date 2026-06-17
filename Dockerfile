@@ -18,7 +18,6 @@ COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
 COPY --chown=appuser:appgroup api ./api
 COPY --chown=appuser:appgroup agents ./agents
 COPY --chown=appuser:appgroup adapters ./adapters
-COPY --chown=appuser:appgroup src ./src
 
 USER appuser
 
