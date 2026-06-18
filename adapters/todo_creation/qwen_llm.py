@@ -1,17 +1,17 @@
 """
-    todo_creation.LLMPort 용 Qwen2.5-Instruct 어댑터.
-    vLLM 같은 OpenAI 호환 chat completions 엔드포인트를 대상으로 하되,
-    OpenAI 서비스 사용을 전제하지 않도록 일반 HTTP 클라이언트로 호출한다.
-    TODO 에이전트는 상태를 갖지 않으며, 매 호출마다 현재 프롬프트와 날짜
-    컨텍스트만 보내고 모델의 JSON 문자열 응답을 파싱한다.
+todo_creation.LLMPort 용 Qwen2.5-Instruct 어댑터.
+vLLM 같은 OpenAI 호환 chat completions 엔드포인트를 대상으로 하되,
+OpenAI 서비스 사용을 전제하지 않도록 일반 HTTP 클라이언트로 호출한다.
+TODO 에이전트는 상태를 갖지 않으며, 매 호출마다 현재 프롬프트와 날짜
+컨텍스트만 보내고 모델의 JSON 문자열 응답을 파싱한다.
 
-    LLMFailedError:
-    LLM 호출 자체가 실패한 경우
-    예: 서버 꺼짐, timeout, HTTP 500
+LLMFailedError:
+LLM 호출 자체가 실패한 경우
+예: 서버 꺼짐, timeout, HTTP 500
 
-    LLMOutputError:
-    LLM 호출은 성공했지만 응답 형식이 이상한 경우
-    예: JSON 아님, tasks 키 없음, due_date 형식 이상함
+LLMOutputError:
+LLM 호출은 성공했지만 응답 형식이 이상한 경우
+예: JSON 아님, tasks 키 없음, due_date 형식 이상함
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -325,9 +325,10 @@ class QwenLLM:
         parsed = await _complete_json_with_retry(
             self, messages=messages, label="judge_sufficiency"
         )
-        goal = parsed.get("parsed_goal") or {}
-        if not isinstance(goal, dict):
+        goal_obj = parsed.get("parsed_goal") or {}
+        if not isinstance(goal_obj, dict):
             raise LLMOutputError("'parsed_goal' is not an object")
+        goal = cast(ParsedGoal, goal_obj)
 
         deadline = goal.get("deadline")
         if deadline:
@@ -340,7 +341,9 @@ class QwenLLM:
 
         intent = parsed.get("intent") or goal.get("intent") or "plan"
         goal["intent"] = intent
-        goal["goal_tag"] = str(goal.get("goal_tag") or goal.get("goal_text") or "목표")[:20]
+        goal["goal_tag"] = str(goal.get("goal_tag") or goal.get("goal_text") or "목표")[
+            :20
+        ]
         missing = parsed.get("missing_aspects") or []
         if not isinstance(missing, list):
             raise LLMOutputError("'missing_aspects' is not a list")
@@ -364,7 +367,9 @@ class QwenLLM:
                 ),
             },
         ]
-        parsed = await _complete_json_with_retry(self, messages=messages, label="follow_up")
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="follow_up"
+        )
         question = str(parsed.get("question") or "").strip()
         if not question:
             raise LLMOutputError("empty follow-up question")
@@ -378,11 +383,9 @@ class QwenLLM:
         wiki = load_wiki(goal_tag) if goal_tag else None
         if wiki:
             system = (
-                system
-                + f"\n\n[도메인 지식 — {goal_tag}]\n"
+                system + f"\n\n[도메인 지식 — {goal_tag}]\n"
                 "아래는 이 목표에 특화된 학습 전략 위키다. "
-                "플랜 생성 시 태스크 이름과 순서를 이 위키에 맞춰 만들어라.\n\n"
-                + wiki
+                "플랜 생성 시 태스크 이름과 순서를 이 위키에 맞춰 만들어라.\n\n" + wiki
             )
         messages = [
             {"role": "system", "content": system},
@@ -412,7 +415,9 @@ class QwenLLM:
                 ),
             },
         ]
-        parsed = await _complete_json_with_retry(self, messages=messages, label="goal_tag")
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="goal_tag"
+        )
         goal_tag = str(parsed.get("goal_tag") or "").strip()
         if not goal_tag:
             raise LLMOutputError("empty goal_tag")
@@ -421,7 +426,9 @@ class QwenLLM:
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
     ) -> list[PlanDay]:
-        goal_tag = str(parsed_goal.get("goal_tag") or parsed_goal.get("goal_text") or "목표")
+        goal_tag = str(
+            parsed_goal.get("goal_tag") or parsed_goal.get("goal_text") or "목표"
+        )
         goal_tag = goal_tag.strip()[:20] or "목표"
         return [
             {
