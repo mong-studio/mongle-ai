@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from agents.character_creation.state import CharacterGraphState
@@ -20,13 +21,18 @@ async def translate_appearance_node(
     ports = config["configurable"]["ports"]
     llm_result = state.get("llm_result")
     assert llm_result is not None
+    start = time.perf_counter()
     try:
         english = (
             await ports.translator.translate_appearance(llm_result.appearance)
         ).strip()
-    except Exception:  # noqa: BLE001 - 번역 실패는 비치명적, 원본 유지
+    except Exception:
         log.exception("appearance 번역 실패 — 한국어 원본 유지")
-        return {}
-    if not english:
-        return {}
-    return {"llm_result": llm_result.model_copy(update={"appearance": english})}
+        english = ""
+    update: dict[str, Any] = (
+        {"llm_result": llm_result.model_copy(update={"appearance": english})}
+        if english
+        else {}
+    )
+    update["translate_appearance_seconds"] = round(time.perf_counter() - start, 3)
+    return update

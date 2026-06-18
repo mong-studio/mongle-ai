@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Literal
 
 from langgraph.types import Command
@@ -21,6 +22,7 @@ async def image_generator_node(
 
     await ports.repository.increment(state["input"].user_id)
     last_err: ImageGenerationFailedError | None = None
+    start = time.perf_counter()
     for _ in range(MAX_ATTEMPTS):
         try:
             src = state["input"].source_image
@@ -30,7 +32,13 @@ async def image_generator_node(
                 fallback_persona=state["input"].persona,
                 source_image_bytes=src.data if src is not None else None,
             )
-            return Command(update={"image_bytes": image_bytes}, goto="generated_upload")
+            return Command(
+                update={
+                    "image_bytes": image_bytes,
+                    "image_generator_seconds": round(time.perf_counter() - start, 3),
+                },
+                goto="generated_upload",
+            )
         except ImageGenerationFailedError as err:
             last_err = err
             continue

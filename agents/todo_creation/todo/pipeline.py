@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 
@@ -58,7 +59,7 @@ async def run(
     now: datetime,
 ) -> CandidatesResult | OutOfScopeResult:
     initial: GenerateGraphState = {"input": input, "now": now}
-    config = {"configurable": {"ports": ports, "now": now}}
+    config: RunnableConfig = {"configurable": {"ports": ports, "now": now}}
 
     log_start(input, "generate")
 

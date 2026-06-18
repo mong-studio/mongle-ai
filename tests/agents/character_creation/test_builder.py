@@ -75,6 +75,38 @@ async def test_builder_node_assembles_entity() -> None:
     assert out.goto == "__end__"
 
 
+async def test_builder_node_collects_stage_timings() -> None:
+    state = CharacterGraphState(
+        input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
+        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        generated_url="https://fake-s3.local/characters/u1/x.png",
+        source_upload_seconds=0.4,
+        llm_persona_seconds=1.23,
+        translate_appearance_seconds=0.8,
+        image_generator_seconds=45.6,
+        generated_upload_seconds=0.5,
+    )
+    out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
+    entity = out.update["entity"]
+    assert entity.timings == {
+        "source_upload": 0.4,
+        "llm_persona": 1.23,
+        "translate_appearance": 0.8,
+        "image_generator": 45.6,
+        "generated_upload": 0.5,
+    }
+
+
+async def test_builder_node_timings_empty_when_unmeasured() -> None:
+    state = CharacterGraphState(
+        input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
+        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        generated_url="https://fake-s3.local/characters/u1/x.png",
+    )
+    out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
+    assert out.update["entity"].timings == {}
+
+
 async def test_builder_node_records_error_when_state_invalid() -> None:
     state = CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),

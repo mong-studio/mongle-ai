@@ -24,6 +24,7 @@ def build(
     generated_image_url: str,
     source_image_url: str | None,
     now: datetime,
+    timings: dict[str, float] | None = None,
 ) -> CharacterEntity:
     return CharacterEntity(
         character_id=uuid4(),
@@ -37,7 +38,24 @@ def build(
         image_url=generated_image_url,
         source_image_url=source_image_url,
         created_at=now,
+        timings=timings or {},
     )
+
+
+def _collect_timings(state: CharacterGraphState) -> dict[str, float]:
+    """각 노드가 state 에 남긴 단계별 소요시간을 entity.timings 형태로 모은다."""
+    timings: dict[str, float] = {}
+    keys = (
+        ("source_upload", "source_upload_seconds"),
+        ("llm_persona", "llm_persona_seconds"),
+        ("translate_appearance", "translate_appearance_seconds"),
+        ("image_generator", "image_generator_seconds"),
+        ("generated_upload", "generated_upload_seconds"),
+    )
+    for label, state_key in keys:
+        if (v := state.get(state_key)) is not None:
+            timings[label] = v
+    return timings
 
 
 async def builder_node(
@@ -55,6 +73,7 @@ async def builder_node(
             generated_image_url=generated_url,
             source_image_url=state.get("source_url"),
             now=now,
+            timings=_collect_timings(state),
         )
     except Exception as err:
         return Command(update={"error": err}, goto="cleanup_source_image")

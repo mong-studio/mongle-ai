@@ -6,18 +6,20 @@
 
 ## 0. 개요
 
-본 문서는 몽글마을 서비스의 데이터베이스 스키마를 정의한다. ERD 파일에 정의된 15개 테이블을 도메인별로 그룹화하여 기술하며, 요구사항정의서(v1.2)와의 차이/논의 필요 사항을 마지막 섹션에 정리한다.
+본 문서는 몽글마을 서비스의 데이터베이스 스키마를 정의한다. `mongle-server`(Django 5.2)의 실제 모델 정의(`apps/*/models.py`)를 기준으로 도메인별로 그룹화하여 기술하며, 요구사항정의서(v1.2)와의 차이/논의 필요 사항을 마지막 섹션에 정리한다.
+
+> **기준**: 본 문서는 Django 모델을 as-built 로 반영한 것이다. Django auth/admin 내부 테이블(`auth_*`, `django_*`) 및 `users`의 PermissionsMixin 컬럼(`is_superuser`, `last_login`, `groups`, `user_permissions`)은 도메인 외이므로 생략한다.
 
 ### 도메인 그룹
 
-| 도메인                   | 테이블                                                |
-| ------------------------ | ----------------------------------------------------- |
-| **회원 / 인증**          | `users`, `social_accounts`, `refresh_tokens`          |
-| **캐릭터**               | `characters`                                          |
-| **TODO / 일정 / 퀘스트** | `todos`, `quests`, `schedules`, `tags`                |
-| **피드 (SNS)**           | `posts`, `comments`, `replies`                        |
-| **회고**                 | `reflections`                                         |
-| **토큰 / 운영**          | `token_transactions`, `notifications`, `img_gen_logs` |
+| 도메인                   | 테이블                                                              |
+| ------------------------ | ------------------------------------------------------------------- |
+| **회원 / 인증**          | `users`, `social_accounts`, `refresh_tokens`                        |
+| **캐릭터**               | `source_images`, `character_generation_jobs`, `characters`          |
+| **TODO / 일정 / 퀘스트** | `todos`, `quests`, `schedules`, `tags`                              |
+| **피드 (SNS)**           | `posts`, `comments`, `replies`                                      |
+| **회고**                 | `reflections`                                                       |
+| **토큰 / 운영**          | `token_transactions`, `notifications`, `img_gen_logs`               |
 
 ### 공통 규칙
 
@@ -37,18 +39,23 @@
 
 | 컬럼            | 타입         | 제약             | 기본값              | 설명                                                                        |
 | --------------- | ------------ | ---------------- | ------------------- | --------------------------------------------------------------------------- |
-| `user_id`       | VARCHAR(36)  | **PK**, NOT NULL | `(UUID())`          | 사용자 고유 식별자                                                          |
-| `email`         | VARCHAR(255) | UNIQUE           |                     | 로그인 이메일 (RFC 5321 형식 검증)                                          |
-| `password`      | VARCHAR(255) | NULL 허용        |                     | 해시된 비밀번호. **소셜 로그인 전용 사용자를 위해 NULL 허용 (의도된 설계)** |
-| `nickname`      | VARCHAR(8)   |                  |                     | 닉네임 (한글/영문/숫자, 2~8자, 중복 허용)                                   |
-| `job`           | VARCHAR(50)  |                  |                     | 직업 (선택 입력)                                                            |
-| `birth`         | DATE         |                  |                     | 생년월일 (선택 입력)                                                        |
-| `token_balance` | INT          |                  | `5`                 | 보유 토큰(사과) 잔액                                                        |
-| `is_active`     | TINYINT(1)   |                  | `1`                 | 활성 계정 여부 (탈퇴 시 0)                                                  |
-| `is_aiconsent`  | TINYINT(1)   |                  | `0`                 | AI 학습 데이터 활용 동의 여부 (REQ-PRIV-001)                                |
-| `created_at`    | DATETIME     |                  | `CURRENT_TIMESTAMP` | 가입일시                                                                    |
-| `updated_at`    | DATETIME     |                  | `CURRENT_TIMESTAMP` | 마지막 수정일시                                                             |
+| `user_id`         | VARCHAR(36)  | **PK**, NOT NULL | `(UUID())`          | 사용자 고유 식별자 (Django `UUIDField`)                                       |
+| `email`           | VARCHAR(254) | UNIQUE           |                     | 로그인 이메일 (`USERNAME_FIELD`, RFC 5321 형식 검증)                          |
+| `password`        | VARCHAR(128) |                  |                     | 해시된 비밀번호 (Django `AbstractBaseUser`). 소셜 전용 사용자는 unusable 해시 |
+| `user_name`       | VARCHAR(8)   |                  |                     | 닉네임 (한글/영문/숫자, 2~8자, 중복 허용)                                     |
+| `job`             | VARCHAR(20)  | blank 허용       | `''`                | 직업 (선택 입력)                                                              |
+| `birth`           | DATE         | NOT NULL         |                     | 생년월일                                                                      |
+| `token_balance`   | INT          |                  | `5`                 | 보유 토큰(사과) 잔액                                                          |
+| `is_active`       | TINYINT(1)   |                  | `1`                 | 활성 계정 여부 (탈퇴 시 0)                                                    |
+| `is_aiconsent`    | TINYINT(1)   |                  | `0`                 | AI 학습 데이터 활용 동의 여부 (REQ-PRIV-001)                                  |
+| `is_staff`        | TINYINT(1)   |                  | `0`                 | Django admin 접근 권한                                                        |
+| `login_type`      | VARCHAR(10)  | ENUM            | `email`             | 로그인 수단 (`email`/`kakao`/`google`/`naver`)                               |
+| `personalization` | JSON         |                  | `{}`                | 사용자 개인화 설정 (Django `JSONField`)                                       |
+| `created_at`      | DATETIME     |                  | `CURRENT_TIMESTAMP` | 가입일시 (`auto_now_add`)                                                     |
+| `updated_at`      | DATETIME     |                  | `CURRENT_TIMESTAMP` | 마지막 수정일시 (`auto_now`)                                                  |
 
+- Django `AbstractBaseUser` + `PermissionsMixin` 기반 커스텀 유저. `USERNAME_FIELD = email`, `REQUIRED_FIELDS = []`
+- PermissionsMixin 컬럼(`is_superuser`, `last_login` 등)은 도메인 외로 본 표에서 생략
 - 관련 요구사항: REQ-AUTH-001 / 002 / 005 / 006
 
 ### 1.2 `social_accounts` — 소셜 로그인 연동
@@ -68,14 +75,15 @@
 
 | 컬럼               | 타입         | 제약                     | 기본값              | 설명                 |
 | ------------------ | ------------ | ------------------------ | ------------------- | -------------------- |
-| `refresh_token_id` | INT          | **PK**, AUTO_INCREMENT   |                     |                      |
-| `user_id`          | VARCHAR(36)  | **FK** → `users.user_id` |                     |                      |
-| `token_hash`       | VARCHAR(255) |                          |                     | 해시된 리프레시 토큰 |
-| `device_info`      | VARCHAR(255) |                          |                     | 기기 식별 정보       |
-| `expires_at`       | DATETIME     |                          |                     | 만료일시 (2주)       |
-| `created_at`       | DATETIME     |                          | `CURRENT_TIMESTAMP` |                      |
+| `refresh_token_id` | INT          | **PK**, AUTO_INCREMENT             |                     |                                  |
+| `user_id`          | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE  |                     |                                  |
+| `token_hash`       | VARCHAR(255) | UNIQUE                             |                     | 해시된 리프레시 토큰             |
+| `device_info`      | VARCHAR(255) |                                    |                     | 기기 식별 정보                   |
+| `expires_at`       | DATETIME     |                                    |                     | 만료일시 (2주)                   |
+| `persistent`       | TINYINT(1)   |                                    | `1`                 | 자동 로그인 유지 여부            |
+| `created_at`       | DATETIME     |                                    | `CURRENT_TIMESTAMP` |                                  |
 
-- 관계: `users` 1 : N `refresh_tokens`
+- 관계: `users` 1 : N `refresh_tokens` (`ON DELETE CASCADE`)
 - 관련 요구사항: REQ-AUTH-002 [자동 로그인]
 - 비밀번호 변경/로그아웃/2주 미접속 시 무효화 처리 필요
 
@@ -83,24 +91,75 @@
 
 ## 2. 캐릭터
 
-### 2.1 `characters` — 캐릭터
+> 캐릭터 생성은 **비동기 Job 방식**이다: 원본 이미지 업로드(`source_images`) → 생성 Job 제출/폴링(`character_generation_jobs`) → 확정 등록(`characters`). (`character-async-appearance` 참조)
 
-| 컬럼             | 타입         | 제약                     | 기본값              | 설명                                      |
-| ---------------- | ------------ | ------------------------ | ------------------- | ----------------------------------------- |
-| `character_id`   | VARCHAR(36)  | **PK**, NOT NULL         | `(UUID())`          |                                           |
-| `user_id`        | VARCHAR(36)  | **FK** → `users.user_id` |                     | 소유자                                    |
-| `character_name` | VARCHAR(50)  |                          |                     | 캐릭터 이름                               |
-| `origin_img_url` | VARCHAR(500) |                          |                     | 사용자 업로드 원본 이미지                 |
-| `gen_img_url`    | VARCHAR(500) |                          |                     | 생성된 8비트 픽셀 이미지                  |
-| `persona`        | TEXT         |                          |                     | 캐릭터 페르소나 (성격 키워드 + 설명 종합) |
-| `appearance_description` | TEXT |                          | `NULL`              | VLM 외형 묘사 (이미지 입력 시에만, 재생성 일관성·퀘스트/피드 참조용) |
-| `is_active`      | TINYINT(1)   |                          | `1`                 | 활성화 여부 (삭제 시 0, "이사" 컨셉)      |
-| `created_at`     | DATETIME     |                          | `CURRENT_TIMESTAMP` |                                           |
-| `updated_at`     | DATETIME     |                          | `CURRENT_TIMESTAMP` |                                           |
+### 2.1 `source_images` — 업로드 원본 이미지 (presigned)
 
-- 관계: `users` 1 : N `characters` (계정당 최대 10명 — 애플리케이션 레벨 제약)
+| 컬럼            | 타입         | 제약                              | 기본값              | 설명                                                       |
+| --------------- | ------------ | --------------------------------- | ------------------- | ---------------------------------------------------------- |
+| `source_img_id` | VARCHAR(36)  | **PK**, NOT NULL                  | `(UUID())`          |                                                            |
+| `user_id`       | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE |                     | 업로더                                                     |
+| `object_key`    | VARCHAR(500) |                                   |                     | S3 object key                                              |
+| `content_type`  | VARCHAR(50)  |                                   |                     | MIME 타입                                                  |
+| `status`        | VARCHAR(20)  | ENUM                              | `PENDING_UPLOAD`    | `PENDING_UPLOAD`/`UPLOAD_COMPLETED`/`UPLOAD_EXPIRED`       |
+| `expires_at`    | DATETIME     |                                   |                     | presigned URL 만료일시                                     |
+| `created_at`    | DATETIME     |                                   | `CURRENT_TIMESTAMP` |                                                            |
+
+- 관계: `users` 1 : N `source_images`
+
+### 2.2 `character_generation_jobs` — 캐릭터 생성 Job (비동기)
+
+| 컬럼                    | 타입         | 제약                                       | 기본값              | 설명                                                  |
+| ----------------------- | ------------ | ------------------------------------------ | ------------------- | ----------------------------------------------------- |
+| `job_id`                | VARCHAR(36)  | **PK**, NOT NULL                           | `(UUID())`          |                                                       |
+| `user_id`               | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE          |                     | 요청자                                                |
+| `source_img_id`         | VARCHAR(36)  | **FK** → `source_images`, SET NULL, NULL   | `NULL`              | 원본 이미지 (텍스트-only 생성 시 NULL)                |
+| `personality_keywords`  | JSON         |                                            | `[]`                | 성격 키워드 목록                                      |
+| `custom_prompt`         | VARCHAR(200) | blank 허용                                 | `''`                | 사용자 커스텀 프롬프트                                |
+| `status`                | VARCHAR(20)  | ENUM                                       | `QUEUED`            | `QUEUED`/`IN_PROGRESS`/`SUCCEEDED`/`FAILED`/`CONSUMED` |
+| `gen_img_object_key`    | VARCHAR(500) | blank 허용                                 | `''`                | 생성 이미지 S3 key                                    |
+| `gen_img_url`           | TEXT         | blank 허용                                 | `''`                | 생성된 8비트 픽셀 이미지 URL                          |
+| `persona`               | TEXT         | blank 허용                                 | `''`                | AI 생성 페르소나                                      |
+| `appearance`            | VARCHAR(255) | blank 허용                                 | `''`                | AI 생성 외형 묘사. 확정 등록 시 `characters.visual` 로 이전 |
+| `created_at`            | DATETIME     |                                            | `CURRENT_TIMESTAMP` |                                                       |
+| `updated_at`            | DATETIME     |                                            | `CURRENT_TIMESTAMP` |                                                       |
+
+- 관계: `users` 1 : N `character_generation_jobs`, `source_images` 1 : N jobs
+- `status = CONSUMED` 은 해당 Job 으로 `characters` 확정 등록이 끝난 상태
+- 관련 요구사항: REQ-CHAR-001, REQ-CHAR-004
+
+### 2.3 `characters` — 캐릭터
+
+| 컬럼              | 타입         | 제약                                                    | 기본값              | 설명                                                                 |
+| ----------------- | ------------ | ------------------------------------------------------- | ------------------- | -------------------------------------------------------------------- |
+| `character_id`    | VARCHAR(36)  | **PK**, NOT NULL                                        | `(UUID())`          |                                                                      |
+| `user_id`         | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE                       |                     | 소유자                                                               |
+| `generation_job_id` | VARCHAR(36) | **FK** → `character_generation_jobs`, **1:1**, SET NULL | `NULL`              | 생성 출처 Job (`OneToOne`)                                           |
+| `character_name`  | VARCHAR(8)   |                                                         |                     | 캐릭터 이름                                                          |
+| `origin_img_url`  | TEXT         | blank 허용                                              | `''`                | 사용자 업로드 원본 이미지 (presigned 서명으로 길어질 수 있어 TEXT)   |
+| `gen_img_url`     | TEXT         |                                                         |                     | 생성된 8비트 픽셀 이미지                                             |
+| `persona`         | TEXT         |                                                         |                     | 캐릭터 페르소나 (성격 키워드 + 설명 종합)                            |
+| `visual`          | VARCHAR(255) | blank 허용                                              | `''`                | VLM 외형 묘사 (이미지 입력 시에만, 재생성 일관성·퀘스트/피드 참조용) |
+| `is_active`       | TINYINT(1)   |                                                         | `1`                 | 활성화 여부 (삭제 시 0, "이사" 컨셉)                                 |
+| `created_at`      | DATETIME     |                                                         | `CURRENT_TIMESTAMP` |                                                                      |
+| `updated_at`      | DATETIME     |                                                         | `CURRENT_TIMESTAMP` |                                                                      |
+
+- 관계: `users` 1 : N `characters` (계정당 최대 10명 — 애플리케이션 레벨 제약), `character_generation_jobs` 1 : 1 `characters`
 - **삭제 시 처리 (확정)**: 캐릭터 삭제(`is_active = 0`, "이사" 컨셉) 시 해당 캐릭터에 할당된 미완료 `quests`는 **다른 활성 캐릭터에 재할당**한다 (애플리케이션 레벨에서 `quests.character_id` UPDATE). 단, 해당 캐릭터의 기존 `posts`/`replies`는 보존된다.
 - 관련 요구사항: REQ-CHAR-001, REQ-CHAR-004
+
+### 2.4 `img_gen_logs` — 이미지 재생성 이력
+
+| 컬럼             | 타입        | 제약                              | 기본값              | 설명                          |
+| ---------------- | ----------- | --------------------------------- | ------------------- | ----------------------------- |
+| `img_gen_log_id` | INT         | **PK**, AUTO_INCREMENT            |                     |                               |
+| `user_id`        | VARCHAR(36) | **FK** → `users.user_id`, CASCADE |                     |                               |
+| `gen_cnt`        | INT         |                                   |                     | 누적 재생성 횟수              |
+| `created_at`     | DATETIME    |                                   | `CURRENT_TIMESTAMP` |                               |
+| `updated_at`     | DATETIME    |                                   | `CURRENT_TIMESTAMP` |                               |
+
+- 정책: 1일 3회 제한 (REQ-CHAR-001 [캐릭터 생성])
+- **변경 사항**: 기존 설계의 `gen_date` + `UNIQUE(user_id, gen_date)` 는 현 모델에 없다. 대신 `gen_cnt`/`updated_at` 로 관리하며, 일자별 제한 판정 로직은 애플리케이션에서 처리한다.
 
 ---
 
@@ -110,66 +169,66 @@
 
 | 컬럼          | 타입                                               | 제약                     | 기본값     | 설명                          |
 | ------------- | -------------------------------------------------- | ------------------------ | ---------- | ----------------------------- |
-| `todo_id`     | VARCHAR(36)                                        | **PK**, NOT NULL         | `(UUID())` |                               |
-| `user_id`     | VARCHAR(36)                                        | **FK** → `users.user_id` |            |                               |
-| `tag_id`      | INT                                                | **FK** → `tags.tag_id`   |            |                               |
-| `content`     | VARCHAR(20)                                        |                          |            | TODO 내용                     |
-| `status`      | ENUM(`PENDING`,`IN_PROGRESS`,`COMPLETED`,`FAILED`) |                          | `PENDING`  |                               |
-| `is_extended` | TINYINT(1)                                         |                          | `0`        | 24시간 연장 여부 (항목당 1회) |
-| `todo_date`   | DATE                                               |                          |            | 해당 TODO의 날짜              |
-| `created_at`  | DATETIME                                           |                          |            |                               |
-| `updated_at`  | DATETIME                                           |                          |            |                               |
+| `todo_id`     | VARCHAR(36)                              | **PK**, NOT NULL                  | `(UUID())`    |                  |
+| `user_id`     | VARCHAR(36)                              | **FK** → `users.user_id`, CASCADE |               |                  |
+| `tag_id`      | INT                                      | **FK** → `tags.tag_id`, PROTECT   |               |                  |
+| `content`     | VARCHAR(20)                              |                                   |               | TODO 내용        |
+| `status`      | ENUM(`IN_PROGRESS`,`COMPLETED`,`FAILED`) |                                   | `IN_PROGRESS` |                  |
+| `todo_date`   | DATE                                     |                                   |               | 해당 TODO의 날짜 |
+| `created_at`  | DATETIME                                 |                                   | `CURRENT_TIMESTAMP` |            |
+| `updated_at`  | DATETIME                                 |                                   | `CURRENT_TIMESTAMP` |            |
 
-- 관계: `users` 1 : N `todos`, `tags` 1 : N `todos`
+- 관계: `users` 1 : N `todos`, `tags` 1 : N `todos` (`tag` 삭제는 `PROTECT`)
 - 매일 자정 미완료 시 `FAILED` 처리 배치 필요
+- **변경 사항**: `PENDING` 상태와 `is_extended`(24h 연장) 컬럼은 현 모델에 없다. 기본 상태가 `IN_PROGRESS`
 - 관련 요구사항: REQ-PLAN-001, REQ-PLAN-002
 
 ### 3.2 `quests` — 캐릭터 퀘스트
 
 | 컬럼           | 타입        | 제약                               | 기본값     | 설명                                                          |
 | -------------- | ----------- | ---------------------------------- | ---------- | ------------------------------------------------------------- |
-| `quest_id`     | VARCHAR(36) | **PK**, NOT NULL                   | `(UUID())` |                                                               |
-| `character_id` | VARCHAR(36) | **FK** → `characters.character_id` |            |                                                               |
-| `todo_id`      | VARCHAR(36) | **FK** → `todos.todo_id`           |            |                                                               |
-| `content`      | TEXT        |                                    |            | 퀘스트 내용 (캐릭터 페르소나·외형 관련, 사용자 TODO와는 독립) |
-| `status`       | VARCHAR(20) |                                    | `pending`  | `PENDING`/`IN_PROGRESS`/`COMPLETED`/`FAILED`                  |
-| `updated_at`   | DATETIME    |                                    |            |                                                               |
+| `quest_id`           | VARCHAR(36) | **PK**, NOT NULL                            | `(UUID())`    |                                                               |
+| `character_id`       | VARCHAR(36) | **FK** → `characters.character_id`, CASCADE |               |                                                               |
+| `todo_id`            | VARCHAR(36) | **FK** → `todos.todo_id`, CASCADE           |               |                                                               |
+| `content`            | TEXT        |                                             |               | 퀘스트 내용 (캐릭터 페르소나·외형 관련, 사용자 TODO와는 독립) |
+| `status`             | ENUM(`IN_PROGRESS`,`COMPLETED`,`FAILED`) |                | `IN_PROGRESS` |                                                               |
+| `character_reaction` | TEXT        | blank 허용                                  | `''`          | 퀘스트에 대한 캐릭터 반응 (피드/말풍선 소스)                  |
+| `created_at`         | DATETIME    |                                             | `CURRENT_TIMESTAMP` |                                                         |
+| `updated_at`         | DATETIME    |                                             | `CURRENT_TIMESTAMP` |                                                         |
 
-- 관계: `todos` 1 : 1 `quests`, `characters` 1 : N `quests`
+- 관계: `todos` 1 : N `quests`, `characters` 1 : N `quests`
 - TODO 확정 시 랜덤 캐릭터에 할당 (REQ-PLAN-001 [캐릭터 퀘스트])
-- 캐릭터 삭제 시 다른 캐릭터에게 재할당 (REQ-CHAR-004)
+- **변경 사항**: 상태 기본값은 `IN_PROGRESS`(소문자 `pending` 아님), `PENDING` 없음. 캐릭터 삭제 FK는 모델상 `CASCADE`이나 애플리케이션은 재할당으로 처리(REQ-CHAR-004)
 - 관련 요구사항: REQ-PLAN-001, REQ-PLAN-002
 
 ### 3.3 `schedules` — 캘린더 일정
 
 | 컬럼          | 타입         | 제약                     | 기본값     | 설명           |
 | ------------- | ------------ | ------------------------ | ---------- | -------------- |
-| `schedule_id` | VARCHAR(36)  | **PK**, NOT NULL         | `(UUID())` |                |
-| `user_id`     | VARCHAR(36)  | **FK** → `users.user_id` |            |                |
-| `tag_id`      | INT          | **FK** → `tags.tag_id`   |            |                |
-| `title`       | VARCHAR(20)  |                          |            | 일정 제목      |
-| `start_date`  | DATE         |                          |            |                |
-| `end_date`    | DATE         |                          |            | 연속 일정 표현 |
-| `description` | VARCHAR(200) |                          |            |                |
+| `schedule_id` | VARCHAR(36)  | **PK**, NOT NULL                  | `(UUID())` |                |
+| `user_id`     | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE |            |                |
+| `tag_id`      | INT          | **FK** → `tags.tag_id`, PROTECT   |            |                |
+| `title`       | VARCHAR(20)  |                                   |            | 일정 제목      |
+| `description` | VARCHAR(200) | blank 허용                        | `''`       |                |
+| `start_date`  | DATE         |                                   |            |                |
+| `end_date`    | DATE         | NULL 허용                         | `NULL`     | 연속 일정 표현 |
 
-- 관계: `users` 1 : N `schedules`, `tags` 1 : N `schedules`
+- 관계: `users` 1 : N `schedules`, `tags` 1 : N `schedules` (`tag` 삭제는 `PROTECT`)
 - 관련 요구사항: REQ-PLAN-003 (챗봇 수락 시 자동 생성), REQ-PLAN-004~007
 
 ### 3.4 `tags` — 태그 (사용자별)
 
 | 컬럼      | 타입        | 제약                               | 기본값 | 설명        |
 | --------- | ----------- | ---------------------------------- | ------ | ----------- |
-| `tag_id`  | INT         | **PK**, NOT NULL, AUTO_INCREMENT   |        |             |
-| `user_id` | VARCHAR(36) | **FK** → `users.user_id`, NOT NULL |        | 태그 소유자 |
-| `content` | VARCHAR(20) |                                    |        | 태그 이름   |
-| `color`   | VARCHAR(7)  |                                    | `#eee` | HEX 색상    |
+| `tag_id`  | INT         | **PK**, NOT NULL, AUTO_INCREMENT            |        |             |
+| `user_id` | VARCHAR(36) | **FK** → `users.user_id`, NOT NULL, CASCADE |        | 태그 소유자 |
+| `content` | VARCHAR(20) |                                             |        | 태그 이름   |
+| `color`   | VARCHAR(7)  |                                             |        | HEX 색상 (기본값은 애플리케이션 레벨) |
 
 - **확정 정책**: 태그는 **사용자 단위로 관리**된다. 사용자마다 본인의 프로젝트/카테고리별 태그를 자유롭게 생성·관리할 수 있다.
 - 권장 인덱스: `UNIQUE(user_id, content)` — 동일 사용자가 중복 태그명 생성 방지
 - `todos`, `schedules` 모두에서 참조 (태그 생성자와 TODO/일정 소유자는 동일 사용자여야 함 — 애플리케이션 레벨 검증)
 - 관계: `users` 1 : N `tags`
-
-> ⚠ **ERD 수정 필요**: 현재 ERD `tags` 테이블에는 `user_id` 컬럼이 없음. ERD 파일에 `user_id` FK 추가 및 `users → tags` 관계 추가 필요.
 
 ---
 
@@ -179,15 +238,16 @@
 
 | 컬럼           | 타입         | 제약                               | 기본값              | 설명                                                         |
 | -------------- | ------------ | ---------------------------------- | ------------------- | ------------------------------------------------------------ |
-| `post_id`      | VARCHAR(36)  | **PK**, NOT NULL                   | `(UUID())`          |                                                              |
-| `character_id` | VARCHAR(36)  | **FK** → `characters.character_id` |                     | 작성 캐릭터                                                  |
-| `quest_id`     | VARCHAR(36)  | **FK** → `quests.quest_id`         |                     | 트리거된 퀘스트                                              |
-| `content`      | VARCHAR(140) |                                    |                     | 게시글 본문 (140자 제한, REQ-FEED-001)                       |
-| `img_url`      | VARCHAR(500) |                                    |                     | 게시물 이미지 (선택, 하루 5개 제한)                          |
-| `is_liked`     | TINYINT(1)   |                                    | `0`                 | 좋아요 여부 (사용자가 본인 캐릭터 피드에 토글, REQ-FEED-002) |
-| `created_at`   | DATETIME     |                                    | `CURRENT_TIMESTAMP` |                                                              |
+| `post_id`      | VARCHAR(36)  | **PK**, NOT NULL                            | `(UUID())`          |                                                              |
+| `character_id` | VARCHAR(36)  | **FK** → `characters.character_id`, CASCADE |                     | 작성 캐릭터                                                  |
+| `quest_id`     | VARCHAR(36)  | **FK** → `quests.quest_id`, CASCADE         |                     | 트리거된 퀘스트                                              |
+| `content`      | VARCHAR(150) |                                             |                     | 게시글 본문 (REQ-FEED-001)                                   |
+| `img_url`      | VARCHAR(500) |                                             |                     | 게시물 이미지 (하루 5개 제한)                                |
+| `is_liked`     | TINYINT(1)   |                                             | `0`                 | 좋아요 여부 (사용자가 본인 캐릭터 피드에 토글, REQ-FEED-002) |
+| `created_at`   | DATETIME     |                                             | `CURRENT_TIMESTAMP` |                                                              |
+| `updated_at`   | DATETIME     |                                             | `CURRENT_TIMESTAMP` |                                                              |
 
-- 관계: `characters` 1 : N `posts`, `quests` 1 : 1 `posts` (퀘스트 완료 시 1개 생성)
+- 관계: `characters` 1 : N `posts`, `quests` 1 : N `posts` (퀘스트 완료 시 1개 생성)
 - 관련 요구사항: REQ-FEED-001~004
 
 ### 4.2 `comments` — 댓글
@@ -224,15 +284,18 @@
 
 | 컬럼                 | 타입        | 제약                     | 기본값              | 설명           |
 | -------------------- | ----------- | ------------------------ | ------------------- | -------------- |
-| `reflection_id`      | VARCHAR(36) | **PK**, NOT NULL         | `(UUID())`          |                |
-| `user_id`            | VARCHAR(36) | **FK** → `users.user_id` |                     |                |
-| `reflection_date`    | DATE        |                          |                     | 회고 대상 날짜 |
-| `good_points`        | TEXT        |                          |                     | 잘한 점        |
-| `improvement_points` | TEXT        |                          |                     | 못한 점/개선점 |
-| `created_at`         | DATETIME    |                          | `CURRENT_TIMESTAMP` |                |
-| `updated_at`         | DATETIME    |                          | `CURRENT_TIMESTAMP` |                |
+| `reflection_id`               | VARCHAR(36) | **PK**, NOT NULL                  | `(UUID())`          |                            |
+| `user_id`                     | VARCHAR(36) | **FK** → `users.user_id`, CASCADE |                     |                            |
+| `reflection_date`             | DATE        |                                   |                     | 회고 대상 날짜             |
+| `good_points`                 | TEXT        | NULL 허용                         | `NULL`              | 잘한 점                    |
+| `improvement_points`          | TEXT        | NULL 허용                         | `NULL`              | 못한 점/개선점             |
+| `good_token_rewarded`         | TINYINT(1)  |                                   | `0`                 | 잘한 점 작성 토큰 지급 여부 |
+| `improvement_token_rewarded`  | TINYINT(1)  |                                   | `0`                 | 개선점 작성 토큰 지급 여부 |
+| `created_at`                  | DATETIME    |                                   | `CURRENT_TIMESTAMP` |                            |
+| `updated_at`                  | DATETIME    |                                   | `CURRENT_TIMESTAMP` |                            |
 
-- 유일성: `(user_id, reflection_date)` UNIQUE 권장 (하루 1회)
+- 유일성: `(user_id, reflection_date)` UNIQUE 제약 적용 (하루 1회, `unique_user_reflection_date`)
+- 토큰 보상은 항목(good/improvement)별로 1회만 지급되며 `*_token_rewarded` 플래그로 중복 방지
 - 관련 요구사항: REQ-RETRO-001
 
 ---
@@ -243,12 +306,12 @@
 
 | 컬럼                   | 타입         | 제약                     | 기본값              | 설명                                                                        |
 | ---------------------- | ------------ | ------------------------ | ------------------- | --------------------------------------------------------------------------- |
-| `token_transaction_id` | VARCHAR(36)  | **PK**, NOT NULL         | `(UUID())`          |                                                                             |
-| `user_id`              | VARCHAR(36)  | **FK** → `users.user_id` |                     |                                                                             |
-| `amount`               | INT          |                          |                     | 양수 = 지급, 음수 = 소모                                                    |
-| `type`                 | VARCHAR(50)  |                          |                     | `TODO_COMPLETE` / `QUEST_BONUS` / `REFLECTION` / `COMMENT` / `CUSTOMIZE` 등 |
-| `reference_id`         | VARCHAR(255) |                          |                     | 관련 엔티티 ID (todo_id, quest_id 등)                                       |
-| `created_at`           | DATETIME     |                          | `CURRENT_TIMESTAMP` |                                                                             |
+| `token_transaction_id` | VARCHAR(36)  | **PK**, NOT NULL                  | `(UUID())`          |                                                                             |
+| `user_id`              | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE |                     |                                                                             |
+| `amount`               | INT          |                                   |                     | 양수 = 지급, 음수 = 소모                                                    |
+| `type`                 | VARCHAR(30)  |                                   |                     | `TODO_COMPLETE` / `QUEST_BONUS` / `REFLECTION` / `COMMENT` / `CUSTOMIZE` 등 |
+| `reference_id`         | VARCHAR(255) |                                   |                     | 관련 엔티티 ID (todo_id, quest_id 등)                                       |
+| `created_at`           | DATETIME     |                                   | `CURRENT_TIMESTAMP` |                                                                             |
 
 - `users.token_balance` 와의 정합성은 트랜잭션으로 보장
 - 하루 토큰 지급 상한선(20개)은 애플리케이션에서 일자별 합산 검증
@@ -258,53 +321,48 @@
 
 | 컬럼              | 타입         | 제약                             | 기본값              | 설명                                            |
 | ----------------- | ------------ | -------------------------------- | ------------------- | ----------------------------------------------- |
-| `notification_id` | INT          | **PK**, NOT NULL, AUTO_INCREMENT |                     | 알림 식별자 (로그성 테이블이므로 INT 사용)      |
-| `user_id`         | VARCHAR(36)  | **FK** → `users.user_id`         |                     |                                                 |
-| `type`            | VARCHAR(50)  |                                  |                     | `FEED_NEW` / `QUEST_DEADLINE` / `RETROSPECT` 등 |
-| `title`           | VARCHAR(100) |                                  |                     |                                                 |
-| `content`         | TEXT         |                                  |                     |                                                 |
-| `is_read`         | TINYINT(1)   |                                  | `0`                 |                                                 |
-| `created_at`      | DATETIME     |                                  | `CURRENT_TIMESTAMP` |                                                 |
-| `updated_at`      | DATETIME     |                                  |                     |                                                 |
+| `notification_id` | INT          | **PK**, NOT NULL, AUTO_INCREMENT  |                     | 알림 식별자 (로그성 테이블이므로 INT 사용)      |
+| `user_id`         | VARCHAR(36)  | **FK** → `users.user_id`, CASCADE |                     |                                                 |
+| `type`            | VARCHAR(20)  |                                   |                     | `FEED_NEW` / `QUEST_DEADLINE` / `RETROSPECT` 등 |
+| `title`           | VARCHAR(100) |                                   |                     |                                                 |
+| `content`         | TEXT         |                                   |                     |                                                 |
+| `data`            | JSON         |                                   | `{}`                | 알림 페이로드 (딥링크 등, Django `JSONField`)   |
+| `is_read`         | TINYINT(1)   |                                   | `0`                 |                                                 |
+| `created_at`      | DATETIME     |                                   | `CURRENT_TIMESTAMP` |                                                 |
+| `updated_at`      | DATETIME     |                                   | `CURRENT_TIMESTAMP` |                                                 |
 
 - 관련 요구사항: REQ-NOTI-002
 
-### 6.3 `img_gen_logs` — 이미지 재생성 이력
-
-| 컬럼             | 타입        | 제약                     | 기본값 | 설명                          |
-| ---------------- | ----------- | ------------------------ | ------ | ----------------------------- |
-| `img_gen_log_id` | INT         | **PK**, AUTO_INCREMENT   |        |                               |
-| `user_id`        | VARCHAR(36) | **FK** → `users.user_id` |        |                               |
-| `gen_date`       | DATE        | NOT NULL                 |        | 생성 일자 (1일 3회 제한 기준) |
-| `gen_cnt`        | INT         |                          |        | 해당 일자 누적 재생성 횟수    |
-
-- 정책: 1일 3회 제한 (REQ-CHAR-001 [캐릭터 생성])
-- 권장 인덱스: `UNIQUE(user_id, gen_date)` — 일자별 1개 행으로 관리하여 `gen_cnt` UPSERT 방식 권장
+> `img_gen_logs` 는 캐릭터 도메인 앱(`apps/characters`)에 속하므로 §2.4 에 기술한다.
 
 ---
 
 ## 7. 관계도 요약
 
 ```
-users ─┬─ social_accounts        (1:1)
-       ├─ refresh_tokens         (1:N)
-       ├─ characters             (1:N) ─┬─ quests       (1:N) ─── posts (1:1)
-       │                                ├─ posts        (1:N)
-       │                                └─ replies      (1:N)
-       ├─ todos                  (1:N) ─── quests       (1:1)
-       ├─ schedules              (1:N)
-       ├─ reflections            (1:N)
-       ├─ comments               (1:N) ─── replies      (1:1)
-       ├─ tags                   (1:N)
-       ├─ token_transactions     (1:N)
-       ├─ notifications          (1:N)
-       └─ img_gen_logs           (1:1)
+users ─┬─ social_accounts            (1:N)
+       ├─ refresh_tokens             (1:N)
+       ├─ source_images              (1:N) ─── character_generation_jobs (1:N)
+       ├─ character_generation_jobs  (1:N) ─── characters   (1:1, SET NULL)
+       ├─ characters                 (1:N) ─┬─ quests       (1:N) ─── posts (1:N)
+       │                                    ├─ posts        (1:N)
+       │                                    └─ replies      (1:N)
+       ├─ todos                      (1:N) ─── quests       (1:N)
+       ├─ schedules                  (1:N)
+       ├─ reflections                (1:N)
+       ├─ comments                   (1:N) ─── replies      (1:N)
+       ├─ tags                       (1:N)
+       ├─ token_transactions         (1:N)
+       ├─ notifications              (1:N)
+       └─ img_gen_logs               (1:N)
 
-tags ─┬─ todos                   (1:N)
-      └─ schedules               (1:N)
+tags ─┬─ todos                       (1:N)
+      └─ schedules                   (1:N)
 
-posts ─── comments               (1:N)
+posts ─── comments                   (1:N)
 ```
+
+> 위 FK 다중도는 모델 정의 그대로다. `replies`/`posts` 는 모델상 `1:N` 이지만 비즈니스 규칙상 댓글당 답글 1개·퀘스트당 게시물 1개로 운영된다(애플리케이션 레벨).
 
 ---
 
@@ -313,7 +371,7 @@ posts ─── comments               (1:N)
 | 테이블               | 인덱스                                                     | 용도                              |
 | -------------------- | ---------------------------------------------------------- | --------------------------------- |
 | `users`              | `UNIQUE(email)`                                            | 로그인 조회                       |
-| `social_accounts`    | `UNIQUE(provider, provider_id)`                            | 소셜 로그인 매칭                  |
+| `social_accounts`    | `UNIQUE(provider_id)`                                      | 소셜 로그인 매칭                  |
 | `refresh_tokens`     | `INDEX(user_id, expires_at)`                               | 만료 토큰 정리                    |
 | `characters`         | `INDEX(user_id, is_active)`                                | 마을 캐릭터 조회                  |
 | `todos`              | `INDEX(user_id, todo_date, status)`                        | 오늘의 TODO HUD, 캘린더           |
@@ -325,11 +383,29 @@ posts ─── comments               (1:N)
 | `reflections`        | `UNIQUE(user_id, reflection_date)`                         | 하루 1회 보장                     |
 | `token_transactions` | `INDEX(user_id, created_at)`                               | 일일 상한선 합산                  |
 | `notifications`      | `INDEX(user_id, is_read, created_at DESC)`                 | 미확인 알림 배지                  |
-| `img_gen_logs`       | `UNIQUE(user_id, gen_date)`                                | 일일 3회 제한 (일자별 1행 UPSERT) |
+| `img_gen_logs`       | `INDEX(user_id, created_at)`                               | 일일 3회 제한 합산                |
+| `refresh_tokens`     | `UNIQUE(token_hash)`                                       | 토큰 매칭                         |
+| `character_generation_jobs` | `INDEX(user_id, status)`                            | 진행 중 Job 폴링                  |
 
 ---
 
 ## 9. 스키마 이슈 및 논의 필요 사항
+
+### as-built 반영 시 변경된 주요 사항 (초기 ERD/요구사항정의서 대비)
+
+| 테이블                      | 변경 내용                                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `users`                     | `nickname` → `user_name`, `job` 50→20, `birth` NOT NULL, `login_type`/`personalization`/`is_staff` 추가      |
+| `refresh_tokens`            | `token_hash` UNIQUE, `persistent` 추가                                                                       |
+| `source_images`             | **신규** — presigned 업로드 원본 이미지                                                                      |
+| `character_generation_jobs` | **신규** — 비동기 캐릭터 생성 Job                                                                            |
+| `characters`                | `character_name` 50→8, `origin_img_url`/`gen_img_url` TEXT, `visual` VARCHAR(255), `generation_job` 1:1 추가 |
+| `img_gen_logs`              | `gen_date` 및 `UNIQUE(user_id, gen_date)` 제거 → `gen_cnt`/`updated_at` 관리                                 |
+| `todos`                     | `PENDING` 상태·`is_extended` 컬럼 제거, 기본 상태 `IN_PROGRESS`                                              |
+| `quests`                    | `character_reaction`/`created_at` 추가, 상태 기본값 `IN_PROGRESS`                                            |
+| `reflections`               | `good_token_rewarded`/`improvement_token_rewarded` 추가, points 컬럼 NULL 허용                               |
+| `posts`                     | `content` 140→150, `updated_at` 추가                                                                         |
+| `notifications`             | `data`(JSON) 추가, `type` 50→20                                                                              |
 
 ### 백로그 (추후 정의)
 
