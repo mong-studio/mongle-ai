@@ -214,6 +214,27 @@ def test_build_todo_llm_uses_planning_model():
     assert llm.model == "planning-adapter"
 
 
+def _runpod_cfg(**over) -> AppConfig:
+    return _cfg(
+        llm_provider="runpod",
+        runpod_planner_endpoint_url="https://api.runpod.ai/v2/ep-llm",
+        runpod_api_key="rp-key",
+        **over,
+    )
+
+
+def test_todo_generate_ports_runpod_uses_base_adapter():
+    """runpod 모드: 단일 TODO(splitter)는 planner LoRA 가 아닌 base 모델을 쓴다."""
+    ports = build_todo_generate_ports(_runpod_cfg())
+    assert ports.llm._adapter == "base"
+
+
+def test_todo_planner_ports_runpod_uses_planner_adapter():
+    """runpod 모드: 멀티턴 planner 는 planner LoRA 를 그대로 쓴다."""
+    ports = build_todo_planner_ports(_runpod_cfg())
+    assert ports.llm._adapter == "planner"
+
+
 # ---------------------------------------------------------------------------
 # _get_image_generator — provider 분기
 # ---------------------------------------------------------------------------

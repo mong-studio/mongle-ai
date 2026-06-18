@@ -35,6 +35,15 @@ def test_user_builder_keeps_today() -> None:
     assert "2026-05-24" in out
 
 
+def test_user_builder_injects_this_week_sunday() -> None:
+    # 2026-06-18 은 목요일 → 이번 주 일요일은 2026-06-21
+    out = task_splitter_user("이번주 안으로 과제하기", date(2026, 6, 18))
+    assert "이번주_일요일=2026-06-21" in out
+    # today 가 이미 일요일이면 같은 날
+    sunday = task_splitter_user("과제", date(2026, 6, 21))
+    assert "이번주_일요일=2026-06-21" in sunday
+
+
 def test_task_splitter_prompt_declares_intent_and_out_of_scope() -> None:
     assert "intent" in TASK_SPLITTER_SYSTEM
     assert "out_of_scope" in TASK_SPLITTER_SYSTEM
