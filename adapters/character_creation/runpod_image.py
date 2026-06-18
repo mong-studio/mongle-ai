@@ -56,20 +56,33 @@ class RunPodImageGenerator:
                 f"[ERROR] RunPod image generation failed: {err}"
             ) from err
 
+    async def generate_img2img(self, reference_url: str, prompt: str) -> bytes:
+        """피드 파이프라인용: reference_url 이미지를 기반으로 img2img 생성."""
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            resp = await client.get(reference_url)
+            resp.raise_for_status()
+            source_image_bytes = resp.content
+        try:
+            return await self._submit_and_poll(source_image_bytes, prompt, adapter="character")
+        except ImageGenerationFailedError:
+            raise
+        except Exception as err:
+            raise ImageGenerationFailedError(
+                f"[ERROR] RunPod img2img failed: {err}"
+            ) from err
+
     async def _submit_and_poll(
-        self, source_image_bytes: bytes | None, prompt: str | None
+        self, source_image_bytes: bytes | None, prompt: str | None, *, adapter: str = "character"
     ) -> bytes:
         source_b64 = (
             base64.b64encode(source_image_bytes).decode()
             if source_image_bytes is not None
             else None
         )
-        # 멀티-어댑터 이미지 워커에서 캐릭터 픽셀아트 모드를 선정
-        # TODO: feed 파이프라인 생성 시 추가
         payload = {
             "input": {
                 "source_image_b64": source_b64,
-                "adapter": "character",
+                "adapter": adapter,
                 "prompt": prompt,
             }
         }
