@@ -68,15 +68,8 @@ async def test_over_20_tasks_raises_llm_output_error() -> None:
         await task_splitter_node(state, config)
 
 
-async def test_past_date_corrected_to_today() -> None:
-    yesterday = date(2026, 5, 23)
-    llm = FakeLLM(responses=[[_t("어제 일", yesterday)]])
-    state, config = _state_and_config(llm)
-    diff = await task_splitter_node(state, config)
-    assert diff["split_tasks"][0].due_date == date(2026, 5, 24)
-
-
-async def test_future_date_preserved() -> None:
+async def test_node_passes_through_resolved_dates() -> None:
+    # 날짜 계산/클램프는 split_tasks(resolver)가 끝낸다. 노드는 그대로 통과.
     future = date(2026, 5, 27)
     llm = FakeLLM(responses=[[_t("발표", future)]])
     state, config = _state_and_config(llm)

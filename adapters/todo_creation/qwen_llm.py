@@ -31,58 +31,106 @@ from adapters.todo_creation._prompts import (
     GOAL_TAG_SYSTEM,
     PLAN_GENERATOR_SYSTEM,
     PLANNER_JUDGE_SYSTEM,
+    TASK_SPLITTER_SYSTEM,
     follow_up_user,
     goal_tag_user,
     plan_generator_user,
     planner_judge_user,
-    TASK_SPLITTER_SYSTEM,
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
 from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
+from agents.todo_creation.todo.when_resolver import resolve_when
 
 log = logging.getLogger(__name__)
 
 DEFAULT_QWEN_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
-_CODE_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
-_SCHEMA_REINFORCE = (
-    "직전 응답은 파싱할 수 없다. 설명 없이 JSON 객체 하나만 다시 출력하라.\n"
-    '스키마: {"intent": "plan"|"out_of_scope", "tasks": [{"title": "20자 이하 명사구", '
-    '"due_date": "YYYY-MM-DD", "tags": ["20자 이하 태그"]}]}\n'
-    "out_of_scope 이면 tasks 는 [] 로 둔다.\n"
-    "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
-)
 _JSON_REINFORCE = (
     "직전 응답은 파싱할 수 없다. 설명 없이 요청한 스키마의 JSON 객체 하나만 다시 출력하라. "
     "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
 )
 
 
-def build_task_splitter_messages(
-    *, prompt: str, today: date
-) -> list[dict[str, str]]:
-    return [
-        {"role": "system", "content": TASK_SPLITTER_SYSTEM},
-        {"role": "user", "content": task_splitter_user(prompt, today)},
-    ]
+
+
+# ponytail: base 모델이 가끔 구조 토큰 사이에 잉여 따옴표(]"} 처럼)를 뱉어 JSON 이 깨진다.
+# 진짜 해결은 워커 측 guided/json decoding 이지만 그건 RunPod 워커 코드 소관(이 repo 밖).
+# 닫는 괄호와 닫는 괄호/쉼표 사이에 낀 따옴표는 항상 무효 JSON 이라 안전하게 제거한다.
+_WEDGED_QUOTE = re.compile(r'(?<=[}\]])"(?=\s*[}\],])')
+
+
+def _loads_tolerant(stripped: str) -> Any:
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        # 1회 복구 시도 — 재실패하면 원래 JSONDecodeError 를 그대로 전파
+        return json.loads(_WEDGED_QUOTE.sub("", stripped))
 
 
 def strip_json_fence(raw: str) -> str:
-    match = _CODE_FENCE_RE.search(raw)
-    return match.group(1).strip() if match else raw.strip()
+    """응답에서 첫 JSON 객체만 추출. 앞뒤 코드펜스·산문·꼬리 펜스를 허용한다."""
+    start = raw.find("{")
+    if start == -1:
+        return raw.strip()
+    try:
+        _, end = json.JSONDecoder().raw_decode(raw, start)
+    except json.JSONDecodeError:
+        return raw[start:].strip()
+    return raw[start:end]
 
 
-def parse_task_response(raw: str) -> SplitResult:
+def _first_object_with_key(raw: str, key: str) -> dict[str, Any] | None:
+    """raw 안의 모든 { 후보를 훑어 `key` 를 가진 첫 디코딩 가능 객체를 반환.
+
+    base 모델이 깨진 JSON 뒤에 '정정' 객체를 다시 뱉거나(rambling) 산문을 섞을 때,
+    스키마 마커(key)를 가진 진짜 객체를 건져낸다.
+    """
+    dec = json.JSONDecoder()
+    idx = raw.find("{")
+    while idx != -1:
+        try:
+            obj, _ = dec.raw_decode(raw, idx)
+        except json.JSONDecodeError:
+            obj = None
+        if isinstance(obj, dict) and key in obj:
+            return obj
+        idx = raw.find("{", idx + 1)
+    return None
+
+
+def _parse_split_object(raw: str) -> dict[str, Any]:
+    """분해기 응답에서 split 객체(dict)를 최대한 견고하게 복구한다.
+
+    1) 첫 객체 정상/잉여따옴표 → strip_json_fence + _loads_tolerant
+    2) rambling·롤누수·산문 혼입 → tasks 키를 가진 객체를 스캔으로 건짐
+    """
     stripped = strip_json_fence(raw)
     try:
-        parsed = json.loads(stripped)
-    except json.JSONDecodeError as err:
-        raise LLMOutputError(f"non-JSON response: {stripped[:200]}") from err
+        cand = _loads_tolerant(stripped)
+        if isinstance(cand, dict):
+            return cand
+    except json.JSONDecodeError:
+        pass
+    salvaged = _first_object_with_key(raw, "tasks")
+    if isinstance(salvaged, dict):
+        return salvaged
+    raise LLMOutputError(f"non-JSON response: {stripped[:200]}")
 
-    if not isinstance(parsed, dict):
-        raise LLMOutputError(f"not a JSON object: {stripped[:200]}")
+
+
+
+def build_task_splitter_messages(*, prompt: str) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": TASK_SPLITTER_SYSTEM},
+        {"role": "user", "content": task_splitter_user(prompt)},
+    ]
+
+
+def parse_task_response(raw: str, today: date) -> SplitResult:
+    """뉴로-심볼릭 응답 파싱: 모델의 when 구문을 resolve_when 으로 절대날짜화."""
+    parsed = _parse_split_object(raw)
 
     intent = parsed.get("intent")
     if intent not in ("plan", "out_of_scope"):
@@ -91,7 +139,7 @@ def parse_task_response(raw: str) -> SplitResult:
         return SplitResult(intent="out_of_scope", tasks=[])
 
     if "tasks" not in parsed:
-        raise LLMOutputError(f"missing 'tasks' key: {stripped[:200]}")
+        raise LLMOutputError(f"missing 'tasks' key: {raw[:200]}")
     tasks_raw = parsed["tasks"]
     if not isinstance(tasks_raw, list):
         raise LLMOutputError("'tasks' is not a list")
@@ -102,7 +150,7 @@ def parse_task_response(raw: str) -> SplitResult:
             out.append(
                 TaskCandidate(
                     title=item["title"],
-                    due_date=date.fromisoformat(item["due_date"]),
+                    due_date=resolve_when(item.get("when"), today),
                     tags=item.get("tags") or [],
                 )
             )
@@ -111,14 +159,6 @@ def parse_task_response(raw: str) -> SplitResult:
     return SplitResult(intent="plan", tasks=out)
 
 
-def reinforce_messages(
-    messages: list[dict[str, str]], *, raw_response: str
-) -> list[dict[str, str]]:
-    return [
-        *messages,
-        {"role": "assistant", "content": raw_response},
-        {"role": "user", "content": _SCHEMA_REINFORCE},
-    ]
 
 
 def _json_default(value: Any) -> str:
@@ -136,7 +176,7 @@ def _as_jsonable(value: Any) -> Any:
 def _parse_json_object(raw: str) -> dict[str, Any]:
     stripped = strip_json_fence(raw)
     try:
-        parsed = json.loads(stripped)
+        parsed = _loads_tolerant(stripped)
     except json.JSONDecodeError as err:
         raise LLMOutputError(f"non-JSON response: {stripped[:200]}") from err
     if not isinstance(parsed, dict):
@@ -239,21 +279,25 @@ class QwenLLM:
             ) from err
 
     async def split_tasks(self, *, prompt: str, today: date) -> SplitResult:
-        messages = build_task_splitter_messages(prompt=prompt, today=today)
+        """뉴로-심볼릭 분해기: 모델은 task별 when 구문만 추출하고
+        절대날짜는 resolve_when 이 결정적으로 계산한다."""
+        messages = build_task_splitter_messages(prompt=prompt)
         last_err: LLMOutputError | None = None
 
         for attempt in range(2):
             raw = await self.complete_raw(messages=messages, label="split_tasks")
             try:
-                return parse_task_response(raw)
+                return parse_task_response(raw, today)
             except LLMOutputError as err:
                 last_err = err
                 log.warning(
-                    "qwen split_tasks parse fail (attempt %d): %s",
-                    attempt + 1,
-                    err,
+                    "qwen split_tasks parse fail (attempt %d): %s", attempt + 1, err
                 )
-                messages = reinforce_messages(messages, raw_response=raw)
+                messages = [
+                    *messages,
+                    {"role": "assistant", "content": raw},
+                    {"role": "user", "content": _JSON_REINFORCE},
+                ]
 
         assert last_err is not None
         raise last_err

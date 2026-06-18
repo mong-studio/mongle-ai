@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.exceptions import LLMOutputError
-from agents.todo_creation.schemas import SplitResult, TaskCandidate
+from agents.todo_creation.schemas import SplitResult
 from agents.todo_creation.todo.state import GenerateGraphState
 
 logger = logging.getLogger(__name__)
@@ -16,31 +15,26 @@ logger = logging.getLogger(__name__)
 MAX_TASKS = 20
 
 
-def _correct(task: TaskCandidate, today: date) -> TaskCandidate:
-    due = task.due_date if task.due_date >= today else today
-    if due == task.due_date:
-        return task
-    logger.info(
-        "task_splitter: past due_date %s corrected to today %s (title=%r)",
-        task.due_date, today, task.title,
-    )
-    return task.model_copy(update={"due_date": due})
-
-
 async def task_splitter_node(
     state: GenerateGraphState, config: RunnableConfig
 ) -> dict[str, Any]:
+    # split_tasks(뉴로-심볼릭)가 task별 when 구문 추출 + 절대날짜 변환(과거 클램프 포함)을
+    # 모두 끝낸 TaskCandidate 를 돌려준다. 노드는 분기/한도 검증만 한다.
     ports = get_ports(config)
     today = state["input"].today
 
-    split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+    split: SplitResult = await ports.llm.split_tasks(
+        prompt=state["input"].prompt, today=today
+    )
     if split.intent == "out_of_scope":
         return {"intent": "out_of_scope"}
 
     raw = split.tasks
     if not raw:
         # B2: one retry on empty (plan 인데 비었을 때만)
-        split: SplitResult = await ports.llm.split_tasks(prompt=state["input"].prompt, today=today)
+        split = await ports.llm.split_tasks(
+            prompt=state["input"].prompt, today=today
+        )
         if split.intent == "out_of_scope":
             return {"intent": "out_of_scope"}
         raw = split.tasks
@@ -52,5 +46,4 @@ async def task_splitter_node(
             f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
         )
 
-    corrected = [_correct(t, today) for t in raw]
-    return {"intent": "plan", "split_tasks": corrected}
+    return {"intent": "plan", "split_tasks": list(raw)}
