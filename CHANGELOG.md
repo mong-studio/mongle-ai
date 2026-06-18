@@ -15,6 +15,14 @@
 ## [Unreleased]
 
 ### Added
+- **캐릭터 appearance 영어 번역 노드 (이미지 충실도 수정)**: SDXL 텍스트 인코더(CLIP)가
+  영어 전용이라 한국어 `appearance`(외형)가 이미지에 반영되지 않던 문제. 라이브 검증으로
+  확인(한국어 "갈색 곰"→초록 blob, 동일 의미 **영어**→정확한 여우). 페르소나 그래프에
+  `translate_appearance` 노드 추가(llm_persona→translate→sync): **Qwen base(`adapter="base"`,
+  no-LoRA)**로 한국어 외형을 영어 visual 태그로 변환해 `llm_result.appearance` 를 갱신한다.
+  번역 실패 시 한국어 원본 유지(비치명적). `TranslatorPort`+`RunPodTranslator`(planner 엔드포인트
+  base)/`QwenTranslator`(로컬). DB `visual`·이미지 prompt 가 영어가 되며(표시용 페르소나는
+  personality/speech_style/background 한국어 유지) 이미지 워커는 불변.
 - **단일 `/v1/todo/generate` out_of_scope 처리**: "배고프다"처럼 일정/TODO로 나눌 수 없는 입력을
   억지 todo로 만들지 않고 `OutOfScopeResult`(`kind: "out_of_scope"`)로 안내한다. `split_tasks`가
   `intent`("plan"|"out_of_scope")를 함께 반환하도록 확장(`SplitResult`), 단일 그래프에 조건 분기 추가,

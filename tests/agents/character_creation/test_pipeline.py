@@ -14,6 +14,7 @@ from tests.agents.character_creation.fakes import (
     FakeLLM,
     FakeRepository,
     FakeS3,
+    FakeTranslator,
 )
 
 
@@ -29,6 +30,7 @@ def _ports(
         s3=s3 or FakeS3(),
         image_generator=img or FakeImageGenerator(),
         repository=repo or FakeRepository(),
+        translator=FakeTranslator(),
     )
 
 
