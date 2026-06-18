@@ -24,4 +24,11 @@ class CharacterGraphState(_RequiredState, total=False):
 
     entity: CharacterEntity | None
 
+    # 단계별 소요시간(초). 각 노드가 자기 것만 기록 → builder 가 entity.timings 로 합친다.
+    llm_persona_seconds: float | None
+    image_generator_seconds: float | None
+    source_upload_seconds: float | None
+    translate_appearance_seconds: float | None
+    generated_upload_seconds: float | None
+
     error: Exception | None

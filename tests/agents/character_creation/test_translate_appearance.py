@@ -35,9 +35,12 @@ async def test_other_persona_fields_unchanged() -> None:
 
 async def test_translation_failure_keeps_korean_original() -> None:
     out = await translate_appearance_node(_state(), _cfg(FakeTranslator(fail=True)))
-    assert out == {}  # state 미변경 → 원본 한국어 appearance 유지
+    # llm_result 미갱신 → 원본 한국어 appearance 유지 (timing 키만 추가됨)
+    assert "llm_result" not in out
+    assert isinstance(out["translate_appearance_seconds"], float)
 
 
 async def test_empty_translation_keeps_original() -> None:
     out = await translate_appearance_node(_state(), _cfg(FakeTranslator(result="   ")))
-    assert out == {}
+    assert "llm_result" not in out
+    assert isinstance(out["translate_appearance_seconds"], float)

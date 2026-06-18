@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Literal
 
 from langgraph.types import Command
@@ -24,12 +25,19 @@ async def generated_upload_node(
     assert image_bytes is not None
     key = key_for(state["input"].user_id, "image/png", prefix="characters")
     last_err: S3UploadFailedError | None = None
+    start = time.perf_counter()
     for _ in range(MAX_ATTEMPTS):
         try:
             url = await put_once(
                 ports.s3, key=key, body=image_bytes, content_type="image/png"
             )
-            return Command(update={"generated_url": url}, goto="builder")
+            return Command(
+                update={
+                    "generated_url": url,
+                    "generated_upload_seconds": round(time.perf_counter() - start, 3),
+                },
+                goto="builder",
+            )
         except S3UploadFailedError as err:
             last_err = err
             continue
