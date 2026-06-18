@@ -21,6 +21,16 @@
   응답모델을 `Envelope[SingleTurnResult]`로. LLM 호출 추가 없음. 설계·계획:
   `docs/superpowers/specs|plans/2026-06-13-generate-out-of-scope*`.
 
+### Changed
+- **텍스트 전용 캐릭터 이미지를 외형(appearance) 기반 text2img 로 전환**: 사진 없이 생성할 때
+  기존엔 고정 회색 원 실루엣을 ControlNet img2img(매번 거의 동일한 blob)로 돌렸는데,
+  LLM 이 생성한 `appearance` 묘사를 prompt 로 SDXL text2img 하여 페르소나별 고유 이미지를
+  만든다(`character_mode.py`). 모델 카드의 **LCM fast path**(8 step·guidance 1.5·LoRA 0.9·
+  `LCMScheduler`+`lcm-lora-sdxl`)를 `bg_mode` 와 동일 방식으로 적용 → text-only 이미지 ~83s→~20s.
+  `from_pipe` 로 SDXL/unet 공유(LCM-LoRA 만 추가), generate 마다 `set_adapters` 로 활성 어댑터 전환.
+  오케스트레이터 `runpod_image` 가 payload 에 `prompt=appearance`(폴백 persona) 동봉.
+  **사진 있는 img2img 경로(표준 30-step)는 불변.** ⚠️ GPU 워커 재배포 필요(로컬 GPU 미검증).
+
 ### Fixed
 - **SFT LoRA 학습 `<EOS_TOKEN>` 반복 실패 해결**: `train_lora.py`가 `trl`을 `unsloth`보다 먼저 import해
   unsloth의 trl 몽키패치가 어긋나며 `eos_token`이 `<EOS_TOKEN>` placeholder로 새어 학습이 죽던 문제.
