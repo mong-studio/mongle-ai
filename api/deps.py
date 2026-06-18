@@ -8,6 +8,8 @@ from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
+from adapters.feed_generation.qwen_llm import QwenLLM as QwenFeedLLM
+from adapters.feed_generation.s3_adapter import FeedS3Adapter
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
@@ -15,6 +17,7 @@ from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
+from agents.feed_generation.pipeline import Ports as FeedPorts
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.planner.pipeline import PlannerPorts
@@ -240,3 +243,22 @@ def get_todo_planner_ports(cfg: AppConfig = Depends(get_config)) -> PlannerPorts
 
 def get_quest_ports(cfg: AppConfig = Depends(get_config)) -> QuestPorts:
     return build_quest_ports(cfg)
+
+
+def build_feed_ports(request: Request, cfg: AppConfig) -> FeedPorts:
+    return FeedPorts(
+        llm=QwenFeedLLM(
+            model=cfg.qwen_model or "",
+            base_url=cfg.qwen_base_url or "",
+            api_key=cfg.qwen_api_key,
+        ),
+        image_generator=_get_image_generator(request),
+        s3=FeedS3Adapter(_build_storage(cfg)),
+    )
+
+
+def get_feed_ports(
+    request: Request,
+    cfg: AppConfig = Depends(get_config),
+) -> FeedPorts:
+    return build_feed_ports(request, cfg)

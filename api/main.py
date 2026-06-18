@@ -25,6 +25,8 @@ def create_app() -> FastAPI:
     app.include_router(quest_router)
     from api.character_creation.router import router as character_router
     app.include_router(character_router)
+    from api.feed_generation.router import router as feed_router
+    app.include_router(feed_router)
     return app
 
 
