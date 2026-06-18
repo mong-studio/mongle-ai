@@ -40,10 +40,19 @@ class _FakeRepo:
         return None
 
 
+class _FakeTranslator:
+    async def translate_appearance(self, korean):
+        return "round brown body, big eyes"
+
+
 def _ports_builder():
     def _build(source_url=""):
         return CharacterPorts(
-            llm=_FakeLLM(), s3=_FakeS3(), image_generator=_FakeImage(), repository=_FakeRepo()
+            llm=_FakeLLM(),
+            s3=_FakeS3(),
+            image_generator=_FakeImage(),
+            repository=_FakeRepo(),
+            translator=_FakeTranslator(),
         )
     return _build
 
@@ -139,7 +148,7 @@ async def test_character_poll_text_only_saves_appearance():
     assert data["status"] == "done"
     assert data["result"]["name"] == "몽글이"
     assert data["result"]["image_url"]
-    assert data["result"]["appearance"] == "둥근 갈색 몸"
+    assert data["result"]["appearance"] == "round brown body, big eyes"
     assert data["result"]["source_image_url"] is None
 
 
@@ -157,7 +166,7 @@ async def test_character_poll_with_image_saves_appearance():
         }
     )
     assert data["status"] == "done"
-    assert data["result"]["appearance"] == "둥근 갈색 몸"
+    assert data["result"]["appearance"] == "round brown body, big eyes"
     # 이미지를 보냈으므로 원본 업로드 URL이 채워진다(fake S3는 sources/ 키로 반환).
     assert data["result"]["source_image_url"] is not None
     assert "sources/" in data["result"]["source_image_url"]

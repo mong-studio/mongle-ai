@@ -1,9 +1,10 @@
-"""캐릭터 픽셀아트 생성 모드 (SDXL + ControlNet canny img2img + LoRA).
+"""캐릭터 픽셀아트 생성 모드 (SDXL + character LoRA, 두 경로).
 
-adapter="character" 요청을 처리한다. 사진(또는 기본 실루엣)을 받아 mongle 캐릭터
-스프라이트로 변환한다. LoRA 는 `Hadimeeee/mongle-character-lora` 기준:
-  - 트리거: monglestyle
-  - 30 step, guidance 7.5, ControlNet conditioning 0.75, LoRA scale 0.9
+adapter="character" 요청을 처리한다. mongle-character-lora 모델 카드 표준 경로
+(30 step, guidance 7.5, LoRA scale 0.9)와 카드 예시 프롬프트 구조를 따른다.
+프롬프트 패턴(카드 Quick Start): `monglestyle, {외형 subject}, {스타일 키워드}`
+  - 사진 있을 때: img2img + ControlNet(canny) — 사진 윤곽이 형태, prompt 가 색·디테일
+  - 사진 없을 때: text2img — prompt(외형 subject)가 캐릭터를 결정
 사람이 읽는 프롬프트 카탈로그: adapters/character_creation/prompts/image_gen_v1.md
 """
 from __future__ import annotations
@@ -13,18 +14,23 @@ import io
 import cv2
 import numpy as np
 import torch
-from diffusers import ControlNetModel, StableDiffusionXLControlNetImg2ImgPipeline
+from diffusers import (
+    ControlNetModel,
+    StableDiffusionXLControlNetImg2ImgPipeline,
+    StableDiffusionXLPipeline,
+)
 from PIL import Image
 from rembg import remove
 
-# mongle-character-lora 트리거(monglestyle)로 시작하는 고정 스타일 가드.
-# 캐릭터 묘사는 ControlNet(사진 윤곽)이 담당하므로 프롬프트는 스타일만 고정한다.
-_PROMPT = (
-    "monglestyle, single stuffed animal toy mascot character, full body, "
-    "centered, front view, cute chibi proportions, 32-bit pixel art sprite, "
-    "soft pixel shading, clean silhouette, thick dark outlines, flat coloring, "
-    "sharp pixel edges, no anti-aliasing, no gradients, pure white background"
+_TRIGGER = "monglestyle"  # mongle-character-lora 트리거(카드: 항상 맨 앞)
+# 모델 카드 Quick Start 예시의 스타일 꼬리 — subject(외형) 뒤에 붙는다(verbatim).
+_STYLE_SUFFIX = (
+    "single stuffed animal toy mascot character, full body, centered, "
+    "front view, cute chibi proportions, 32-bit pixel art sprite, "
+    "soft pixel shading, clean silhouette, pure white background"
 )
+# 외형 묘사가 없을 때 쓸 중립 subject.
+_FALLBACK_SUBJECT = "cute stuffed animal mascot"
 _NEGATIVE_PROMPT = (
     "realistic, 3d render, blurry, smooth, photograph, gradient, shadow, "
     "anti-aliasing, soft edges, painterly, watercolor, sketch, detailed texture"
@@ -35,9 +41,9 @@ _CANNY_LOW = 80
 _CANNY_HIGH = 180
 _CONTROLNET_SCALE = 0.75  # 모델 카드 권장(0.45~0.85, 일반 인형 0.75)
 _STRENGTH = 0.75
-_STEPS = 30  # 모델 카드 표준(LCM 미사용 경로)
+_STEPS = 30  # 모델 카드 표준(외형 프롬프트 충실도 우선)
 _GUIDANCE = 7.5
-_LORA_SCALE = 0.9  # 모델 카드 cross-attention scale
+_LORA_SCALE = 0.9  # 모델 카드 character LoRA cross-attention scale
 _BG_MIN_RATIO = 0.40
 _N_COLORS = 32  # 출력 팔레트 양자화(MEDIANCUT, dither 없음)
 
@@ -64,14 +70,13 @@ class CharacterMode:
         pipe.to("cuda")
         pipe.enable_attention_slicing()
         self._pipe = pipe
+        # 사진 없는 text-only 경로용 text2img — 동일 base/unet/LoRA 를 공유(VRAM 재사용).
+        self._txt2img = StableDiffusionXLPipeline.from_pipe(pipe)
 
-    def _make_default_source(self) -> Image.Image:
-        """사진 없을 때 쓸 기본 실루엣 — 흰 배경에 회색 원."""
-        img = Image.new("RGB", _SIZE, (255, 255, 255))
-        arr = np.array(img)
-        cx, cy, r = _SIZE[0] // 2, _SIZE[1] // 2, _SIZE[0] // 3
-        cv2.circle(arr, (cx, cy), r, (180, 180, 180), -1)
-        return Image.fromarray(arr)
+    def _prompt_for(self, appearance: str | None) -> str:
+        """카드 패턴으로 프롬프트 구성: 트리거 → subject(외형) → 스타일 키워드."""
+        subject = appearance.strip() if appearance and appearance.strip() else _FALLBACK_SUBJECT
+        return f"{_TRIGGER}, {subject}, {_STYLE_SUFFIX}"
 
     def _remove_background(self, image: Image.Image) -> Image.Image:
         removed = remove(image.convert("RGBA"))
@@ -104,10 +109,10 @@ class CharacterMode:
     def generate(
         self, *, source_image_bytes: bytes | None = None, prompt: str | None = None
     ) -> bytes:
-        """character 모드는 사진(또는 기본 실루엣) 기반 — prompt 인자는 사용하지 않는다."""
-        lora_kwargs = {"cross_attention_kwargs": {"scale": _LORA_SCALE}}
+        """사진이 있으면 img2img(ControlNet), 없으면 text2img. 둘 다 카드 프롬프트 패턴."""
+        full_prompt = self._prompt_for(prompt)
         if source_image_bytes is not None:
-            # 사진 있을 때 — img2img + ControlNet
+            # 사진 있을 때 — img2img + ControlNet (사진 윤곽이 형태, prompt 가 색·디테일)
             original = (
                 Image.open(io.BytesIO(source_image_bytes)).convert("RGB").resize(_SIZE)
             )
@@ -115,7 +120,7 @@ class CharacterMode:
             src = bg_removed if self._bg_ok(bg_removed) else original
             canny_img = self._canny(src)
             result = self._pipe(
-                prompt=_PROMPT,
+                prompt=full_prompt,
                 negative_prompt=_NEGATIVE_PROMPT,
                 image=src,
                 control_image=canny_img,
@@ -123,22 +128,18 @@ class CharacterMode:
                 guidance_scale=_GUIDANCE,
                 controlnet_conditioning_scale=_CONTROLNET_SCALE,
                 strength=_STRENGTH,
-                **lora_kwargs,
+                cross_attention_kwargs={"scale": _LORA_SCALE},
             ).images[0]
         else:
-            # 사진 없을 때 — 동그란 실루엣을 기본 소스로 사용
-            src = self._make_default_source()
-            canny_img = self._canny(src)
-            result = self._pipe(
-                prompt=_PROMPT,
+            # 사진 없을 때 — text2img (prompt 의 외형 subject 가 캐릭터를 결정)
+            result = self._txt2img(
+                prompt=full_prompt,
                 negative_prompt=_NEGATIVE_PROMPT,
-                image=src,
-                control_image=canny_img,
                 num_inference_steps=_STEPS,
                 guidance_scale=_GUIDANCE,
-                controlnet_conditioning_scale=0.4,
-                strength=0.99,
-                **lora_kwargs,
+                width=_SIZE[0],
+                height=_SIZE[1],
+                cross_attention_kwargs={"scale": _LORA_SCALE},
             ).images[0]
 
         return self._to_bytes(self._quantize(result))
