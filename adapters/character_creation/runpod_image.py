@@ -45,8 +45,10 @@ class RunPodImageGenerator:
         fallback_persona: str | None,
         source_image_bytes: bytes | None = None,
     ) -> bytes:
+        # 사진이 없으면 워커가 이 prompt 로 text2img 한다(사진 있으면 무시·img2img).
+        prompt = (llm_result.appearance or fallback_persona or "").strip() or None
         try:
-            return await self._submit_and_poll(source_image_bytes)
+            return await self._submit_and_poll(source_image_bytes, prompt)
         except ImageGenerationFailedError:
             raise
         except Exception as err:
@@ -54,7 +56,9 @@ class RunPodImageGenerator:
                 f"[ERROR] RunPod image generation failed: {err}"
             ) from err
 
-    async def _submit_and_poll(self, source_image_bytes: bytes | None) -> bytes:
+    async def _submit_and_poll(
+        self, source_image_bytes: bytes | None, prompt: str | None
+    ) -> bytes:
         source_b64 = (
             base64.b64encode(source_image_bytes).decode()
             if source_image_bytes is not None
@@ -62,7 +66,13 @@ class RunPodImageGenerator:
         )
         # 멀티-어댑터 이미지 워커에서 캐릭터 픽셀아트 모드를 선정
         # TODO: feed 파이프라인 생성 시 추가
-        payload = {"input": {"source_image_b64": source_b64, "adapter": "character"}}
+        payload = {
+            "input": {
+                "source_image_b64": source_b64,
+                "adapter": "character",
+                "prompt": prompt,
+            }
+        }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         client = self._client or httpx.AsyncClient()
