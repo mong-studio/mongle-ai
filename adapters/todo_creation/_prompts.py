@@ -58,7 +58,6 @@ TASK_SPLITTER_SYSTEM = """
 
 
 def task_splitter_user(prompt: str) -> str:
-    # when 추출엔 절대날짜가 필요 없다 — 입력 텍스트만 데이터로 준다.
     return f"DATA:\n사용자 입력:\n{prompt}"
 
 
