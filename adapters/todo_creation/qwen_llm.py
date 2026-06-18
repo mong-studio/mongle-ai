@@ -395,8 +395,8 @@ class QwenLLM:
         ]
         parsed = await _complete_json_with_retry(self, messages=messages, label="plan")
         summary = str(parsed.get("summary_text") or "").strip()
-        if "profile_memory_patch" in parsed:
-            parsed_goal["profile_memory_patch"] = parsed.get("profile_memory_patch") or {}
+        if "personalization_patch" in parsed:
+            parsed_goal["personalization_patch"] = parsed.get("personalization_patch") or {}
         return summary, _parse_plan_days(parsed.get("days"))
 
     async def generate_goal_tag(

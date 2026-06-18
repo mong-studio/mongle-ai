@@ -32,7 +32,7 @@ class CandidatesResult(BaseModel):
     todos: list[TaskCandidate]
     calendar_events: list[TaskCandidate]
     summary_text: str | None = None
-    profile_memory_patch: dict[str, Any] | None = None
+    personalization_patch: dict[str, Any] | None = None
 
 
 class CommitPayload(BaseModel):

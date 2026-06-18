@@ -47,7 +47,7 @@ async def plan_generator_node(
         "plan": tagged_plan,
         "todos": todos,
         "calendar_events": calendar_events,
-        "profile_memory_patch": parsed_goal.get("profile_memory_patch"),
+        "personalization_patch": parsed_goal.get("personalization_patch"),
     }
 
 

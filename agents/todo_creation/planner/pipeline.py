@@ -97,7 +97,7 @@ async def run(
         todos=final.get("todos") or [],
         calendar_events=final.get("calendar_events") or [],
         summary_text=final.get("summary_text"),
-        profile_memory_patch=final.get("profile_memory_patch"),
+        personalization_patch=final.get("personalization_patch"),
     )
 
 
@@ -116,7 +116,7 @@ def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> CandidatesR
         todos=values.get("todos") or [],
         calendar_events=values.get("calendar_events") or [],
         summary_text=values.get("summary_text"),
-        profile_memory_patch=values.get("profile_memory_patch"),
+        personalization_patch=values.get("personalization_patch"),
     )
 
 
