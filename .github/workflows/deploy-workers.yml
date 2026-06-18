@@ -148,6 +148,12 @@ jobs:
             TMPL=$(echo "$TEMPLATES" | jq -c --arg tid "$TID" \
               '.data.myself.podTemplates[] | select(.id == $tid)')
 
+            if [ -z "$TMPL" ]; then
+              echo "ERROR: template $TID not found. Available templates:"
+              echo "$TEMPLATES" | jq -r '.data.myself.podTemplates[] | "\(.id)  \(.name)"'
+              exit 1
+            fi
+
             PAYLOAD=$(echo "$TMPL" | jq -c --arg img "$NEW_IMAGE" '{
               query: "mutation U($i:SaveTemplateInput!){saveTemplate(input:$i){id imageName}}",
               variables: { i: {
