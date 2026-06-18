@@ -61,7 +61,7 @@ def _build_character_llm(cfg: AppConfig):
     raise RuntimeError("character LLM 은 Qwen 또는 RunPod 전용입니다 — LLM_PROVIDER=qwen|runpod 으로 설정하세요")
 
 
-def _build_todo_llm(cfg: AppConfig):
+def _build_todo_llm(cfg: AppConfig, *, adapter: str = "planner"):
     if cfg.llm_provider == "runpod":
         from adapters.todo_creation.runpod_llm import RunPodQwenLLM as RunPodTodoLLM
 
@@ -72,7 +72,7 @@ def _build_todo_llm(cfg: AppConfig):
         return RunPodTodoLLM(
             endpoint_url=cfg.runpod_planner_endpoint_url,
             api_key=cfg.runpod_api_key,
-            adapter="planner",
+            adapter=adapter,
         )
     if not (cfg.qwen_base_url and cfg.qwen_model):
         raise RuntimeError(
@@ -161,11 +161,13 @@ def _build_storage(cfg: AppConfig):
 # ---- 피처별 ports 빌더 (순수 함수, 테스트에서 직접 호출 가능) ----
 
 def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
-    return GeneratePorts(llm=_build_todo_llm(cfg))
+    # 단일 TODO 분해(splitter)는 planner LoRA(계획 확장 성향)가 아니라
+    # base 모델을 써서 명시된 할 일만 그대로 추출한다. planner 는 /chat 전용.
+    return GeneratePorts(llm=_build_todo_llm(cfg, adapter="base"))
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
-    return PlannerPorts(llm=_build_todo_llm(cfg))
+    return PlannerPorts(llm=_build_todo_llm(cfg, adapter="planner"))
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:

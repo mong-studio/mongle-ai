@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
+
+_WEEKDAY_KO = ("월", "화", "수", "목", "금", "토", "일")
 
 TASK_SPLITTER_SYSTEM = """
 너는 한국어 자연어 입력을 TODO/캘린더 후보 JSON으로 변환하는 파서다.
@@ -15,6 +17,10 @@ TASK_SPLITTER_SYSTEM = """
 - intent 가 "out_of_scope" 이면 tasks 는 빈 배열 [] 로 둔다.
 - intent 가 "plan" 이면 tasks 는 1개 이상 20개 이하이다.
 - due_date 는 today 기준으로 상대 날짜를 계산한 ISO 날짜다.
+
+[날짜 규칙]
+- "이번주", "이번주 안으로", "이번 주말까지", "금주 안으로", "주말까지" 처럼 이번 주 안의 마감을 뜻하는 표현은 due_date 를 입력에 주어진 `이번주_일요일` 날짜로 한다.
+- 그 외 "오늘", "내일", "3일 뒤", "이번 주 금요일" 같은 표현은 today 기준 절대 날짜로 계산한다.
 
 [DB 매핑 규칙]
 - 오늘 날짜 task 는 todos 테이블 후보로 저장된다: title → todos.content, due_date → todos.todo_date, tags[0] → tags.content.
@@ -31,9 +37,9 @@ TASK_SPLITTER_SYSTEM = """
 - 쉼표, "그리고", "와", "및", "랑"으로 구분된 의미가 다른 작업은 별도 task 로 나눈다.
 
 [tags 규칙]
-- tags 는 1개 이상 3개 이하의 한국어 태그 배열이다.
+- tags 는 정확히 1개의 한국어 태그 배열이다.
 - 태그는 작업의 도메인을 나타내는 짧은 명사로 쓴다. 예: 학습, 업무, 건강, 일상, 취미, 약속, 집안일.
-- 태그 하나는 20자 이하다.
+- 태그는 20자 이하다.
 - 적합한 태그가 애매하면 ["일상"] 을 사용한다.
 
 [예시 1]
@@ -51,11 +57,20 @@ TASK_SPLITTER_SYSTEM = """
 [예시 4]
 입력: today=2026-06-04 / 배고프다
 출력: {"intent":"out_of_scope","tasks":[]}
+
+[예시 5]
+입력: today=2026-06-18 / 이번주_일요일=2026-06-21 / 이번주 안으로 과제하기
+출력: {"intent":"plan","tasks":[{"title":"과제하기","due_date":"2026-06-21","tags":["학습"]}]}
 """
 
 
 def task_splitter_user(prompt: str, today: date) -> str:
-    return f"today={today.isoformat()}\nDATA:\n사용자 입력:\n{prompt}"
+    week_sunday = today + timedelta(days=6 - today.weekday())
+    return (
+        f"today={today.isoformat()} ({_WEEKDAY_KO[today.weekday()]})\n"
+        f"이번주_일요일={week_sunday.isoformat()}\n"
+        f"DATA:\n사용자 입력:\n{prompt}"
+    )
 
 
 PLANNER_JUDGE_SYSTEM = """

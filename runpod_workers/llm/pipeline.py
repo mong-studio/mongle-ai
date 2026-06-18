@@ -61,12 +61,17 @@ class QwenLoraPipeline:
         temperature: float = 0.1,
         max_tokens: int = 800,
     ) -> str:
-        lora_request = self._lora_requests.get(adapter)
-        if lora_request is None:
-            raise ValueError(
-                f"알 수 없는 adapter: {adapter!r} "
-                f"(이 엔드포인트가 서빙하는 어댑터: {sorted(self._lora_requests)})"
-            )
+        # adapter="base"(또는 빈 값)는 LoRA 없이 base 모델로 추론한다.
+        # (단일 TODO 분해기는 계획 확장 성향의 planner LoRA 대신 base 를 쓴다.)
+        if adapter in ("base", "", None):
+            lora_request = None
+        else:
+            lora_request = self._lora_requests.get(adapter)
+            if lora_request is None:
+                raise ValueError(
+                    f"알 수 없는 adapter: {adapter!r} "
+                    f"(서빙 어댑터: {sorted(self._lora_requests)} + 'base')"
+                )
         prompt: str = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )

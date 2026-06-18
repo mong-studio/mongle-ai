@@ -1,6 +1,6 @@
 """RunPod Serverless 핸들러 — Qwen2.5 + 멀티 LoRA LLM 추론.
 
-입력:  {"input": {"adapter": "planner|character", "messages": [...],
+입력:  {"input": {"adapter": "base|planner|character", "messages": [...],
                   "temperature": 0.1, "max_tokens": 800}}
 출력:  {"text": "<생성된 텍스트>"}
 실패:  예외 전파 → RunPod 이 job 을 FAILED 로 마킹
@@ -17,7 +17,7 @@ def handler(job: dict) -> dict:
 
     adapter = job_input.get("adapter")
     if not adapter or not isinstance(adapter, str):
-        raise ValueError("'adapter' 필드가 필요합니다 (planner|character)")
+        raise ValueError("'adapter' 필드가 필요합니다 (base|planner|character)")
 
     messages = job_input.get("messages")
     if not messages or not isinstance(messages, list):
