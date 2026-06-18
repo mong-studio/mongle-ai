@@ -2,7 +2,7 @@
 
 character_mode.py / bg_mode.py 와 동일한 방식으로 로드해 HF 캐시 레이아웃을 일치시킨다.
 스타일 LoRA(private repo)는 런타임에 LORA_CHARACTER_REPO / LORA_BG_REPO + HF_TOKEN 으로 받는다.
-공개 LCM-LoRA 는 빌드 시 받아 콜드스타트를 단축한다(bg text2img + character LCM text2img 공용).
+공개 LCM-LoRA 는 빌드 시 받아 bg 모드 콜드스타트를 단축한다.
 """
 from __future__ import annotations
 
