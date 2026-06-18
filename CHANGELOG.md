@@ -29,6 +29,13 @@
   "always import unsloth first"). 검증: RTX 4090에서 Qwen2.5-7B QLoRA 2epoch 정상 수렴(loss 1.33→0.21).
 
 ### Changed
+- **`/v1/todo/generate`·`/v1/todo/chat` 비동기 submit(202)+poll(GET) 전환**: planner LLM 이
+  RunPod Pod 프록시의 100s 하드 타임아웃을 넘기므로(실측 ~90-105s), character 와 동일하게
+  백그라운드 잡으로 분리한다. POST 는 즉시 `202` + `TodoJobRef(job_id)` 를 pending 봉투로 반환하고,
+  `GET /v1/todo/generate/{job_id}`·`GET /v1/todo/chat/{job_id}` 로 폴링한다(pending/done/error/404).
+  인메모리 잡 스토어 `TodoJobStore`(신규 `api/todo_creation/jobs.py`, DB/Redis 의존성 없음,
+  `character_creation/jobs.py` 패턴 복제). `/v1/todo/commit` 은 동기 유지. 호출자(Django)는
+  개별 요청을 100s 미만으로 보내며 전체는 폴링으로 기다려 프록시 타임아웃을 우회한다.
 - **RunPod LLM 워커 멀티-LoRA 화 + planner/character 엔드포인트 분리**: LLM 워커를 멀티-LoRA
   가능 구조로(`enable_lora`, 설정된 어댑터만 등록) 만들고 요청 `input.adapter`("planner"|"character")로
   LoRA 를 고른다. 같은 이미지를 **planner 단독·character 단독 두 엔드포인트**로 배포(persona 가
