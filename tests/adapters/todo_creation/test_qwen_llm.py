@@ -220,7 +220,7 @@ async def test_judge_sufficiency_parses_plan_intent() -> None:
                             "goal_tag": "코딩테스트",
                             "deadline": "2026-05-27",
                             "daily_capacity_minutes": 120,
-                            "profile_memory_patch": {
+                            "personalization_patch": {
                                 "preferences": ["실전 문제 선호"]
                             },
                         },
@@ -243,7 +243,7 @@ async def test_judge_sufficiency_parses_plan_intent() -> None:
     assert missing == []
     assert goal["deadline"] == date(2026, 5, 27)
     assert goal["goal_tag"] == "코딩테스트"
-    assert goal["profile_memory_patch"]["preferences"] == ["실전 문제 선호"]
+    assert goal["personalization_patch"]["preferences"] == ["실전 문제 선호"]
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "저녁 선호" in serialized
 
@@ -287,7 +287,7 @@ async def test_generate_follow_up_question_parses_json() -> None:
     assert "한 번에 하나" in serialized
 
 
-async def test_generate_plan_parses_days_and_profile_patch() -> None:
+async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
 
     _FakeAsyncClient.responses = [
@@ -296,7 +296,7 @@ async def test_generate_plan_parses_days_and_profile_patch() -> None:
                 json.dumps(
                     {
                         "summary_text": "3일 플랜",
-                        "profile_memory_patch": {"planning_style": ["짧은 TODO"]},
+                        "personalization_patch": {"planning_style": ["짧은 TODO"]},
                         "days": [
                             {
                                 "date": "2026-05-24",
@@ -324,7 +324,7 @@ async def test_generate_plan_parses_days_and_profile_patch() -> None:
 
     assert summary == "3일 플랜"
     assert days[0]["tasks"][0].title == "개념 복습"
-    assert parsed_goal["profile_memory_patch"] == {"planning_style": ["짧은 TODO"]}
+    assert parsed_goal["personalization_patch"] == {"planning_style": ["짧은 TODO"]}
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "전체 tasks 는 12개 이하" in serialized
 

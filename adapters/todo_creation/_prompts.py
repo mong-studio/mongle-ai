@@ -80,7 +80,7 @@ PLANNER_JUDGE_SYSTEM = """
     "goal_tag": "목표를 대표하는 20자 이하 명사형 태그",
     "deadline": "YYYY-MM-DD 또는 null",
     "daily_capacity_minutes": 120 또는 null,
-    "profile_memory_patch": {"preferences": [], "constraints": []}
+    "personalization_patch": {"preferences": [], "constraints": []}
   }
 }
 
@@ -98,7 +98,7 @@ PLANNER_JUDGE_SYSTEM = """
 - goal_tag 는 사용자 목표 전체를 대표하는 하나의 짧은 명사형 태그다. task 별로 달라지면 안 된다.
 - goal_tag 에 "나", "저", "뭐부터", "어떻게", "좋을까" 같은 대명사/질문 표현을 넣지 않는다.
 - goal_tag 예: "부산 여행 준비" → "부산여행", "회계 자격증 필기 시험" → "회계자격증필기", "결혼 준비" → "결혼준비".
-- profile_memory_patch 에는 사용자의 장기 성향으로 저장할 가치가 있는 요약만 넣는다.
+- personalization_patch 에는 사용자의 장기 성향으로 저장할 가치가 있는 요약만 넣는다.
 """
 
 
@@ -161,7 +161,7 @@ PLAN_GENERATOR_SYSTEM = """
 - 스키마:
 {
   "summary_text": "1500자 이하 플랜 요약",
-  "profile_memory_patch": {"preferences": [], "constraints": [], "planning_style": []},
+  "personalization_patch": {"preferences": [], "constraints": [], "planning_style": []},
   "days": [
     {
       "date": "YYYY-MM-DD",
@@ -186,7 +186,7 @@ PLAN_GENERATOR_SYSTEM = """
 - 목표를 이해하기 어렵거나 필수 정보가 없으면 planner 단계에서 질문해야 하므로 여기서는 추측을 늘리지 않는다.
 - summary_text 는 친근한 이장님 말투로 짧게 설명한다.
 - tags 는 출력하지 않는다. 태그는 goal_tag 하나로 시스템이 일괄 적용한다.
-- AI 답변 원문이나 전체 대화 로그를 profile_memory_patch 에 넣지 않는다.
+- AI 답변 원문이나 전체 대화 로그를 personalization_patch 에 넣지 않는다.
 - 마감일(시험일 등)이 있으면, 그 날짜를 플랜의 마지막 날로 두고 마감 당일에 핵심 일정(예: "시험 응시")을 배치한다.
 - 마감일 이후에는 어떤 task 도 만들지 않는다(회고·정리 등 포함).
 - 날짜를 기계적으로 균등 분배하지 말고, 흐름에 맞게 배치한다(예: 개념 학습을 앞쪽에, 최종 점검을 마감 직전에).
