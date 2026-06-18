@@ -38,6 +38,21 @@ class FakeLLM:
 
 
 @dataclass
+class FakeTranslator:
+    result: str = "cute brown bear, round ears, big eyes"
+    fail: bool = False
+    calls: int = 0
+    last_input: str = ""
+
+    async def translate_appearance(self, korean: str) -> str:
+        self.calls += 1
+        self.last_input = korean
+        if self.fail:
+            raise LLMFailedError("simulated translate failure")
+        return self.result
+
+
+@dataclass
 class FakeS3:
     fail_times: int = 0
     stored: dict[str, bytes] = field(default_factory=dict)
