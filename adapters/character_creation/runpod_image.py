@@ -125,7 +125,9 @@ class RunPodImageGenerator:
 
                 if status in _TERMINAL_FAILURE_STATUSES:
                     detail = str(data.get("error"))[:_ERROR_DETAIL_MAX_LEN]
-                    raise ImageGenerationFailedError(f"[ERROR] RunPod job {status}: {detail}")
+                    raise ImageGenerationFailedError(
+                        f"[ERROR] RunPod job {status}: {detail}"
+                    )
 
                 if time.monotonic() >= deadline:
                     await self._cancel_job(client, headers, job_id)
@@ -140,7 +142,7 @@ class RunPodImageGenerator:
     async def _cancel_job(
         self, client: httpx.AsyncClient, headers: dict[str, str], job_id: str
     ) -> None:
-        """폴링 포기 시 RunPod 잡 취소 — GPU 중복 과금 방지 (best-effort).
+        """폴링 포기 시 RunPod 잡 취소 - GPU 중복 과금 방지 (best-effort).
 
         취소 실패가 원래 에러를 가리면 안 되므로 예외는 모두 삼킨다.
         """
