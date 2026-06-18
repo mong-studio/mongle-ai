@@ -116,8 +116,9 @@ async def test_complete_raw_uses_configured_timeout() -> None:
     assert _FakeAsyncClient.last_kwargs["timeout"] == 120
 
 
-# 프롬프트 계약: today 와 사용자 입력은 user message 에 포함된다.
-async def test_split_tasks_sends_today_and_prompt() -> None:
+# 프롬프트 계약: 사용자 입력은 DATA 섹션에 격리된다. 뉴로-심볼릭이라 today(절대날짜)는
+# 보내지 않는다 — 모델은 when 구문만 뽑고 날짜 계산은 코드(resolver)가 한다.
+async def test_split_tasks_sends_prompt_and_no_absolute_date() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
 
     _FakeAsyncClient.responses = [
@@ -131,11 +132,10 @@ async def test_split_tasks_sends_today_and_prompt() -> None:
     serialized = json.dumps(call["json"]["messages"], ensure_ascii=False)
     assert call["endpoint"] == "http://qwen.test/v1/chat/completions"
     assert call["json"]["model"] == "Qwen/Qwen2.5-7B-Instruct"
-    assert "2026-05-24" in serialized
     assert "오늘 코테" in serialized
+    assert "when" in serialized  # when 구문 추출 프롬프트
     assert "tags" in serialized
-    assert "todos.content" in serialized
-    assert "schedules.title" in serialized
+    assert "2026-05-24" not in serialized  # 절대날짜는 모델에 안 보낸다
 
 
 # 원문 파싱 보정: Qwen 이 코드펜스를 섞어도 JSON 본문만 추출한다.
@@ -175,7 +175,6 @@ async def test_split_tasks_retries_once_on_invalid_json() -> None:
     retry_messages = _FakeAsyncClient.calls[1]["json"]["messages"]
     assert retry_messages[-1]["role"] == "user"
     assert "스키마" in retry_messages[-1]["content"]
-    assert "tags" in retry_messages[-1]["content"]
 
 
 # 실패 처리: HTTP 오류는 LLMFailedError 로 변환된다.
@@ -382,6 +381,52 @@ async def test_split_tasks_out_of_scope_returns_empty_tasks() -> None:
     out = await llm.split_tasks(prompt="배고프다", today=date(2026, 5, 24))
     assert out.intent == "out_of_scope"
     assert out.tasks == []
+
+
+def test_parse_task_response_resolves_per_task_dates() -> None:
+    # 뉴로-심볼릭: 모델은 when 구문만, 날짜는 코드가 계산.
+    # 혼합 입력에서 친구들=내일, 나머지=today 로 귀속·정규화되는지.
+    from adapters.todo_creation.qwen_llm import parse_task_response
+
+    today = date(2026, 6, 18)
+    raw = (
+        '{"intent":"plan","tasks":['
+        '{"title":"장보기","when":null,"tags":["일상"]},'
+        '{"title":"운동가기","when":null,"tags":["건강"]},'
+        '{"title":"친구들 만나기","when":"내일","tags":["약속"]}]}'
+    )
+    out = parse_task_response(raw, today)
+    assert [t.due_date for t in out.tasks] == [
+        today, today, date(2026, 6, 19),
+    ]
+
+
+def test_parse_task_response_salvages_rambling_with_correction() -> None:
+    # base 모델 실제 출력: 깨진 객체(]-lnd) + 롤누수 + '정정' 올바른 객체 재출력.
+    from adapters.todo_creation.qwen_llm import parse_task_response
+
+    today = date(2026, 6, 18)  # 목 → 이번주 금요일 = 6/19
+    raw = (
+        '{"intent":"plan","tasks":[{"title":"보고서 제출","when":"이번주 금요일","tags":["업무"]}]-lnd\n'
+        "system\n정정:\n\n"
+        '{"intent":"plan","tasks":[{"title":"보고서 제출","when":"이번주 금요일","tags":["업무"]}]}\n\n'
+        "이렇게 출력해야 합니다."
+    )
+    out = parse_task_response(raw, today)
+    assert len(out.tasks) == 1
+    assert out.tasks[0].title == "보고서 제출"
+    assert out.tasks[0].due_date == date(2026, 6, 19)
+
+
+def test_parse_task_response_repairs_wedged_stray_quote() -> None:
+    # base 모델이 실제로 뱉은 응답: 닫는 ] 와 } 사이에 잉여 따옴표(]"} )
+    from adapters.todo_creation.qwen_llm import parse_task_response
+
+    raw = '{"intent":"plan","tasks":[{"title":"토익 시험","when":"내일","tags":["학습"]}]"}'
+    out = parse_task_response(raw, date(2026, 6, 18))
+    assert out.intent == "plan"
+    assert out.tasks[0].title == "토익 시험"
+    assert out.tasks[0].due_date == date(2026, 6, 19)  # 내일
 
 
 async def test_tag_plan_does_not_call_qwen_and_applies_goal_tag() -> None:
