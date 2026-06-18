@@ -88,8 +88,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # 응답 본문에는 Pod env(AWS/MONGLE 키 등)가 평문으로 들어오므로 절대 출력하지
+          # 않는다 — -o /dev/null 로 버리고, -f 의 종료코드로만 성공/실패를 판단한다.
           rp() {  # $1=METHOD  $2=PATH
-            curl -sf -X "$1" \
+            curl -sf -o /dev/null -X "$1" \
               -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
               -H "Content-Type: application/json" \
               "https://rest.runpod.io/v1${2}"
@@ -99,8 +101,18 @@ jobs:
           rp POST "/pods/${POD_ID}/stop" || true
           sleep 10
 
+          # start 는 일시적으로 실패할 수 있다. 재시도해 Pod 가 꺼진 채 방치되는 것을 막는다.
           echo "Starting pod ${POD_ID} (container disk wiped → :latest re-pull) ..."
-          rp POST "/pods/${POD_ID}/start"
+          started=0
+          for i in $(seq 1 5); do
+            if rp POST "/pods/${POD_ID}/start"; then started=1; break; fi
+            echo "  start 재시도 ${i}/5 ..."
+            sleep 15
+          done
+          if [ "$started" -ne 1 ]; then
+            echo "[ERROR] Pod start 실패 — RunPod 콘솔에서 수동 start 필요"
+            exit 1
+          fi
 
           URL="https://${POD_ID}-8010.proxy.runpod.net/health"
           echo "Health check (cold start: image pull + boot) → ${URL}"
