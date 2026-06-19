@@ -12,6 +12,7 @@ from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import (
     FollowUpResult,
     CandidatesResult,
+    PlanDayOut,
     PlannerInput,
     OutOfScopeResult,
     PlannerResult,
@@ -92,12 +93,25 @@ async def run(
             message=final.get("out_of_scope_message") or "",
         )
 
+    return _candidates_from_state(thread_id, final)
+
+
+def _candidates_from_state(thread_id: str, values: dict[str, Any]) -> CandidatesResult:
+    """그래프 최종 state(또는 스냅샷)에서 후보 + 장기계획(plan/goal_tag)을 직렬화한다."""
+
+    parsed_goal = values.get("parsed_goal") or {}
+    plan_days = values.get("plan") or []
     return CandidatesResult(
         thread_id=thread_id,
-        todos=final.get("todos") or [],
-        calendar_events=final.get("calendar_events") or [],
-        summary_text=final.get("summary_text"),
-        personalization_patch=final.get("personalization_patch"),
+        todos=values.get("todos") or [],
+        calendar_events=values.get("calendar_events") or [],
+        summary_text=values.get("summary_text"),
+        personalization_patch=values.get("personalization_patch"),
+        plan=[
+            PlanDayOut(date=day["date"], tasks=day.get("tasks") or [])
+            for day in plan_days
+        ],
+        goal_tag=parsed_goal.get("goal_tag"),
     )
 
 
@@ -111,13 +125,7 @@ def _is_acceptance(message: str) -> bool:
 def _result_from_snapshot(thread_id: str, values: dict[str, Any]) -> CandidatesResult:
     """MemorySaver 에 남아 있는 직전 후보를 다시 반환한다."""
 
-    return CandidatesResult(
-        thread_id=thread_id,
-        todos=values.get("todos") or [],
-        calendar_events=values.get("calendar_events") or [],
-        summary_text=values.get("summary_text"),
-        personalization_patch=values.get("personalization_patch"),
-    )
+    return _candidates_from_state(thread_id, values)
 
 
 def _initial_state(input: PlannerInput, now: datetime) -> dict[str, Any]:

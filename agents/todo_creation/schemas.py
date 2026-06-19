@@ -19,12 +19,20 @@ class TaskCandidate(BaseModel):
     tags: Annotated[list[str], Field(default_factory=list)]
 
 
+class PlanDayOut(BaseModel):
+    """장기 계획의 하루치 — date + 그 날의 할 일들. plan_generator 의 PlanDay 직렬화."""
+
+    date: date
+    tasks: list[TaskCandidate]
+
+
 class CandidatesResult(BaseModel):
     """후보 확정/검토 단계 응답 (single + multi 공통).
 
     `thread_id` 는 single 의 1-shot 호출에서도 발급된 값을 echo 한다.
     기존 todo date_router 호출 시 default `""` 로 호환.
     `summary_text` 는 multi 의 plan_generator 결과(C3 ≤ 1500자)만 채움.
+    `plan`/`goal_tag` 은 장기 계획(multi)에서만 채워지며 single 은 None.
     """
 
     kind: Literal["candidates"] = "candidates"
@@ -33,6 +41,9 @@ class CandidatesResult(BaseModel):
     calendar_events: list[TaskCandidate]
     summary_text: str | None = None
     personalization_patch: dict[str, Any] | None = None
+    # 장기 계획: plan_generator 가 만든 일자별 분해를 그대로 노출(기존엔 버려지던 값).
+    plan: list[PlanDayOut] | None = None
+    goal_tag: str | None = None
 
 
 class CommitPayload(BaseModel):
