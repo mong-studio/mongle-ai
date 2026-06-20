@@ -17,6 +17,7 @@ from huggingface_hub.errors import HfHubHTTPError
 HF_HOME = os.environ.get("HF_HOME", "/app/hf-cache")
 HF_TOKEN = os.environ.get("HF_TOKEN") or None
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
 
 
 def download_base(*, attempts: int = 5, base_delay: int = 15) -> None:
@@ -24,7 +25,11 @@ def download_base(*, attempts: int = 5, base_delay: int = 15) -> None:
     for attempt in range(attempts):
         try:
             snapshot_download(
-                BASE_MODEL, cache_dir=HF_HOME, token=HF_TOKEN, max_workers=2
+                BASE_MODEL,
+                revision=BASE_MODEL_REVISION,
+                cache_dir=HF_HOME,
+                token=HF_TOKEN,
+                max_workers=2,
             )
             return
         except HfHubHTTPError as err:

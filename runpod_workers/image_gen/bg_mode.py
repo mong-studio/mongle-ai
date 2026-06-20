@@ -14,8 +14,10 @@ from diffusers import LCMScheduler, StableDiffusionXLPipeline
 from PIL import Image
 
 _BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+_BASE_MODEL_REVISION = "462165984030d82259a11f4367a4eed129e94a7b"
 # LCM 8-step 가속용 공개 LoRA — bg 스타일 LoRA 와 함께 결합한다.
 _LCM_LORA = "latent-consistency/lcm-lora-sdxl"
+_LCM_LORA_REVISION = "a18548dd4956b174ec5b0d78d340c8dae0a129cd"
 
 _NEGATIVE_PROMPT = (
     "character, person, creature, mascot, text, watermark, signature, "
@@ -35,13 +37,14 @@ class BgMode:
         dtype = torch.float16
         pipe = StableDiffusionXLPipeline.from_pretrained(
             _BASE_MODEL,
+            revision=_BASE_MODEL_REVISION,
             torch_dtype=dtype,
             use_safetensors=True,
             variant="fp16",
         )
         # bg 스타일 LoRA 와 LCM-LoRA 를 named adapter 로 동시 등록 후 결합.
         pipe.load_lora_weights(lora_source, adapter_name="bg")
-        pipe.load_lora_weights(_LCM_LORA, adapter_name="lcm")
+        pipe.load_lora_weights(_LCM_LORA, adapter_name="lcm", revision=_LCM_LORA_REVISION)
         pipe.set_adapters(["bg", "lcm"], adapter_weights=[_BG_SCALE, 1.0])
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe.to("cuda")
