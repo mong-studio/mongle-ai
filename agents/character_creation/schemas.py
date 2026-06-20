@@ -47,6 +47,7 @@ class LLMPersonaResult(BaseModel):
     speech_style: str
     background: str
     appearance: str
+    appearance_en: str = ""
 
 
 class CharacterEntity(BaseModel):

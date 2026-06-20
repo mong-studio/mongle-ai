@@ -1,19 +1,2 @@
+# app 의존성 — ML 스택(torch, diffusers 등)은 requirements-ml.txt 에 있다.
 runpod>=1.7
-# torch 삼총사는 베이스 이미지(runpod/pytorch cuda12.4.1)의 cu124 빌드에 정확히 고정한다.
-# 버전이 어긋나면 pip 가 PyPI 기본(cu121 등)으로 재설치 → torch/torchaudio cu 불일치로 사망.
-torch==2.4.1
-torchvision==0.19.1
-torchaudio==2.4.1
-# diffusers 스택은 torch 2.4.1 과 런타임 호환되는 버전으로 고정한다.
-# 최신 transformers 5.x / diffusers 0.38 은 flash-attn 함수를 torch.library 로 등록하는데,
-# torch 2.4.1 의 infer_schema 가 그 시그니처를 지원하지 않아 import 에서 사망한다.
-diffusers==0.31.0
-transformers==4.46.3
-accelerate==1.1.1
-peft==0.13.2
-huggingface-hub==0.26.2
-safetensors>=0.4
-opencv-python-headless>=4.10
-rembg[cpu]>=2.0.75
-pillow>=10
-numpy

@@ -18,16 +18,12 @@ from agents.character_creation.nodes.generated_upload import generated_upload_no
 from agents.character_creation.nodes.image_generator import image_generator_node
 from agents.character_creation.nodes.llm_persona import llm_persona_node
 from agents.character_creation.nodes.source_upload import source_upload_node
-from agents.character_creation.nodes.translate_appearance import (
-    translate_appearance_node,
-)
 from agents.character_creation.nodes.validate import validate_node
 from agents.character_creation.protocols import (
     CharacterRepositoryPort,
     ImageGeneratorPort,
     LLMPort,
     S3Port,
-    TranslatorPort,
 )
 from agents.character_creation.schemas import CharacterCreationInput, CharacterEntity
 from agents.character_creation.state import CharacterGraphState
@@ -39,7 +35,6 @@ class Ports:
     s3: S3Port
     image_generator: ImageGeneratorPort
     repository: CharacterRepositoryPort
-    translator: TranslatorPort
 
 
 async def _sync_node(state: CharacterGraphState, config: dict[str, Any]) -> dict:
@@ -59,8 +54,6 @@ def build_graph():
         llm_persona_node,
         retry=RetryPolicy(max_attempts=3, retry_on=LLMFailedError),
     )
-    # 번역 실패는 노드 내부에서 흡수(원본 한국어 유지)하므로 retry 불필요.
-    g.add_node("translate_appearance", translate_appearance_node)
     g.add_node(
         "source_upload",
         source_upload_node,
@@ -86,8 +79,7 @@ def build_graph():
 
     g.add_edge(START, "validate")
     g.add_edge("source_upload", "sync")
-    g.add_edge("llm_persona", "translate_appearance")
-    g.add_edge("translate_appearance", "sync")
+    g.add_edge("llm_persona", "sync")
     g.add_edge("sync", "image_generator")
     g.add_edge("cleanup_source_image", END)
 

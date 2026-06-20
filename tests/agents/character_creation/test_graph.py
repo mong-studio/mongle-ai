@@ -14,7 +14,6 @@ from tests.agents.character_creation.fakes import (
     FakeLLM,
     FakeRepository,
     FakeS3,
-    FakeTranslator,
 )
 
 
@@ -24,7 +23,6 @@ class _Ports:
         self.s3 = kw.get("s3") or FakeS3()
         self.image_generator = kw.get("image_generator") or FakeImageGenerator()
         self.repository = kw.get("repository") or FakeRepository()
-        self.translator = kw.get("translator") or FakeTranslator()
 
 
 def _state(*, with_image: bool = False) -> CharacterGraphState:

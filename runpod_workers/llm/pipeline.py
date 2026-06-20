@@ -16,6 +16,7 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 
 _BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+_BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
 
 # 어댑터 이름 → LoRA HF repo 를 지정하는 환경변수
 _ADAPTER_ENV = {
@@ -33,6 +34,7 @@ class QwenLoraPipeline:
 
         self._llm = LLM(
             model=_BASE_MODEL,
+            revision=_BASE_MODEL_REVISION,
             enable_lora=True,
             max_loras=len(adapters),  # 등록된 어댑터를 동시 상주
             max_lora_rank=64,

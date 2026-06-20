@@ -48,7 +48,9 @@ _BG_MIN_RATIO = 0.40
 _N_COLORS = 32  # 출력 팔레트 양자화(MEDIANCUT, dither 없음)
 
 _CONTROLNET_MODEL = "diffusers/controlnet-canny-sdxl-1.0"
+_CONTROLNET_MODEL_REVISION = "eb115a19a10d14909256db740ed109532ab1483c"
 _BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+_BASE_MODEL_REVISION = "462165984030d82259a11f4367a4eed129e94a7b"
 
 
 class CharacterMode:
@@ -57,10 +59,15 @@ class CharacterMode:
     def __init__(self, *, lora_source: str) -> None:
         dtype = torch.float16
         controlnet = ControlNetModel.from_pretrained(
-            _CONTROLNET_MODEL, torch_dtype=dtype, use_safetensors=True, variant="fp16"
+            _CONTROLNET_MODEL,
+            revision=_CONTROLNET_MODEL_REVISION,
+            torch_dtype=dtype,
+            use_safetensors=True,
+            variant="fp16",
         )
         pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
             _BASE_MODEL,
+            revision=_BASE_MODEL_REVISION,
             controlnet=controlnet,
             torch_dtype=dtype,
             use_safetensors=True,
