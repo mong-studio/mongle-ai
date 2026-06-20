@@ -6,6 +6,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from adapters._shared.runpod_warmup import warm_character_endpoints
 from agents.character_creation import pipeline as character_pipeline
 from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.character_creation.schemas import (
@@ -23,6 +24,9 @@ from api.envelope import Envelope, ErrorBody, done
 from api.security import require_api_key
 
 log = logging.getLogger(__name__)
+
+# 예열 백그라운드 태스크 참조 보관(GC 방지). 완료 시 콜백으로 제거.
+_warmup_tasks: set[asyncio.Task] = set()
 
 router = APIRouter(prefix="/v1", dependencies=[Depends(require_api_key)])
 
@@ -147,3 +151,22 @@ async def get_character_job(
             ),
         )
     return Envelope(status="pending", result=None)
+
+
+@router.post("/character/warmup", status_code=status.HTTP_202_ACCEPTED)
+async def warmup_character(cfg: AppConfig = Depends(get_config)) -> dict[str, str]:
+    """캐릭터 생성 화면 진입 시 호출. 콜드인 엔드포인트만 예열하고 즉시 반환한다.
+
+    예열은 best-effort 백그라운드 작업이며 실패해도 무시한다. health-gate 라
+    워커가 이미 떠 있거나 꽉 차 있으면 아무 잡도 던지지 않는다.
+    """
+    task = asyncio.create_task(
+        warm_character_endpoints(
+            llm_url=cfg.runpod_character_endpoint_url,
+            image_url=cfg.runpod_image_endpoint_url,
+            api_key=cfg.runpod_api_key,
+        )
+    )
+    _warmup_tasks.add(task)
+    task.add_done_callback(_warmup_tasks.discard)
+    return {"status": "warming"}
