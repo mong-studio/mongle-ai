@@ -1,0 +1,54 @@
+{
+  "n_samples": 5,
+  "eos_rate": 1.0,
+  "parse_success_rate": 0.4,
+  "parse_failures": [
+    {
+      "index": 1,
+      "error": "[파싱] 플랜 출력 파싱 실패: 2 validation errors for PlanOutput\ntodos\n  Field required [type=missing, input_value={'kind': 'follow_up', 'me...이 있으신가요?'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ncal",
+      "preview": "{\"kind\": \"follow_up\", \"message\": \"정처기 필기 14일 플랜을 원하신다. C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\", \"missing_aspects\": [\"C5 분기 규칙\"], \"question\": \"C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\"}",
+      "output": "{\"kind\": \"follow_up\", \"message\": \"정처기 필기 14일 플랜을 원하신다. C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\", \"missing_aspects\": [\"C5 분기 규칙\"], \"question\": \"C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\"}"
+    },
+    {
+      "index": 2,
+      "error": "[파싱] 플랜 출력 파싱 실패: 2 validation errors for PlanOutput\ntodos\n  Field required [type=missing, input_value={'kind': 'follow_up', 'me...가 부족합니다.']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nca",
+      "preview": "{\"kind\": \"follow_up\", \"message\": \"네, 이해했습니다. 현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있을 것 같습니다.\", \"question\": \"현재까지의 준비는 어떤 내용들이 포함되어 있나요?\", \"missing_aspects\": [\"현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있도록 필요한 정보가 부족합니다.\"]}",
+      "output": "{\"kind\": \"follow_up\", \"message\": \"네, 이해했습니다. 현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있을 것 같습니다.\", \"question\": \"현재까지의 준비는 어떤 내용들이 포함되어 있나요?\", \"missing_aspects\": [\"현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있도록 필요한 정보가 부족합니다.\"]}"
+    },
+    {
+      "index": 3,
+      "error": "[파싱] 플랜 출력 파싱 실패: Extra data: line 2 column 1 (char 423)",
+      "preview": "{\"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\", \"todos\": [{\"title\": \"프로그래밍 언어 활용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"programming\"]}, {\"title\": \"SQL 응용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": ",
+      "output": "{\"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\", \"todos\": [{\"title\": \"프로그래밍 언어 활용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"programming\"]}, {\"title\": \"SQL 응용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"sql\"]}, {\"title\": \"소프트웨어 개발 보안 구축 훈련\", \"due_date\": \"2206-07-08\", \"tags\": [\"security\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 실기 시험\", \"due_date\": \"2026-07-09\", \"tags\": [\"exam\"]}]}\n```json\n{\n  \"kind\": \"plan\",\n  \"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\",\n  \"todos\": [\n    {\n      \"title\": \"프로그래밍 언어 활용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"programming\"]\n    },\n    {\n      \"title\": \"SQL 응용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"sql\"]\n    },\n    {\n      \"title\": \"소프트웨어 개발 보안 구축 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"security\"]\n    }\n  ],\n  \"calendar_events\": [\n    {\n      \"title\": \"정보처리기사 실기 시험\",\n      \"due_date\": \"2026-07-09\",\n      \"tags\": [\"exam\"]\n    }\n  ]\n}\n```"
+    }
+  ],
+  "eval_loss": null,
+  "overfit_warning": null,
+  "sample_outputs": [
+    {
+      "index": 0,
+      "raw": "{\"summary_text\": \"정보처리기사 실기 시험 준비를 위한 플랜입니다. 하루 4시간을 활용하여 주요 취약점을 강화합니다.\", \"todos\": [{\"title\": \"SQL 문제 풀이\", \"due_date\": \"2026-06-15\", \"tags\": [\"SQL\"]}, {\"title\": \"프로그래밍 언어 활용 연습\", \"due_date\": \"2026-06-16\", \"tags\": [\"프로그래밍\"]}, {\"title\": \"응용 SW 기술 연습\", \"due_date\": \"2026-06-17\", \"tags\": [\"SW 기술\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 실기 시험\", \"due_date\": \"2026-06-18\", \"tags\": [\"시험\"]}]}<|im_end|>",
+      "clean": "{\"summary_text\": \"정보처리기사 실기 시험 준비를 위한 플랜입니다. 하루 4시간을 활용하여 주요 취약점을 강화합니다.\", \"todos\": [{\"title\": \"SQL 문제 풀이\", \"due_date\": \"2026-06-15\", \"tags\": [\"SQL\"]}, {\"title\": \"프로그래밍 언어 활용 연습\", \"due_date\": \"2026-06-16\", \"tags\": [\"프로그래밍\"]}, {\"title\": \"응용 SW 기술 연습\", \"due_date\": \"2026-06-17\", \"tags\": [\"SW 기술\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 실기 시험\", \"due_date\": \"2026-06-18\", \"tags\": [\"시험\"]}]}"
+    },
+    {
+      "index": 1,
+      "raw": "{\"kind\": \"follow_up\", \"message\": \"정처기 필기 14일 플랜을 원하신다. C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\", \"missing_aspects\": [\"C5 분기 규칙\"], \"question\": \"C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\"}<|im_end|>",
+      "clean": "{\"kind\": \"follow_up\", \"message\": \"정처기 필기 14일 플랜을 원하신다. C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\", \"missing_aspects\": [\"C5 분기 규칙\"], \"question\": \"C5 분기 규칙을 지키면서 진행할 계획이 있으신가요?\"}"
+    },
+    {
+      "index": 2,
+      "raw": "{\"kind\": \"follow_up\", \"message\": \"네, 이해했습니다. 현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있을 것 같습니다.\", \"question\": \"현재까지의 준비는 어떤 내용들이 포함되어 있나요?\", \"missing_aspects\": [\"현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있도록 필요한 정보가 부족합니다.\"]}<|im_end|>",
+      "clean": "{\"kind\": \"follow_up\", \"message\": \"네, 이해했습니다. 현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있을 것 같습니다.\", \"question\": \"현재까지의 준비는 어떤 내용들이 포함되어 있나요?\", \"missing_aspects\": [\"현재 상태와 목표를 바탕으로 시험 준비 플랜을 세울 수 있도록 필요한 정보가 부족합니다.\"]}"
+    },
+    {
+      "index": 3,
+      "raw": "{\"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\", \"todos\": [{\"title\": \"프로그래밍 언어 활용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"programming\"]}, {\"title\": \"SQL 응용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"sql\"]}, {\"title\": \"소프트웨어 개발 보안 구축 훈련\", \"due_date\": \"2206-07-08\", \"tags\": [\"security\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 실기 시험\", \"due_date\": \"2026-07-09\", \"tags\": [\"exam\"]}]}\n```json\n{\n  \"kind\": \"plan\",\n  \"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\",\n  \"todos\": [\n    {\n      \"title\": \"프로그래밍 언어 활용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"programming\"]\n    },\n    {\n      \"title\": \"SQL 응용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"sql\"]\n    },\n    {\n      \"title\": \"소프트웨어 개발 보안 구축 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"security\"]\n    }\n  ],\n  \"calendar_events\": [\n    {\n      \"title\": \"정보처리기사 실기 시험\",\n      \"due_date\": \"2026-07-09\",\n      \"tags\": [\"exam\"]\n    }\n  ]\n}\n```<|im_end|>",
+      "clean": "{\"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\", \"todos\": [{\"title\": \"프로그래밍 언어 활용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"programming\"]}, {\"title\": \"SQL 응용 훈련\", \"due_date\": \"2026-07-08\", \"tags\": [\"sql\"]}, {\"title\": \"소프트웨어 개발 보안 구축 훈련\", \"due_date\": \"2206-07-08\", \"tags\": [\"security\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 실기 시험\", \"due_date\": \"2026-07-09\", \"tags\": [\"exam\"]}]}\n```json\n{\n  \"kind\": \"plan\",\n  \"summary_text\": \"실기 재도전을 위해 2.5시간씩 하루 2회 훈련을 진행하며, 약한 범위에 초점을 맞추고, 기출 문제를 중심으로 공부할 계획입니다.\",\n  \"todos\": [\n    {\n      \"title\": \"프로그래밍 언어 활용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"programming\"]\n    },\n    {\n      \"title\": \"SQL 응용 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"sql\"]\n    },\n    {\n      \"title\": \"소프트웨어 개발 보안 구축 훈련\",\n      \"due_date\": \"2206-07-08\",\n      \"tags\": [\"security\"]\n    }\n  ],\n  \"calendar_events\": [\n    {\n      \"title\": \"정보처리기사 실기 시험\",\n      \"due_date\": \"2026-07-09\",\n      \"tags\": [\"exam\"]\n    }\n  ]\n}\n```"
+    },
+    {
+      "index": 4,
+      "raw": "{\"summary_text\": \"정보처리기사 필기 준비를 위해 하루 22시간씩 2시간씩 공부할 예정입니다.\", \"todos\": [{\"title\": \"데이터베이스\", \"due_date\": \"2026-06-09\", \"tags\": [\"정보처리기사\", \"필기\", \"데이터베이스\"]}, {\"title\": \"네트워크\", \"due_date\": \"2026-06-09\", \"tags\": [\"정보처리기사\", \"필기\", \"네트워크\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 필기\", \"due_date\": \"2026-06-16\", \"tags\": [\"정보처리기사\", \"필기\"]}]}<|im_end|>",
+      "clean": "{\"summary_text\": \"정보처리기사 필기 준비를 위해 하루 22시간씩 2시간씩 공부할 예정입니다.\", \"todos\": [{\"title\": \"데이터베이스\", \"due_date\": \"2026-06-09\", \"tags\": [\"정보처리기사\", \"필기\", \"데이터베이스\"]}, {\"title\": \"네트워크\", \"due_date\": \"2026-06-09\", \"tags\": [\"정보처리기사\", \"필기\", \"네트워크\"]}], \"calendar_events\": [{\"title\": \"정보처리기사 필기\", \"due_date\": \"2026-06-16\", \"tags\": [\"정보처리기사\", \"필기\"]}]}"
+    }
+  ]
+}
