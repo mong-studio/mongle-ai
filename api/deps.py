@@ -63,29 +63,6 @@ def _build_character_llm(cfg: AppConfig):
     raise RuntimeError("character LLM 은 Qwen 또는 RunPod 전용입니다 — LLM_PROVIDER=qwen|runpod 으로 설정하세요")
 
 
-def _build_translator(cfg: AppConfig):
-    """appearance(한국어)→영어 번역기. base Qwen(no-LoRA)을 쓴다."""
-    if cfg.llm_provider == "runpod":
-        from adapters.character_creation.runpod_translator import RunPodTranslator
-
-        if not cfg.runpod_planner_endpoint_url:
-            raise RuntimeError(
-                "LLM_PROVIDER=runpod 인데 RUNPOD_PLANNER_ENDPOINT_URL 이 없습니다"
-            )
-        return RunPodTranslator(
-            endpoint_url=cfg.runpod_planner_endpoint_url, api_key=cfg.runpod_api_key
-        )
-    from adapters.character_creation.qwen_translator import QwenTranslator
-
-    if not (cfg.qwen_base_url and cfg.qwen_model):
-        raise RuntimeError(
-            "appearance 번역은 Qwen 또는 RunPod 필요 — QWEN_BASE_URL/QWEN_MODEL 을 설정하세요"
-        )
-    return QwenTranslator(
-        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
-    )
-
-
 def _build_todo_llm(cfg: AppConfig, *, adapter: str = "planner"):
     if cfg.llm_provider == "runpod":
         from adapters.todo_creation.runpod_llm import RunPodQwenLLM as RunPodTodoLLM
@@ -218,7 +195,6 @@ def build_character_ports(
         s3=PassthroughSourceS3(inner=inner_s3, source_url=source_url),
         image_generator=_get_image_generator(request),
         repository=InMemoryRepo(),
-        translator=_build_translator(cfg),
     )
 
 

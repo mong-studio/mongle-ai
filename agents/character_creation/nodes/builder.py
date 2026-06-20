@@ -34,7 +34,7 @@ def build(
         personality=llm_result.personality,
         speech_style=llm_result.speech_style,
         background=llm_result.background,
-        appearance=llm_result.appearance,
+        appearance=llm_result.appearance_en or llm_result.appearance,
         image_url=generated_image_url,
         source_image_url=source_image_url,
         created_at=now,
@@ -48,7 +48,6 @@ def _collect_timings(state: CharacterGraphState) -> dict[str, float]:
     keys = (
         ("source_upload", "source_upload_seconds"),
         ("llm_persona", "llm_persona_seconds"),
-        ("translate_appearance", "translate_appearance_seconds"),
         ("image_generator", "image_generator_seconds"),
         ("generated_upload", "generated_upload_seconds"),
     )

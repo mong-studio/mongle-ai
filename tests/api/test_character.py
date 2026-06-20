@@ -15,7 +15,8 @@ from tests.api.conftest import AUTH, make_config
 class _FakeLLM:
     async def generate_persona(self, *, persona, keywords):
         return LLMPersonaResult(
-            personality="용감", speech_style="반말", background="숲", appearance="둥근 갈색 몸"
+            personality="용감", speech_style="반말", background="숲", appearance="둥근 갈색 몸",
+            appearance_en="round brown body, big eyes",
         )
 
 
@@ -40,11 +41,6 @@ class _FakeRepo:
         return None
 
 
-class _FakeTranslator:
-    async def translate_appearance(self, korean):
-        return "round brown body, big eyes"
-
-
 def _ports_builder():
     def _build(source_url=""):
         return CharacterPorts(
@@ -52,7 +48,6 @@ def _ports_builder():
             s3=_FakeS3(),
             image_generator=_FakeImage(),
             repository=_FakeRepo(),
-            translator=_FakeTranslator(),
         )
     return _build
 

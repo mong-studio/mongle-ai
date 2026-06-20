@@ -28,7 +28,6 @@ class CharacterGraphState(_RequiredState, total=False):
     llm_persona_seconds: float | None
     image_generator_seconds: float | None
     source_upload_seconds: float | None
-    translate_appearance_seconds: float | None
     generated_upload_seconds: float | None
 
     error: Exception | None

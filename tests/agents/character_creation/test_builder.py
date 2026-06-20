@@ -82,7 +82,6 @@ async def test_builder_node_collects_stage_timings() -> None:
         generated_url="https://fake-s3.local/characters/u1/x.png",
         source_upload_seconds=0.4,
         llm_persona_seconds=1.23,
-        translate_appearance_seconds=0.8,
         image_generator_seconds=45.6,
         generated_upload_seconds=0.5,
     )
@@ -91,7 +90,6 @@ async def test_builder_node_collects_stage_timings() -> None:
     assert entity.timings == {
         "source_upload": 0.4,
         "llm_persona": 1.23,
-        "translate_appearance": 0.8,
         "image_generator": 45.6,
         "generated_upload": 0.5,
     }

@@ -46,7 +46,7 @@ class RunPodImageGenerator:
         source_image_bytes: bytes | None = None,
     ) -> bytes:
         # 사진이 없으면 워커가 이 prompt 로 text2img 한다(사진 있으면 무시·img2img).
-        prompt = (llm_result.appearance or fallback_persona or "").strip() or None
+        prompt = (llm_result.appearance_en or llm_result.appearance or fallback_persona or "").strip() or None
         try:
             return await self._submit_and_poll(source_image_bytes, prompt)
         except ImageGenerationFailedError:

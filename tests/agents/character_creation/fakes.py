@@ -34,22 +34,8 @@ class FakeLLM:
             speech_style="존댓말",
             background="조용한 숲에서 옴",
             appearance="둥근 갈색 몸에 큰 눈",
+            appearance_en="cute brown bear, round ears, big eyes",
         )
-
-
-@dataclass
-class FakeTranslator:
-    result: str = "cute brown bear, round ears, big eyes"
-    fail: bool = False
-    calls: int = 0
-    last_input: str = ""
-
-    async def translate_appearance(self, korean: str) -> str:
-        self.calls += 1
-        self.last_input = korean
-        if self.fail:
-            raise LLMFailedError("simulated translate failure")
-        return self.result
 
 
 @dataclass
