@@ -1,6 +1,21 @@
 from datetime import date, timedelta
 
-from agents.todo_creation.planner.allocator import expand_routine
+from agents.todo_creation.planner.allocator import cadence_is_specific, expand_routine
+
+
+def test_cadence_is_specific_true_for_count_weekday_daily() -> None:
+    assert cadence_is_specific("주3회")
+    assert cadence_is_specific("주 3회")
+    assert cadence_is_specific("월수금")
+    assert cadence_is_specific("매주 월요일")
+    assert cadence_is_specific("매일")
+
+
+def test_cadence_is_specific_false_for_vague() -> None:
+    # 빈도(주 N회)도 명시 요일도 없는 표현 → 모호(주 몇 회 되물어야 함)
+    assert not cadence_is_specific("매주")
+    assert not cadence_is_specific("꾸준히")
+    assert not cadence_is_specific("")
 
 
 def test_weekly_count_expands_across_horizon() -> None:

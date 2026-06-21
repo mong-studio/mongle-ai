@@ -37,6 +37,24 @@ def _parse_weekdays(cadence: str) -> set[int]:
     return set(_SPREAD[count])
 
 
+_DAILY_WORDS = ("매일", "날마다", "데일리", "매일매일")
+
+
+def cadence_is_specific(cadence: str) -> bool:
+    """cadence 에 빈도(주 N회)·명시 요일·'매일' 이 있으면 구체적이다.
+
+    '매주'처럼 횟수도 요일도 없는 표현은 모호하므로 False(주 몇 회인지 되물어야 함).
+    """
+    text = (cadence or "").replace(" ", "")
+    if not text:
+        return False
+    if any(word in text for word in _DAILY_WORDS):
+        return True
+    if any(ch in _WEEKDAY_CHARS for ch in text):
+        return True
+    return bool(re.search(r"\d", text))
+
+
 def expand_routine(
     activity: str,
     cadence: str,

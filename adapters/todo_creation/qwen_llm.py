@@ -39,6 +39,7 @@ from adapters.todo_creation._prompts import (
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
+from agents.todo_creation.planner.allocator import cadence_is_specific
 from agents.todo_creation.planner.slot_schemas import SLOT_SCHEMAS, missing_required
 from agents.todo_creation.schemas import SplitResult, TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
@@ -366,6 +367,14 @@ class QwenLLM:
         # exam·미분류는 모델의 is_sufficient/missing_aspects 를 그대로 신뢰(기존 거동 보존).
         if intent == "plan" and plan_kind in _SCHEMA_DRIVEN_KINDS:
             filled = {k for k, v in slots.items() if v not in (None, "", [], {})}
+            # routine: cadence 가 채워졌어도 '매주'처럼 빈도(주 N회/요일)가 없으면
+            # 모호하므로 미충족으로 보고 cadence 를 되묻는다.
+            if (
+                plan_kind == "routine"
+                and "cadence" in filled
+                and not cadence_is_specific(str(slots.get("cadence") or ""))
+            ):
+                filled.discard("cadence")
             schema_missing = missing_required(plan_kind, filled)
             return (not schema_missing), schema_missing, goal
 

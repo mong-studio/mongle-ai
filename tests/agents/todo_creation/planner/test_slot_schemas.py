@@ -1,7 +1,17 @@
 from agents.todo_creation.planner.slot_schemas import (
     SLOT_SCHEMAS,
     missing_required,
+    slot_hints,
 )
+
+
+def test_slot_hints_maps_keys_to_korean_hints() -> None:
+    assert slot_hints("routine", ["cadence"]) == ["주 몇 회 또는 어떤 요일인지"]
+
+
+def test_slot_hints_unknown_key_or_kind_passthrough() -> None:
+    assert slot_hints("routine", ["nope"]) == ["nope"]
+    assert slot_hints(None, ["deadline"]) == ["deadline"]
 
 
 def test_all_plan_kinds_present() -> None:

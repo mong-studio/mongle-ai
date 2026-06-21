@@ -83,3 +83,15 @@ def missing_required(plan_kind: str, filled_keys: set[str]) -> list[str]:
         return []
     ordered = sorted(schema.required, key=lambda s: s.priority)
     return [s.key for s in ordered if s.key not in filled_keys]
+
+
+def slot_hints(plan_kind: str | None, keys: list[str]) -> list[str]:
+    """미충족 슬롯 key 를 사람용 한국어 질문 힌트로 바꾼다.
+
+    스키마에 없는 key(예: exam 의 'deadline')나 미지의 plan_kind 는 원문 그대로 둔다.
+    """
+    schema = SLOT_SCHEMAS.get(plan_kind or "")
+    if schema is None:
+        return list(keys)
+    by_key = {s.key: s.question_hint for s in (*schema.required, *schema.optional)}
+    return [by_key.get(k, k) for k in keys]
