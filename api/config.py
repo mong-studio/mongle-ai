@@ -57,7 +57,7 @@ class AppConfig:
     runpod_image_endpoint_url: str | None = None
     runpod_api_key: str = "EMPTY"
     runpod_planner_endpoint_url: str | None = None
-    runpod_character_endpoint_url: str | None = None
+    runpod_village_endpoint_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -127,10 +127,12 @@ class AppConfig:
                 missing.append("RUNPOD_API_KEY")
 
         runpod_planner_endpoint_url: str | None = None
-        runpod_character_endpoint_url: str | None = None
+        runpod_village_endpoint_url: str | None = None
         if llm_provider == "runpod":
             runpod_planner_endpoint_url = need("RUNPOD_PLANNER_ENDPOINT_URL")
-            runpod_character_endpoint_url = need("RUNPOD_CHARACTER_ENDPOINT_URL")
+        # village(페르소나) 엔드포인트는 캐릭터 생성(llm_provider)과 퀘스트(quest_llm_provider)가 공유
+        if llm_provider == "runpod" or quest_llm_provider == "runpod":
+            runpod_village_endpoint_url = need("RUNPOD_VILLAGE_ENDPOINT_URL")
             if runpod_api_key == "EMPTY":
                 missing.append("RUNPOD_API_KEY")
 
@@ -151,7 +153,7 @@ class AppConfig:
             runpod_image_endpoint_url=runpod_image_endpoint_url,
             runpod_api_key=runpod_api_key,
             runpod_planner_endpoint_url=runpod_planner_endpoint_url,
-            runpod_character_endpoint_url=runpod_character_endpoint_url,
+            runpod_village_endpoint_url=runpod_village_endpoint_url,
         )
 
         if backend == "s3":
