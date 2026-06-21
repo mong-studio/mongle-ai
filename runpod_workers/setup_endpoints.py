@@ -42,7 +42,7 @@ _WORKERS = [
             "LORA_CHARACTER_REPO": "deeps1eep/qwen2.5-7b-mongle-village",
             "LORA_QUEST_REPO": "deeps1eep/qwen2.5-7b-mongle-quest",
         },
-        "result_key": "RUNPOD_VILLAGE_ENDPOINT_URL",
+        "result_key": "RUNPOD_CHARACTER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_CHARACTER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
     },
