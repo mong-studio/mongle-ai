@@ -3,8 +3,10 @@
 한 이미지로 단독(엔드포인트당 LoRA 1개) 또는 멀티-LoRA 를 모두 지원한다.
 베이스 모델은 VRAM 에 한 번만 올라가고, 요청의 adapter 이름으로 LoRA 를 고른다.
 LoRA repo 는 환경변수로 주입하며, 설정된 어댑터만 등록한다:
-  LORA_PLANNER_REPO    — adapter="planner"  (todo · quest)
+  LORA_PLANNER_REPO    — adapter="planner"  (todo)
   LORA_CHARACTER_REPO  — adapter="character" (캐릭터 페르소나)
+  LORA_QUEST_REPO      — adapter="quest"    (퀘스트 문장)
+  LORA_FEED_REPO       — adapter="feed"     (피드 캡션)
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ _ADAPTER_ENV = {
     "planner": "LORA_PLANNER_REPO",
     "character": "LORA_CHARACTER_REPO",
     "quest": "LORA_QUEST_REPO",
+    "feed": "LORA_FEED_REPO",
 }
 
 

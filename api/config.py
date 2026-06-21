@@ -15,6 +15,7 @@ class MissingEnvError(RuntimeError):
 
 
 _VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
+_VALID_FEED_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
@@ -47,6 +48,7 @@ class AppConfig:
     aws_region: str | None
     aws_s3_bucket: str | None
     quest_llm_provider: str
+    feed_llm_provider: str
     llm_provider: str
     qwen_base_url: str | None = None
     qwen_model: str | None = None
@@ -79,6 +81,14 @@ class AppConfig:
                 f"QUEST_LLM_PROVIDER 는 {'|'.join(_VALID_QUEST_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {quest_llm_provider!r})"
             )
+        feed_llm_provider = (
+            os.environ.get("FEED_LLM_PROVIDER", "qwen").strip().lower() or "qwen"
+        )
+        if feed_llm_provider not in _VALID_FEED_LLM_PROVIDERS:
+            raise MissingEnvError(
+                f"FEED_LLM_PROVIDER 는 {'|'.join(_VALID_FEED_LLM_PROVIDERS)} 중 "
+                f"하나여야 합니다 (현재: {feed_llm_provider!r})"
+            )
         llm_provider = (
             os.environ.get("LLM_PROVIDER", "qwen").strip().lower() or "qwen"
         )
@@ -99,7 +109,11 @@ class AppConfig:
                 "있습니다. Qwen/OpenAI 호환 LLM 서버 주소를 사용하세요 "
                 "(예: Ollama http://localhost:11434/v1)."
             )
-        if quest_llm_provider == "qwen" or llm_provider == "qwen":
+        if (
+            quest_llm_provider == "qwen"
+            or feed_llm_provider == "qwen"
+            or llm_provider == "qwen"
+        ):
             if not qwen_base_url:
                 missing.append("QWEN_BASE_URL")
             if not qwen_model:
@@ -130,8 +144,13 @@ class AppConfig:
         runpod_character_endpoint_url: str | None = None
         if llm_provider == "runpod":
             runpod_planner_endpoint_url = need("RUNPOD_PLANNER_ENDPOINT_URL")
-        # character(페르소나) 엔드포인트는 캐릭터 생성(llm_provider)과 퀘스트(quest_llm_provider)가 공유
-        if llm_provider == "runpod" or quest_llm_provider == "runpod":
+        # character(페르소나) 엔드포인트는 캐릭터 생성(llm_provider)·퀘스트(quest_llm_provider)·
+        # 피드(feed_llm_provider)가 공유한다.
+        if (
+            llm_provider == "runpod"
+            or quest_llm_provider == "runpod"
+            or feed_llm_provider == "runpod"
+        ):
             runpod_character_endpoint_url = need("RUNPOD_CHARACTER_ENDPOINT_URL")
             if runpod_api_key == "EMPTY":
                 missing.append("RUNPOD_API_KEY")
@@ -143,6 +162,7 @@ class AppConfig:
         common = dict(
             api_key=api_key,
             quest_llm_provider=quest_llm_provider,
+            feed_llm_provider=feed_llm_provider,
             llm_provider=llm_provider,
             qwen_base_url=qwen_base_url,
             qwen_model=qwen_model,

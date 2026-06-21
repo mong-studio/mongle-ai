@@ -20,6 +20,7 @@ def client(monkeypatch):
         aws_region=None,
         aws_s3_bucket=None,
         quest_llm_provider="qwen",
+        feed_llm_provider="qwen",
         llm_provider="qwen",
         qwen_base_url="http://qwen-host/v1",
         qwen_model="Qwen/Qwen2.5-7B-Instruct",
