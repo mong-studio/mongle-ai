@@ -22,6 +22,7 @@ _BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
 _ADAPTER_ENV = {
     "planner": "LORA_PLANNER_REPO",
     "character": "LORA_CHARACTER_REPO",
+    "quest": "LORA_QUEST_REPO",
 }
 
 

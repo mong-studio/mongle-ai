@@ -27,7 +27,10 @@ _WORKERS = [
         "endpoint_name": "mongle-planner-llm",
         "image_env": "LLM_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "env": {"LORA_PLANNER_REPO": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora"},
+        "env": {
+            "LORA_PLANNER_REPO": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora",
+            "LORA_QUEST_REPO": "deeps1eep/qwen2.5-7b-mongle-quest",
+        },
         "result_key": "RUNPOD_PLANNER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_PLANNER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
