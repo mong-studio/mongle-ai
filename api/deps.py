@@ -10,6 +10,7 @@ from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
 from adapters.feed_generation.qwen_llm import QwenLLM as QwenFeedLLM
 from adapters.feed_generation.s3_adapter import FeedS3Adapter
+from adapters.reply_generation.qwen_llm import QwenLLM as QwenReplyLLM
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
@@ -18,6 +19,7 @@ from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
 from agents.feed_generation.pipeline import Ports as FeedPorts
+from agents.reply_generation.protocols import Ports as ReplyPorts
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.planner.pipeline import PlannerPorts
@@ -253,3 +255,32 @@ def get_feed_ports(
     cfg: AppConfig = Depends(get_config),
 ) -> FeedPorts:
     return build_feed_ports(request, cfg)
+
+
+def _build_reply_llm(cfg: AppConfig):
+    # 답글은 퀘스트와 같은 페르소나 엔드포인트(character)에 adapter="reply" 로 얹는다.
+    if cfg.llm_provider == "runpod":
+        from adapters.reply_generation.runpod_llm import RunPodQwenLLM as RunPodReplyLLM
+
+        if not cfg.runpod_character_endpoint_url:
+            raise RuntimeError(
+                "LLM_PROVIDER=runpod 인데 RUNPOD_CHARACTER_ENDPOINT_URL 이 없습니다"
+            )
+        return RunPodReplyLLM(
+            endpoint_url=cfg.runpod_character_endpoint_url,
+            api_key=cfg.runpod_api_key,
+            adapter="reply",
+        )
+    return QwenReplyLLM(
+        model=cfg.qwen_model or "",
+        base_url=cfg.qwen_base_url or "",
+        api_key=cfg.qwen_api_key,
+    )
+
+
+def build_reply_ports(cfg: AppConfig) -> ReplyPorts:
+    return ReplyPorts(llm=_build_reply_llm(cfg))
+
+
+def get_reply_ports(cfg: AppConfig = Depends(get_config)) -> ReplyPorts:
+    return build_reply_ports(cfg)

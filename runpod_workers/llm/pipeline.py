@@ -25,6 +25,7 @@ _ADAPTER_ENV = {
     "planner": "LORA_PLANNER_REPO",
     "character": "LORA_CHARACTER_REPO",
     "quest": "LORA_QUEST_REPO",
+    "reply": "LORA_REPLY_REPO",
     "feed": "LORA_FEED_REPO",
 }
 
