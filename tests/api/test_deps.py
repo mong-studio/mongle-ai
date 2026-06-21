@@ -26,6 +26,7 @@ def _cfg(**over) -> AppConfig:
         aws_region=None,
         aws_s3_bucket=None,
         quest_llm_provider="fake",
+        feed_llm_provider="qwen",
         llm_provider="qwen",
         qwen_base_url=None,
         qwen_model=None,

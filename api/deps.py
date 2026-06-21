@@ -106,6 +106,25 @@ def _build_quest_llm(cfg: AppConfig):
     )
 
 
+def _build_feed_llm(cfg: AppConfig):
+    if cfg.feed_llm_provider == "runpod":
+        from adapters.feed_generation.runpod_llm import RunPodQwenLLM as RunPodFeedLLM
+
+        if not cfg.runpod_character_endpoint_url:
+            raise RuntimeError(
+                "FEED_LLM_PROVIDER=runpod 인데 RUNPOD_CHARACTER_ENDPOINT_URL 이 없습니다"
+            )
+        return RunPodFeedLLM(
+            endpoint_url=cfg.runpod_character_endpoint_url,
+            api_key=cfg.runpod_api_key,
+            adapter="feed",
+        )
+    assert cfg.qwen_base_url and cfg.qwen_model
+    return QwenFeedLLM(
+        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+    )
+
+
 def _get_image_generator(request: Request):
     """이미지 생성기를 앱 전체에서 한 번만 만들어 재사용(지연).
 
@@ -225,11 +244,7 @@ def get_quest_ports(cfg: AppConfig = Depends(get_config)) -> QuestPorts:
 
 def build_feed_ports(request: Request, cfg: AppConfig) -> FeedPorts:
     return FeedPorts(
-        llm=QwenFeedLLM(
-            model=cfg.qwen_model or "",
-            base_url=cfg.qwen_base_url or "",
-            api_key=cfg.qwen_api_key,
-        ),
+        llm=_build_feed_llm(cfg),
         image_generator=_get_image_generator(request),
         s3=FeedS3Adapter(_build_storage(cfg)),
     )
