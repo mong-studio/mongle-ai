@@ -19,25 +19,25 @@ from agents.todo_creation.schemas import (
 
 def test_todo_input_accepts_200_char_prompt() -> None:
     """싱글턴 입력이 최대 길이 200자 프롬프트를 정상 수용하는지 확인한다."""
-    TodoInput(user_id="u1", message="가" * 200, today=date(2026, 5, 24))
+    TodoInput(user_id="u1", prompt="가" * 200, today=date(2026, 5, 24))
 
 
 def test_todo_input_rejects_201_char_prompt() -> None:
     """싱글턴 입력이 201자 초과 프롬프트를 스키마 단계에서 거부하는지 확인한다."""
     with pytest.raises(PydanticValidationError):
-        TodoInput(user_id="u1", message="가" * 201, today=date(2026, 5, 24))
+        TodoInput(user_id="u1", prompt="가" * 201, today=date(2026, 5, 24))
 
 
 def test_todo_input_rejects_empty_prompt() -> None:
     """싱글턴 입력에서 빈 프롬프트를 허용하지 않는지 확인한다."""
     with pytest.raises(PydanticValidationError):
-        TodoInput(user_id="u1", message="", today=date(2026, 5, 24))
+        TodoInput(user_id="u1", prompt="", today=date(2026, 5, 24))
 
 
 def test_todo_input_rejects_empty_user_id() -> None:
     """싱글턴 입력에서 빈 user_id를 허용하지 않는지 확인한다."""
     with pytest.raises(PydanticValidationError):
-        TodoInput(user_id="", message="할 일", today=date(2026, 5, 24))
+        TodoInput(user_id="", prompt="할 일", today=date(2026, 5, 24))
 
 
 # ---- TaskCandidate ----

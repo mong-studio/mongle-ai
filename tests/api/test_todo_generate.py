@@ -68,7 +68,7 @@ async def _submit_and_poll(override, body, *, attempts=100):
 def test_generate_submit_returns_pending_job_id(api_client):
     """POST /v1/todo/generate는 202와 함께 폴링용 job_id를 pending 봉투로 반환한다."""
     api_client.app.dependency_overrides[get_todo_generate_ports] = _override
-    body = {"user_id": "u1", "message": "내일 장보기", "today": "2026-06-04"}
+    body = {"user_id": "u1", "prompt": "내일 장보기", "today": "2026-06-04"}
     resp = api_client.post("/v1/todo/generate", json=body, headers=AUTH)
     assert resp.status_code == 202
     data = resp.json()
@@ -78,7 +78,7 @@ def test_generate_submit_returns_pending_job_id(api_client):
 
 def test_generate_requires_api_key(api_client):
     """API 키 없이 /v1/todo/generate 호출 시 401을 반환한다."""
-    body = {"user_id": "u1", "message": "x", "today": "2026-06-04"}
+    body = {"user_id": "u1", "prompt": "x", "today": "2026-06-04"}
     assert api_client.post("/v1/todo/generate", json=body).status_code == 401
 
 
