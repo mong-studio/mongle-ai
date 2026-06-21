@@ -21,6 +21,7 @@ _BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 _ADAPTER_ENV = {
     "planner": "LORA_PLANNER_REPO",
     "character": "LORA_CHARACTER_REPO",
+    "quest": "LORA_QUEST_REPO",
 }
 
 

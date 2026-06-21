@@ -119,7 +119,7 @@ def _build_quest_llm(cfg: AppConfig):
         return RunPodQuestLLM(
             endpoint_url=cfg.runpod_planner_endpoint_url,
             api_key=cfg.runpod_api_key,
-            adapter="planner",
+            adapter="quest",
         )
     assert cfg.qwen_base_url and cfg.qwen_model
     return QwenQuestLLM(
