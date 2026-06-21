@@ -36,6 +36,7 @@ _HTTP_PORT = 8010
 _FIXED_ENV = {
     "LLM_PROVIDER": "runpod",
     "QUEST_LLM_PROVIDER": "runpod",
+    "FEED_LLM_PROVIDER": "runpod",
     "IMAGE_PROVIDER": "runpod",
     "STORAGE_BACKEND": "s3",
 }
