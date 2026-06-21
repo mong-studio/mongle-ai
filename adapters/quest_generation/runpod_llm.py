@@ -22,7 +22,7 @@ class RunPodQwenLLM(QwenLLM):
         api_key: str,
         adapter: str,
         model: str = DEFAULT_QWEN_MODEL,
-        temperature: float = 0.1,
+        temperature: float = 0.95,  # 창작 다양성: 같은 페르소나도 매번 다른 퀘스트
         max_tokens: int = 300,
         poll_interval: float = 2.0,
         poll_timeout: float = 300.0,

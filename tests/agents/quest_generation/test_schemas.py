@@ -49,12 +49,14 @@ def test_quest_generation_input_seed_optional():
     assert inp.shuffle_seed is None
 
 
-def test_generated_quest_text_max_80():
+def test_generated_quest_text_max_30():
+    # 30자는 통과, 31자는 거부 (말풍선 UX 기준)
+    GeneratedQuest(character_id=uuid4(), todo_id=uuid4(), quest_text="가" * 30)
     with pytest.raises(ValidationError):
         GeneratedQuest(
             character_id=uuid4(),
             todo_id=uuid4(),
-            quest_text="가" * 81,
+            quest_text="가" * 31,
         )
 
 
