@@ -60,7 +60,7 @@
   가능 구조로(`enable_lora`, 설정된 어댑터만 등록) 만들고 요청 `input.adapter`("planner"|"character")로
   LoRA 를 고른다. 같은 이미지를 **planner 단독·character 단독 두 엔드포인트**로 배포(persona 가
   지배적·고변동이라 격리; planner 는 `workersMin=0` 으로 시작. 근거 `docs/adr/0005`). 오케스트레이터는
-  `RUNPOD_PLANNER_ENDPOINT_URL`·`RUNPOD_CHARACTER_ENDPOINT_URL` 사용, payload 에 `adapter` 동봉.
+  `RUNPOD_PLANNER_ENDPOINT_URL`·`RUNPOD_VILLAGE_ENDPOINT_URL` 사용, payload 에 `adapter` 동봉.
   워커 env 는 `LORA_PLANNER_REPO`·`LORA_CHARACTER_REPO`.
 - **FastAPI AI 엔진 RunPod 상시 CPU Pod 이전 (EC2 → RunPod)**: AI 서버 배포를 EC2(SSM +
   docker-compose)에서 **RunPod Secure Cloud 상시 CPU Pod**로 이전("운영 단일화", 근거 `docs/adr/0005`).

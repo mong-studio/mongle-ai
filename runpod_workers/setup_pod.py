@@ -11,7 +11,7 @@ Pod 는 장수(long-lived)로 유지하며, 이후 배포는 `.github/workflows/
   # 아래는 Pod 안의 앱이 쓰는 env (config.py 의 from_env 요구사항)
   MONGLE_API_KEY             — Django 가 보내는 X-API-Key
   RUNPOD_PLANNER_ENDPOINT_URL
-  RUNPOD_CHARACTER_ENDPOINT_URL
+  RUNPOD_VILLAGE_ENDPOINT_URL
   RUNPOD_IMAGE_ENDPOINT_URL
   AWS_S3_BUCKET, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  (S3 — IAM role 못 쓰므로 키 주입)
 
@@ -45,7 +45,7 @@ _REQUIRED_APP_ENV = (
     "MONGLE_API_KEY",
     "RUNPOD_API_KEY",
     "RUNPOD_PLANNER_ENDPOINT_URL",
-    "RUNPOD_CHARACTER_ENDPOINT_URL",
+    "RUNPOD_VILLAGE_ENDPOINT_URL",
     "RUNPOD_IMAGE_ENDPOINT_URL",
     "AWS_S3_BUCKET",
     "AWS_REGION",

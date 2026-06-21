@@ -44,12 +44,12 @@ def _build_character_llm(cfg: AppConfig):
     if cfg.llm_provider == "runpod":
         from adapters.character_creation.runpod_llm import RunPodQwenLLM as RunPodCharacterLLM
 
-        if not cfg.runpod_character_endpoint_url:
+        if not cfg.runpod_village_endpoint_url:
             raise RuntimeError(
-                "LLM_PROVIDER=runpod 인데 RUNPOD_CHARACTER_ENDPOINT_URL 이 없습니다"
+                "LLM_PROVIDER=runpod 인데 RUNPOD_VILLAGE_ENDPOINT_URL 이 없습니다"
             )
         return RunPodCharacterLLM(
-            endpoint_url=cfg.runpod_character_endpoint_url,
+            endpoint_url=cfg.runpod_village_endpoint_url,
             api_key=cfg.runpod_api_key,
             adapter="character",
         )
@@ -89,12 +89,12 @@ def _build_quest_llm(cfg: AppConfig):
     if cfg.quest_llm_provider == "runpod":
         from adapters.quest_generation.runpod_llm import RunPodQwenLLM as RunPodQuestLLM
 
-        if not cfg.runpod_planner_endpoint_url:
+        if not cfg.runpod_village_endpoint_url:
             raise RuntimeError(
-                "QUEST_LLM_PROVIDER=runpod 인데 RUNPOD_PLANNER_ENDPOINT_URL 이 없습니다"
+                "QUEST_LLM_PROVIDER=runpod 인데 RUNPOD_VILLAGE_ENDPOINT_URL 이 없습니다"
             )
         return RunPodQuestLLM(
-            endpoint_url=cfg.runpod_planner_endpoint_url,
+            endpoint_url=cfg.runpod_village_endpoint_url,
             api_key=cfg.runpod_api_key,
             adapter="quest",
         )

@@ -162,7 +162,7 @@ async def warmup_character(cfg: AppConfig = Depends(get_config)) -> dict[str, st
     """
     task = asyncio.create_task(
         warm_character_endpoints(
-            llm_url=cfg.runpod_character_endpoint_url,
+            llm_url=cfg.runpod_village_endpoint_url,
             image_url=cfg.runpod_image_endpoint_url,
             api_key=cfg.runpod_api_key,
         )
