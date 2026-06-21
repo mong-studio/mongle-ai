@@ -20,13 +20,13 @@ log = logging.getLogger(__name__)
 
 
 class _QuestText(BaseModel):
-    quest_text: Annotated[str, Field(min_length=1, max_length=80)]
+    quest_text: Annotated[str, Field(min_length=1, max_length=30)]
 
 
 _SYSTEM_PROMPT = load_prompt("quest_text_v1")
 _SCHEMA_REINFORCE = (
     "직전 응답은 파싱할 수 없다. 설명 없이 JSON 객체 하나만 다시 출력하라.\n"
-    '스키마: {"quest_text": "한국어 80자 이하 퀘스트 문장"}\n'
+    '스키마: {"quest_text": "한국어 30자 이하 퀘스트 문장"}\n'
     "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
 )
 _CODE_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
@@ -54,7 +54,7 @@ class QwenLLM:
     model: str = DEFAULT_QWEN_MODEL
     base_url: str = "http://localhost:8000/v1"
     api_key: str = "EMPTY"
-    temperature: float = 0.1
+    temperature: float = 0.95  # 창작 다양성: 같은 페르소나도 매번 다른 퀘스트
     max_tokens: int = 300
     timeout_seconds: float = 30.0
 
