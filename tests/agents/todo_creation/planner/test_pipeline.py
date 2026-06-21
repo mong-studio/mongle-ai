@@ -227,6 +227,43 @@ async def test_debug_state_exposes_thread_memory_summary() -> None:
     assert state["todo_count"] == 1
 
 
+async def test_routine_revision_rebuilds_with_updated_cadence() -> None:
+    # routine 은 결정적 전개라 previous_plan/revision_request 텍스트를 못 읽는다.
+    # 따라서 revision 시 judge 를 재실행해 cadence 슬롯을 갱신하고 재전개해야 한다.
+    routine_mon: ParsedGoal = {
+        "intent": "plan",
+        "plan_kind": "routine",
+        "slots": {"activity": "독서", "cadence": "월"},
+        "goal_tag": "독서",
+        "deadline": None,
+    }
+    routine_tue: ParsedGoal = {
+        "intent": "plan",
+        "plan_kind": "routine",
+        "slots": {"activity": "독서", "cadence": "화"},
+        "goal_tag": "독서",
+        "deadline": None,
+    }
+    llm = _FakeLLM(
+        sufficiency_responses=[(True, [], routine_mon), (True, [], routine_tue)]
+    )
+
+    first = await run(_input(message="매주 월요일 독서하기"), ports=_ports(llm), now=_NOW)
+    assert isinstance(first, CandidatesResult)
+    first_events = first.todos + first.calendar_events
+    assert first_events and all(e.due_date.weekday() == 0 for e in first_events)
+
+    second = await run(
+        _input(message="화요일로 바꿔줘", thread_id=first.thread_id),
+        ports=_ports(llm),
+        now=_NOW,
+    )
+    assert isinstance(second, CandidatesResult)
+    second_events = second.todos + second.calendar_events
+    # 화요일(weekday 1)로 재전개 — judge 가 cadence 슬롯을 갱신했다
+    assert second_events and all(e.due_date.weekday() == 1 for e in second_events)
+
+
 async def test_validation_error_propagates() -> None:
     llm = _FakeLLM()
     bad = PlannerInput.model_construct(

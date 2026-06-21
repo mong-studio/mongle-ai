@@ -31,9 +31,12 @@ async def planner_node(
     state: PlannerGraphState, config: RunnableConfig
 ) -> Command[str]:
     llm = get_ports(config).llm
-    if state.get("revision_request") and state.get("plan"):
+    existing_goal = state.get("parsed_goal")
+    # routine 은 결정적 전개(expand_routine)라 revision_request 텍스트를 못 읽는다.
+    # revision 시 judge 를 재실행해 cadence 슬롯을 갱신·재전개하도록 단락을 건너뛴다.
+    is_routine = bool(existing_goal and existing_goal.get("plan_kind") == "routine")
+    if state.get("revision_request") and state.get("plan") and not is_routine:
         previous_plan = state.get("plan") or []
-        existing_goal = state.get("parsed_goal")
         revision_goal: ParsedGoal = cast(
             ParsedGoal,
             existing_goal.copy() if existing_goal is not None else {},
@@ -78,11 +81,14 @@ async def planner_node(
         cast(ParsedGoal, parsed.copy()) if parsed is not None else None
     )
     if resolved_goal is not None:
-        merge_deadline_from_state(state, resolved_goal)
-        if resolved_goal.get("deadline") and "deadline" in (missing or []):
-            missing = [item for item in missing if item != "deadline"]
-            if not missing:
-                sufficient = True
+        # routine 은 요일 단어가 cadence(주기)라 deadline 으로 오인하면 안 된다
+        # (예: "매주 월요일" 의 '월요일' 을 마감일로 파싱해 horizon 을 clamp 하는 버그 방지).
+        if resolved_goal.get("plan_kind") != "routine":
+            merge_deadline_from_state(state, resolved_goal)
+            if resolved_goal.get("deadline") and "deadline" in (missing or []):
+                missing = [item for item in missing if item != "deadline"]
+                if not missing:
+                    sufficient = True
         resolved_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
 
     if delegates_planning(state.get("message", "")) and resolved_goal:
