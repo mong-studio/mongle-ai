@@ -72,54 +72,58 @@ jobs:
       image_tag: ${{ steps.meta.outputs.version }}
 
   deploy:
-    name: Deploy to EC2
+    name: Deploy to RunPod Pod
     runs-on: ubuntu-latest
     needs: build
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region:     ${{ secrets.AWS_REGION }}
-
-      - name: Deploy via SSM
+      # 장수 CPU Pod 를 stop→start 해 :latest 를 재-pull 한다.
+      # (RunPod 은 재시작 시 컨테이너 디스크를 비우므로 :latest 가 새로 받아진다.)
+      # Pod ID 는 유지되어 프록시 URL 이 고정된다 → mongle-server 갱신 불필요.
+      # Pod 의 앱 env 는 최초 생성(runpod_workers/setup_pod.py)에서 주입되어 상주한다.
+      - name: Restart RunPod Pod (re-pull :latest)
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          POD_ID:         ${{ secrets.RUNPOD_POD_ID }}
         run: |
-          IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
-          COMPOSE_B64=$(base64 -w0 docker-compose.yml)
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters "{\"commands\":[\"set -ex && mkdir -p /home/ubuntu/mongle-ai && echo ${COMPOSE_B64} | base64 -d > /home/ubuntu/mongle-ai/docker-compose.yml && cd /home/ubuntu/mongle-ai && IMAGE_TAG=${IMAGE_TAG} docker compose pull && IMAGE_TAG=${IMAGE_TAG} docker compose up -d --remove-orphans && docker image prune -f && sleep 30 && set +e && curl -sf http://localhost:8010/health; CURL_EXIT=\$?; set -e && if [ \$CURL_EXIT -ne 0 ]; then docker ps -a; docker logs mongle-ai-api-1 --tail=100; exit \$CURL_EXIT; fi && echo Deployed: ${IMAGE_TAG}\"]}" \
-            --query "Command.CommandId" \
-            --output text)
+          set -euo pipefail
 
-          echo "SSM Command ID: $COMMAND_ID"
+          # 응답 본문에는 Pod env(AWS/MONGLE 키 등)가 평문으로 들어오므로 절대 출력하지
+          # 않는다 — -o /dev/null 로 버리고, -f 의 종료코드로만 성공/실패를 판단한다.
+          rp() {  # $1=METHOD  $2=PATH
+            curl -sf -o /dev/null -X "$1" \
+              -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
+              -H "Content-Type: application/json" \
+              "https://rest.runpod.io/v1${2}"
+          }
 
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" || true
+          echo "Stopping pod ${POD_ID} ..."
+          rp POST "/pods/${POD_ID}/stop" || true
+          sleep 10
 
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --query "StatusDetails" --output text)
+          # start 는 일시적으로 실패할 수 있다. 재시도해 Pod 가 꺼진 채 방치되는 것을 막는다.
+          echo "Starting pod ${POD_ID} (container disk wiped → :latest re-pull) ..."
+          started=0
+          for i in $(seq 1 5); do
+            if rp POST "/pods/${POD_ID}/start"; then started=1; break; fi
+            echo "  start 재시도 ${i}/5 ..."
+            sleep 15
+          done
+          if [ "$started" -ne 1 ]; then
+            echo "[ERROR] Pod start 실패 — RunPod 콘솔에서 수동 start 필요"
+            exit 1
+          fi
 
-          echo "=== STDOUT ==="
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --query "StandardOutputContent" --output text
+          URL="https://${POD_ID}-8010.proxy.runpod.net/health"
+          echo "Health check (cold start: image pull + boot) → ${URL}"
+          for i in $(seq 1 40); do
+            if curl -sf "${URL}" >/dev/null 2>&1; then
+              echo "Healthy ✔ (${i})"
+              exit 0
+            fi
+            echo "  waiting ${i}/40 ..."
+            sleep 15
+          done
 
-          echo "=== STDERR ==="
-          aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --query "StandardErrorContent" --output text
-
-          [ "$STATUS" = "Success" ] || { echo "Deploy failed: $STATUS"; exit 1; }
+          echo "[ERROR] Health check failed after ~10m: ${URL}"
+          exit 1

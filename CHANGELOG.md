@@ -15,11 +15,31 @@
 ## [Unreleased]
 
 ### Added
+- **캐릭터 appearance 영어 번역 노드 (이미지 충실도 수정)**: SDXL 텍스트 인코더(CLIP)가
+  영어 전용이라 한국어 `appearance`(외형)가 이미지에 반영되지 않던 문제. 라이브 검증으로
+  확인(한국어 "갈색 곰"→초록 blob, 동일 의미 **영어**→정확한 여우). 페르소나 그래프에
+  `translate_appearance` 노드 추가(llm_persona→translate→sync): **Qwen base(`adapter="base"`,
+  no-LoRA)**로 한국어 외형을 영어 visual 태그로 변환해 `llm_result.appearance` 를 갱신한다.
+  번역 실패 시 한국어 원본 유지(비치명적). `TranslatorPort`+`RunPodTranslator`(planner 엔드포인트
+  base)/`QwenTranslator`(로컬). DB `visual`·이미지 prompt 가 영어가 되며(표시용 페르소나는
+  personality/speech_style/background 한국어 유지) 이미지 워커는 불변.
 - **단일 `/v1/todo/generate` out_of_scope 처리**: "배고프다"처럼 일정/TODO로 나눌 수 없는 입력을
   억지 todo로 만들지 않고 `OutOfScopeResult`(`kind: "out_of_scope"`)로 안내한다. `split_tasks`가
   `intent`("plan"|"out_of_scope")를 함께 반환하도록 확장(`SplitResult`), 단일 그래프에 조건 분기 추가,
   응답모델을 `Envelope[SingleTurnResult]`로. LLM 호출 추가 없음. 설계·계획:
   `docs/superpowers/specs|plans/2026-06-13-generate-out-of-scope*`.
+
+### Changed
+- **텍스트 전용 캐릭터 이미지를 외형(appearance) 기반 text2img 로 전환**: 사진 없이 생성할 때
+  기존엔 고정 회색 원 실루엣을 ControlNet img2img(매번 거의 동일한 blob)로 돌렸는데,
+  LLM 이 생성한 `appearance` 묘사를 prompt 로 SDXL text2img(`character_mode.py`, 모델 카드 표준
+  30 step·guidance 7.5·LoRA 0.9) 하여 페르소나별 고유 이미지를 만든다. `from_pipe` 로 SDXL/unet
+  공유(VRAM 재사용). 오케스트레이터 `runpod_image` 가 payload 에 `prompt=appearance`(폴백 persona)
+  동봉. 사진 있는 표준 img2img 경로는 불변.
+  - 참고: v0.1.14 에서 모델 카드 LCM fast path(8 step·g1.5)를 시도했으나 **라이브 검증 결과
+    저-guidance 로 외형 프롬프트 충실도가 무너지고(요청과 다른 색·종) 속도 이득도 미미(웜 63s)** →
+    v0.1.15 에서 표준 30-step 으로 되돌림(외형 충실도 우선).
+  **사진 있는 img2img 경로(표준 30-step)는 불변.** ⚠️ GPU 워커 재배포 필요(로컬 GPU 미검증).
 
 ### Fixed
 - **SFT LoRA 학습 `<EOS_TOKEN>` 반복 실패 해결**: `train_lora.py`가 `trl`을 `unsloth`보다 먼저 import해
@@ -29,6 +49,35 @@
   "always import unsloth first"). 검증: RTX 4090에서 Qwen2.5-7B QLoRA 2epoch 정상 수렴(loss 1.33→0.21).
 
 ### Changed
+- **`/v1/todo/generate`·`/v1/todo/chat` 비동기 submit(202)+poll(GET) 전환**: planner LLM 이
+  RunPod Pod 프록시의 100s 하드 타임아웃을 넘기므로(실측 ~90-105s), character 와 동일하게
+  백그라운드 잡으로 분리한다. POST 는 즉시 `202` + `TodoJobRef(job_id)` 를 pending 봉투로 반환하고,
+  `GET /v1/todo/generate/{job_id}`·`GET /v1/todo/chat/{job_id}` 로 폴링한다(pending/done/error/404).
+  인메모리 잡 스토어 `TodoJobStore`(신규 `api/todo_creation/jobs.py`, DB/Redis 의존성 없음,
+  `character_creation/jobs.py` 패턴 복제). `/v1/todo/commit` 은 동기 유지. 호출자(Django)는
+  개별 요청을 100s 미만으로 보내며 전체는 폴링으로 기다려 프록시 타임아웃을 우회한다.
+- **RunPod LLM 워커 멀티-LoRA 화 + planner/character 엔드포인트 분리**: LLM 워커를 멀티-LoRA
+  가능 구조로(`enable_lora`, 설정된 어댑터만 등록) 만들고 요청 `input.adapter`("planner"|"character")로
+  LoRA 를 고른다. 같은 이미지를 **planner 단독·character 단독 두 엔드포인트**로 배포(persona 가
+  지배적·고변동이라 격리; planner 는 `workersMin=0` 으로 시작. 근거 `docs/adr/0005`). 오케스트레이터는
+  `RUNPOD_PLANNER_ENDPOINT_URL`·`RUNPOD_CHARACTER_ENDPOINT_URL` 사용, payload 에 `adapter` 동봉.
+  워커 env 는 `LORA_PLANNER_REPO`·`LORA_CHARACTER_REPO`.
+- **FastAPI AI 엔진 RunPod 상시 CPU Pod 이전 (EC2 → RunPod)**: AI 서버 배포를 EC2(SSM +
+  docker-compose)에서 **RunPod Secure Cloud 상시 CPU Pod**로 이전("운영 단일화", 근거 `docs/adr/0005`).
+  기존 CPU `Dockerfile`(uvicorn :8010) 재사용. `runpod_workers/setup_pod.py`(신규)로 Pod 1회 생성
+  (REST `POST /v1/pods`, HTTP 8010 노출, 앱 env 주입). `deploy-api.yml` 의 deploy 잡을 EC2 SSM →
+  **Pod stop→start 재시작**(컨테이너 디스크 wipe → `:latest` 재-pull)으로 교체하고 프록시
+  `https://{podId}-8010.proxy.runpod.net/health` 를 폴링한다. Pod ID 고정으로 프록시 URL 안정 →
+  mongle-server `MONGLE_AI_API_BASE` 는 1회 설정. ⚠️ 프록시 100s 타임아웃 — 동기 엔드포인트는
+  100s 내 응답 필요(무거운 작업은 워커 위임+폴링/비동기 Job). 배포 시 GitHub Secret `RUNPOD_POD_ID` 등록 필요.
+- **RunPod 이미지 워커 멀티-어댑터화 (character + bg 합본)**: 이미지 워커를 LLM 과 동일한
+  멀티-어댑터 구조로(설정된 어댑터만 등록, `input.adapter`로 분기) 만들어 한 엔드포인트에서
+  **character**(사진→픽셀아트 스프라이트, SDXL+ControlNet img2img)와 **bg**(텍스트→배경 장면,
+  SDXL text2img + LCM 8-step)를 모두 서빙한다. 모드별 파일 분리(`character_mode.py`·`bg_mode.py`),
+  env `LORA_CHARACTER_REPO`·`LORA_BG_REPO`(`Hadimeeee/mongle-character-lora`·`mongle-bg-lora`).
+  character LoRA 를 공식 `mongle-character-lora`(트리거 `monglestyle`, 30-step, ControlNet 0.75)로
+  교체. 오케스트레이터 `runpod_image` 는 payload 에 `adapter="character"` 동봉. bg 의 feed
+  파이프라인 배선은 후속(feed 는 아직 미배선). 각 모드는 독립 SDXL 로드(`from_pipe` 공유는 후속 최적화).
 - **FastAPI 마이그레이션**: Streamlit 진입점을 제거하고 stateless FastAPI AI 엔진(`api/`)으로 대체.
   Django + React 웹이 X-API-Key 인증으로 5개 엔드포인트(todo generate/chat/commit, quest, character)를 호출.
   `agents/` 도메인 코드는 변경 없음 — 어댑터 교체로만 stateless 전환 (근거: `docs/adr/0001`~`0005`).

@@ -31,7 +31,7 @@
 | 필드      | 타입   | 필수 | 비고                                   |
 | --------- | ------ | ---- | -------------------------------------- |
 | `user_id` | string | ✅   | 인증된 사용자 식별자                   |
-| `prompt`  | string | ✅   | 자연어 프롬프트, **공백 포함 ≤ 200자** |
+| `message` | string | ✅   | 자연어 입력, **공백 포함 ≤ 200자** |
 | `today`   | date   | ✅   | 상대 날짜 표현 해석 기준 (서버 시각)   |
 
 ### 2.2 멀티턴 Input
@@ -95,7 +95,7 @@
 
 ### 4.2 싱글턴 — LLM (Task Splitter)
 
-- **Input:** `prompt`, `today` (상대 날짜 해석 컨텍스트)
+- **Input:** `message`, `today` (상대 날짜 해석 컨텍스트)
 - **Output (구조화):**
   ```json
   [
@@ -221,7 +221,7 @@ agents/todo_creation/
 # schemas.py
 class TodoInput(BaseModel):
     user_id: str
-    prompt: str = Field(max_length=200)
+    message: str = Field(max_length=200)
     today: date
 
 class PlannerInput(BaseModel):
@@ -250,7 +250,7 @@ class CommitResult(BaseModel):
 # todo/pipeline.py
 async def run(input: TodoInput) -> list[TaskCandidate]:
     validation.check(input)
-    tasks = await task_splitter.split(input.prompt, today=input.today)
+    tasks = await task_splitter.split(input.message, today=input.today)
     todos, events = date_router.route(tasks, today=input.today)
     return todos + events  # UI로 반환, 사용자 확정 대기
 

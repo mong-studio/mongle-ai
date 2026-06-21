@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import base64
 import json
-from unittest.mock import MagicMock
 
 import httpx
 import pytest
 
 from adapters.character_creation.runpod_image import RunPodImageGenerator
 from agents.character_creation.exceptions import ImageGenerationFailedError
+from agents.character_creation.schemas import LLMPersonaResult
 
 ENDPOINT = "https://api.runpod.ai/v2/test-endpoint"
 PNG = b"\x89PNG-fake-image-bytes"
@@ -28,10 +28,20 @@ def _generator(handler, **over) -> RunPodImageGenerator:
     return RunPodImageGenerator(**kwargs)
 
 
-async def _call(gen: RunPodImageGenerator, source: bytes | None = None) -> bytes:
+def _persona(appearance: str = "둥근 갈색 곰") -> LLMPersonaResult:
+    return LLMPersonaResult(
+        personality="p", speech_style="s", background="b", appearance=appearance
+    )
+
+
+async def _call(
+    gen: RunPodImageGenerator,
+    source: bytes | None = None,
+    appearance: str = "둥근 갈색 곰",
+) -> bytes:
     return await gen.generate(
         user_id="u1",
-        llm_result=MagicMock(),
+        llm_result=_persona(appearance),
         fallback_persona=None,
         source_image_bytes=source,
     )
@@ -90,7 +100,51 @@ async def test_generate_without_source_sends_null_b64() -> None:
 
     await _call(_generator(handler), source=None)
 
-    assert payloads == [{"input": {"source_image_b64": None}}]
+    assert payloads == [
+        {
+            "input": {
+                "source_image_b64": None,
+                "adapter": "character",
+                "prompt": "둥근 갈색 곰",
+            }
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_generate_sends_appearance_as_prompt() -> None:
+    """LLM 의 appearance 묘사를 워커 text2img 용 prompt 로 보낸다."""
+    payloads: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/run"):
+            payloads.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": "job-1"})
+        return httpx.Response(
+            200, json={"status": "COMPLETED", "output": {"image_b64": PNG_B64}}
+        )
+
+    await _call(_generator(handler), appearance="별빛 같은 은색 여우")
+
+    assert payloads[0]["input"]["prompt"] == "별빛 같은 은색 여우"
+
+
+@pytest.mark.asyncio
+async def test_generate_sends_character_adapter() -> None:
+    """멀티-어댑터 이미지 워커가 모드를 고르도록 input.adapter='character' 를 보낸다."""
+    payloads: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/run"):
+            payloads.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": "job-1"})
+        return httpx.Response(
+            200, json={"status": "COMPLETED", "output": {"image_b64": PNG_B64}}
+        )
+
+    await _call(_generator(handler), source=b"x")
+
+    assert payloads[0]["input"]["adapter"] == "character"
 
 
 @pytest.mark.asyncio

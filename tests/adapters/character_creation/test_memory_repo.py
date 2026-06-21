@@ -18,6 +18,7 @@ def _entity(user_id: str = "u1", name: str = "보리") -> CharacterEntity:
         personality="용감함",
         speech_style="씩씩한 말투",
         background="동네 골목대장",
+        appearance="둥근 갈색 몸에 큰 눈",
         image_url="https://example.com/x.png",
         source_image_url=None,
         created_at=datetime.now(tz=timezone.utc),

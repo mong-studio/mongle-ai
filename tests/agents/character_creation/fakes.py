@@ -33,6 +33,8 @@ class FakeLLM:
             personality=f"성격:{persona[:5]}",
             speech_style="존댓말",
             background="조용한 숲에서 옴",
+            appearance="둥근 갈색 몸에 큰 눈",
+            appearance_en="cute brown bear, round ears, big eyes",
         )
 
 

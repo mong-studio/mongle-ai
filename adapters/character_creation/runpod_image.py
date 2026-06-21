@@ -45,22 +45,47 @@ class RunPodImageGenerator:
         fallback_persona: str | None,
         source_image_bytes: bytes | None = None,
     ) -> bytes:
+        # 사진이 없으면 워커가 이 prompt 로 text2img 한다(사진 있으면 무시·img2img).
+        prompt = (llm_result.appearance_en or llm_result.appearance or fallback_persona or "").strip() or None
         try:
-            return await self._submit_and_poll(source_image_bytes)
+            return await self._submit_and_poll(source_image_bytes, prompt)
         except ImageGenerationFailedError:
             raise
         except Exception as err:
             raise ImageGenerationFailedError(
-                f"RunPod image generation failed: {err}"
+                f"[ERROR] RunPod image generation failed: {err}"
             ) from err
 
-    async def _submit_and_poll(self, source_image_bytes: bytes | None) -> bytes:
+    async def generate_img2img(self, reference_url: str, prompt: str) -> bytes:
+        """피드 파이프라인용: reference_url 이미지를 기반으로 img2img 생성."""
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            resp = await client.get(reference_url)
+            resp.raise_for_status()
+            source_image_bytes = resp.content
+        try:
+            return await self._submit_and_poll(source_image_bytes, prompt, adapter="character")
+        except ImageGenerationFailedError:
+            raise
+        except Exception as err:
+            raise ImageGenerationFailedError(
+                f"[ERROR] RunPod img2img failed: {err}"
+            ) from err
+
+    async def _submit_and_poll(
+        self, source_image_bytes: bytes | None, prompt: str | None, *, adapter: str = "character"
+    ) -> bytes:
         source_b64 = (
             base64.b64encode(source_image_bytes).decode()
             if source_image_bytes is not None
             else None
         )
-        payload = {"input": {"source_image_b64": source_b64}}
+        payload = {
+            "input": {
+                "source_image_b64": source_b64,
+                "adapter": adapter,
+                "prompt": prompt,
+            }
+        }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         client = self._client or httpx.AsyncClient()
@@ -94,7 +119,7 @@ class RunPodImageGenerator:
                     if time.monotonic() >= deadline:
                         await self._cancel_job(client, headers, job_id)
                         raise ImageGenerationFailedError(
-                            f"RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
+                            f"[ERROR] RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
                         )
                     await asyncio.sleep(self._poll_interval)
                     continue
@@ -107,18 +132,20 @@ class RunPodImageGenerator:
                     image_b64 = (data.get("output") or {}).get("image_b64")
                     if not image_b64:
                         raise ImageGenerationFailedError(
-                            "RunPod COMPLETED 응답에 output.image_b64 가 없습니다"
+                            "[ERROR] RunPod COMPLETED 응답에 output.image_b64 가 없습니다"
                         )
                     return base64.b64decode(image_b64)
 
                 if status in _TERMINAL_FAILURE_STATUSES:
                     detail = str(data.get("error"))[:_ERROR_DETAIL_MAX_LEN]
-                    raise ImageGenerationFailedError(f"RunPod job {status}: {detail}")
+                    raise ImageGenerationFailedError(
+                        f"[ERROR] RunPod job {status}: {detail}"
+                    )
 
                 if time.monotonic() >= deadline:
                     await self._cancel_job(client, headers, job_id)
                     raise ImageGenerationFailedError(
-                        f"RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
+                        f"[ERROR] RunPod job 폴링이 {self._timeout}s 를 초과했습니다"
                     )
                 await asyncio.sleep(self._poll_interval)
         finally:
@@ -128,7 +155,7 @@ class RunPodImageGenerator:
     async def _cancel_job(
         self, client: httpx.AsyncClient, headers: dict[str, str], job_id: str
     ) -> None:
-        """폴링 포기 시 RunPod 잡 취소 — GPU 중복 과금 방지 (best-effort).
+        """폴링 포기 시 RunPod 잡 취소 - GPU 중복 과금 방지 (best-effort).
 
         취소 실패가 원래 에러를 가리면 안 되므로 예외는 모두 삼킨다.
         """

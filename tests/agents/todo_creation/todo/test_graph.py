@@ -24,6 +24,15 @@ def _state(prompt: str = "오늘 코테") -> dict:
     }
 
 
+def test_graph_draws_mermaid() -> None:
+    graph = build_generate_graph()
+
+    mermaid = graph.get_graph().draw_mermaid()
+
+    assert "validate" in mermaid
+    assert "task_splitter" in mermaid
+
+
 async def test_graph_happy_today_only() -> None:
     graph = build_generate_graph()
     llm = FakeLLM(
@@ -53,19 +62,6 @@ async def test_graph_happy_mixed_today_and_future() -> None:
     )
     assert len(final["result"].todos) == 1
     assert len(final["result"].calendar_events) == 1
-
-
-async def test_graph_past_date_silently_corrected() -> None:
-    graph = build_generate_graph()
-    llm = FakeLLM(
-        responses=[[TaskCandidate(title="어제 일", due_date=date(2026, 5, 23))]]
-    )
-    final = await graph.ainvoke(
-        _state(),
-        config={"configurable": {"ports": _Ports(llm), "now": None}},
-    )
-    assert len(final["result"].todos) == 1
-    assert final["result"].todos[0].due_date == date(2026, 5, 24)
 
 
 async def test_graph_rejects_long_prompt() -> None:

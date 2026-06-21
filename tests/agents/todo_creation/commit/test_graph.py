@@ -61,6 +61,15 @@ def _state(inp: CommitPayload) -> dict:
     return {"input": inp, "now": None}
 
 
+def test_commit_graph_draws_mermaid() -> None:
+    graph = build_commit_graph()
+
+    mermaid = graph.get_graph().draw_mermaid()
+
+    assert "validate" in mermaid
+    assert "save_dispatcher" in mermaid
+
+
 async def test_commit_graph_happy_today_triggers_quest() -> None:
     graph = build_commit_graph()
     repo = MemoryTodoRepository()

@@ -15,7 +15,7 @@ class MissingEnvError(RuntimeError):
 
 
 _VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
-_VALID_LLM_PROVIDERS = ("openai", "qwen", "runpod")
+_VALID_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
     "http://localhost:8000/v1",
@@ -57,7 +57,7 @@ class AppConfig:
     runpod_image_endpoint_url: str | None = None
     runpod_api_key: str = "EMPTY"
     runpod_planner_endpoint_url: str | None = None
-    runpod_village_endpoint_url: str | None = None
+    runpod_character_endpoint_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -87,8 +87,6 @@ class AppConfig:
                 f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {llm_provider!r})"
             )
-
-        openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
 
         # TODO 생성은 항상 Qwen 전용이므로 qwen 설정은 게이트와 무관하게 항상 읽는다.
         # provider=qwen(또는 quest=qwen)일 때만 부재 시 기동을 실패시킨다.
@@ -129,10 +127,12 @@ class AppConfig:
                 missing.append("RUNPOD_API_KEY")
 
         runpod_planner_endpoint_url: str | None = None
-        runpod_village_endpoint_url: str | None = None
+        runpod_character_endpoint_url: str | None = None
         if llm_provider == "runpod":
             runpod_planner_endpoint_url = need("RUNPOD_PLANNER_ENDPOINT_URL")
-            runpod_village_endpoint_url = need("RUNPOD_VILLAGE_ENDPOINT_URL")
+        # character(페르소나) 엔드포인트는 캐릭터 생성(llm_provider)과 퀘스트(quest_llm_provider)가 공유
+        if llm_provider == "runpod" or quest_llm_provider == "runpod":
+            runpod_character_endpoint_url = need("RUNPOD_CHARACTER_ENDPOINT_URL")
             if runpod_api_key == "EMPTY":
                 missing.append("RUNPOD_API_KEY")
 
@@ -153,7 +153,7 @@ class AppConfig:
             runpod_image_endpoint_url=runpod_image_endpoint_url,
             runpod_api_key=runpod_api_key,
             runpod_planner_endpoint_url=runpod_planner_endpoint_url,
-            runpod_village_endpoint_url=runpod_village_endpoint_url,
+            runpod_character_endpoint_url=runpod_character_endpoint_url,
         )
 
         if backend == "s3":

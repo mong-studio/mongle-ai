@@ -22,7 +22,7 @@ _SYSTEM_PROMPT = load_prompt("llm_persona_v1")
 _CODE_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 _SCHEMA_REINFORCE = (
     "직전 응답은 파싱할 수 없다. 설명 없이 JSON 객체 하나만 다시 출력하라.\n"
-    '스키마: {"personality": "...", "speech_style": "...", "background": "..."}\n'
+    '스키마: {"personality": "...", "speech_style": "...", "background": "...", "appearance": "...", "appearance_en": "..."}\n'
     "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
 )
 

@@ -13,7 +13,7 @@ from tests.agents.character_creation.fakes import FakeImageGenerator, FakeReposi
 def _state() -> CharacterGraphState:
     return CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b"),
+        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
     )
 
 
@@ -29,7 +29,8 @@ def _config(img: FakeImageGenerator, repo: FakeRepository) -> dict:
 async def test_image_generator_returns_bytes_on_success() -> None:
     img = FakeImageGenerator()
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
-    assert out.update == {"image_bytes": b"GENERATED_PNG_BYTES"}
+    assert out.update["image_bytes"] == b"GENERATED_PNG_BYTES"
+    assert isinstance(out.update["image_generator_seconds"], float)
     assert out.goto == "generated_upload"
     assert img.calls == 1
 
@@ -37,7 +38,8 @@ async def test_image_generator_returns_bytes_on_success() -> None:
 async def test_image_generator_retries_then_succeeds_within_attempts() -> None:
     img = FakeImageGenerator(fail_times=1)
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
-    assert out.update == {"image_bytes": b"GENERATED_PNG_BYTES"}
+    assert out.update["image_bytes"] == b"GENERATED_PNG_BYTES"
+    assert isinstance(out.update["image_generator_seconds"], float)
     assert out.goto == "generated_upload"
     assert img.calls == 2
 

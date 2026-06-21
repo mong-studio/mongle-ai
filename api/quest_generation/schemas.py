@@ -12,6 +12,12 @@ from agents.quest_generation.schemas import (
 )
 
 
+class QuestJobRef(BaseModel):
+    """submit(202) 응답의 result — 폴링에 쓸 job_id."""
+
+    job_id: str
+
+
 class QuestCharacterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

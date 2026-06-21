@@ -46,6 +46,8 @@ class LLMPersonaResult(BaseModel):
     personality: str
     speech_style: str
     background: str
+    appearance: str
+    appearance_en: str = ""
 
 
 class CharacterEntity(BaseModel):
@@ -56,6 +58,9 @@ class CharacterEntity(BaseModel):
     personality: str
     speech_style: str
     background: str
+    appearance: str
     image_url: str
     source_image_url: str | None
     created_at: datetime
+    # 단계별 소요시간(초). 키: "llm_persona", "image_generator". 계측 실패 시 비어 있음.
+    timings: dict[str, float] = Field(default_factory=dict)

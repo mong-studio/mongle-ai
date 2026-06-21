@@ -99,9 +99,9 @@ async def test_qwen_raises_llm_failed_after_both_attempts():
     assert len(_FakeAsyncClient.calls) == 2
 
 
-# 스키마 검증: quest_text 는 80자 이하여야 한다.
+# 스키마 검증: quest_text 는 30자 이하여야 한다.
 async def test_qwen_raises_llm_failed_when_text_too_long():
-    long = "가" * 81
+    long = "가" * 31
     _FakeAsyncClient.contents = [
         f'{{"quest_text": "{long}"}}',
         f'{{"quest_text": "{long}"}}',

@@ -6,9 +6,10 @@ from fastapi import Depends, FastAPI, Request
 
 from adapters.character_creation.local_storage import LocalStorage
 from adapters.character_creation.memory_repo import InMemoryRepo
-from adapters.character_creation.openai_llm import OpenAILLM as OpenAICharacterLLM
 from adapters.character_creation.passthrough_s3 import PassthroughSourceS3
 from adapters.character_creation.qwen_llm import QwenLLM as QwenCharacterLLM
+from adapters.feed_generation.qwen_llm import QwenLLM as QwenFeedLLM
+from adapters.feed_generation.s3_adapter import FeedS3Adapter
 from adapters.quest_generation.fake_llm import FakeLLM as FakeQuestLLM
 from adapters.quest_generation.qwen_llm import QwenLLM as QwenQuestLLM
 from adapters.todo_creation.memory_repo import MemoryTodoRepository
@@ -16,12 +17,13 @@ from adapters.todo_creation.qwen_llm import QwenLLM as QwenTodoLLM
 from adapters.todo_creation.noop_quest_dispatch import NoOpQuestDispatch
 from adapters.todo_creation.request_quest_counter import RequestQuestCounter
 from agents.character_creation.pipeline import Ports as CharacterPorts
-from agents.character_creation.schemas import LLMPersonaResult
+from agents.feed_generation.pipeline import Ports as FeedPorts
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
 from agents.todo_creation.planner.pipeline import PlannerPorts
 from agents.todo_creation.todo.pipeline import GeneratePorts
 
+from api.character_creation.jobs import CharacterJobStore
 from api.config import AppConfig
 
 
@@ -30,6 +32,7 @@ async def lifespan(app: FastAPI):
     """앱 시작 시 설정 1회 로드. 이미지 생성기는 첫 character 요청에서 지연 생성."""
     app.state.config = AppConfig.from_env()
     app.state.image_generator = None
+    app.state.character_jobs = CharacterJobStore()
     yield
 
 
@@ -41,13 +44,14 @@ def _build_character_llm(cfg: AppConfig):
     if cfg.llm_provider == "runpod":
         from adapters.character_creation.runpod_llm import RunPodQwenLLM as RunPodCharacterLLM
 
-        if not cfg.runpod_village_endpoint_url:
+        if not cfg.runpod_character_endpoint_url:
             raise RuntimeError(
-                "LLM_PROVIDER=runpod 인데 RUNPOD_VILLAGE_ENDPOINT_URL 이 없습니다"
+                "LLM_PROVIDER=runpod 인데 RUNPOD_CHARACTER_ENDPOINT_URL 이 없습니다"
             )
         return RunPodCharacterLLM(
-            endpoint_url=cfg.runpod_village_endpoint_url,
+            endpoint_url=cfg.runpod_character_endpoint_url,
             api_key=cfg.runpod_api_key,
+            adapter="character",
         )
     if cfg.llm_provider == "qwen":
         assert cfg.qwen_base_url and cfg.qwen_persona_model
@@ -59,7 +63,7 @@ def _build_character_llm(cfg: AppConfig):
     raise RuntimeError("character LLM 은 Qwen 또는 RunPod 전용입니다 — LLM_PROVIDER=qwen|runpod 으로 설정하세요")
 
 
-def _build_todo_llm(cfg: AppConfig):
+def _build_todo_llm(cfg: AppConfig, *, adapter: str = "planner"):
     if cfg.llm_provider == "runpod":
         from adapters.todo_creation.runpod_llm import RunPodQwenLLM as RunPodTodoLLM
 
@@ -70,6 +74,7 @@ def _build_todo_llm(cfg: AppConfig):
         return RunPodTodoLLM(
             endpoint_url=cfg.runpod_planner_endpoint_url,
             api_key=cfg.runpod_api_key,
+            adapter=adapter,
         )
     if not (cfg.qwen_base_url and cfg.qwen_model):
         raise RuntimeError(
@@ -84,13 +89,14 @@ def _build_quest_llm(cfg: AppConfig):
     if cfg.quest_llm_provider == "runpod":
         from adapters.quest_generation.runpod_llm import RunPodQwenLLM as RunPodQuestLLM
 
-        if not cfg.runpod_planner_endpoint_url:
+        if not cfg.runpod_character_endpoint_url:
             raise RuntimeError(
-                "QUEST_LLM_PROVIDER=runpod 인데 RUNPOD_PLANNER_ENDPOINT_URL 이 없습니다"
+                "QUEST_LLM_PROVIDER=runpod 인데 RUNPOD_CHARACTER_ENDPOINT_URL 이 없습니다"
             )
         return RunPodQuestLLM(
-            endpoint_url=cfg.runpod_planner_endpoint_url,
+            endpoint_url=cfg.runpod_character_endpoint_url,
             api_key=cfg.runpod_api_key,
+            adapter="quest",
         )
     assert cfg.qwen_base_url and cfg.qwen_model
     return QwenQuestLLM(
@@ -157,11 +163,13 @@ def _build_storage(cfg: AppConfig):
 # ---- 피처별 ports 빌더 (순수 함수, 테스트에서 직접 호출 가능) ----
 
 def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
-    return GeneratePorts(llm=_build_todo_llm(cfg))
+    # 단일 TODO 분해(splitter)는 planner LoRA(계획 확장 성향)가 아니라
+    # base 모델을 써서 명시된 할 일만 그대로 추출한다. planner 는 /chat 전용.
+    return GeneratePorts(llm=_build_todo_llm(cfg, adapter="base"))
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
-    return PlannerPorts(llm=_build_todo_llm(cfg))
+    return PlannerPorts(llm=_build_todo_llm(cfg, adapter="planner"))
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:
@@ -211,3 +219,22 @@ def get_todo_planner_ports(cfg: AppConfig = Depends(get_config)) -> PlannerPorts
 
 def get_quest_ports(cfg: AppConfig = Depends(get_config)) -> QuestPorts:
     return build_quest_ports(cfg)
+
+
+def build_feed_ports(request: Request, cfg: AppConfig) -> FeedPorts:
+    return FeedPorts(
+        llm=QwenFeedLLM(
+            model=cfg.qwen_model or "",
+            base_url=cfg.qwen_base_url or "",
+            api_key=cfg.qwen_api_key,
+        ),
+        image_generator=_get_image_generator(request),
+        s3=FeedS3Adapter(_build_storage(cfg)),
+    )
+
+
+def get_feed_ports(
+    request: Request,
+    cfg: AppConfig = Depends(get_config),
+) -> FeedPorts:
+    return build_feed_ports(request, cfg)

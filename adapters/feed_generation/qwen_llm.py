@@ -16,7 +16,7 @@ class QwenLLM:
     model: str = DEFAULT_QWEN_MODEL
     base_url: str = "http://localhost:8000/v1"
     api_key: str = "EMPTY"
-    temperature: float = 0.3
+    temperature: float = 0.75  # 캡션 창작 다양성
     max_tokens: int = 300
     timeout_seconds: float = 30.0
 

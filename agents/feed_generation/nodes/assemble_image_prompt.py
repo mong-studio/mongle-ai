@@ -9,11 +9,9 @@ _Target = Literal["img2img"]
 
 
 def _build_image_prompt(character: CharacterRef, quest: QuestRef) -> str:
-    keywords = ", ".join(character.appearance_keywords)
-    return (
-        f"{keywords}, performing task: {quest.quest_text}, "
-        "anime style, detailed illustration, vibrant colors"
-    )
+    keywords = ", ".join(k for k in character.appearance_keywords if k.strip())
+    base = f"performing task: {quest.quest_text}, anime style, detailed illustration, vibrant colors"
+    return f"{keywords}, {base}" if keywords else base
 
 
 async def assemble_image_prompt_node(state: FeedGraphState, config: dict) -> Command[_Target]:

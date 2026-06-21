@@ -20,7 +20,7 @@ class TaskCandidate(BaseModel):
 
 
 class CandidatesResult(BaseModel):
-    """후보 확정/검토 단계 응답 (todo + planner 공통).
+    """후보 확정/검토 단계 응답 (single + multi 공통).
 
     `thread_id` 는 todo 의 1-shot 호출에서도 발급된 값을 echo 한다.
     기존 todo date_router 호출 시 default `""` 로 호환.

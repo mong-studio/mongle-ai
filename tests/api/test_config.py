@@ -25,9 +25,11 @@ def test_from_env_local_backend(monkeypatch):
 
 def test_missing_required_env_raises(monkeypatch):
     """필수 환경변수가 빠지면 MissingEnvError를 던진다."""
-    monkeypatch.delenv("LORA_DIR", raising=False)
+    # config.py 가 import 시 .env 를 load_dotenv 하므로, 개발용 .env 오염에
+    # 흔들리지 않게 provider 들을 명시 고정한 뒤 필수값 하나를 비운다.
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "local")
     monkeypatch.delenv("QWEN_BASE_URL", raising=False)
-    monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
     with pytest.raises(MissingEnvError):
         AppConfig.from_env()
 
@@ -188,6 +190,7 @@ def test_image_provider_defaults_to_local(monkeypatch):
 def test_image_provider_local_missing_lora_dir_raises(monkeypatch):
     """local 프로바이더인데 LORA_DIR 이 없으면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "local")  # .env(load_dotenv)의 runpod 누수 차단
     monkeypatch.delenv("LORA_DIR", raising=False)
     with pytest.raises(MissingEnvError, match="LORA_DIR"):
         AppConfig.from_env()

@@ -10,11 +10,11 @@ from agents.todo_creation.exceptions import LLMFailedError
 
 ENDPOINT = "https://api.runpod.ai/v2/test-ep"
 MESSAGES = [{"role": "user", "content": "안녕"}]
-_PATCH = "adapters.todo_creation.runpod_llm.httpx.AsyncClient"
+_PATCH = "adapters._shared.runpod_client.httpx.AsyncClient"
 
 
 def _llm(**kw) -> RunPodQwenLLM:
-    defaults = dict(endpoint_url=ENDPOINT, api_key="rp-key", poll_interval=0.0, poll_timeout=5.0)
+    defaults = dict(endpoint_url=ENDPOINT, api_key="rp-key", adapter="planner", poll_interval=0.0, poll_timeout=5.0)
     defaults.update(kw)
     return RunPodQwenLLM(**defaults)
 
@@ -110,3 +110,13 @@ async def test_timeout_raises() -> None:
     with patch(_PATCH, return_value=client):
         with pytest.raises(LLMFailedError, match="timed out"):
             await _llm(poll_timeout=0.0).complete_raw(messages=MESSAGES)
+
+
+@pytest.mark.asyncio
+async def test_payload_includes_adapter() -> None:
+    """멀티-LoRA 엔드포인트가 어댑터를 고를 수 있도록 input.adapter 를 보낸다."""
+    client = _mock_client(statuses=[{"status": "COMPLETED", "output": {"text": "ok"}}])
+    with patch(_PATCH, return_value=client):
+        await _llm(adapter="planner").complete_raw(messages=MESSAGES)
+    sent = client.post.call_args.kwargs["json"]
+    assert sent["input"]["adapter"] == "planner"

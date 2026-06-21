@@ -31,6 +31,7 @@ class ParsedGoal(TypedDict, total=False):
     revision_request: str | None
     previous_plan: list[PlanDay]
     user_profile_memory: dict[str, Any]
+    personalization_patch: dict[str, Any]
 
 
 class PlanDay(TypedDict):

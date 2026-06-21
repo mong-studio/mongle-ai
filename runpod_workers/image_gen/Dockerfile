@@ -14,16 +14,21 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# bake(가중치 사전 다운로드)를 app 의존성(runpod SDK)보다 앞 레이어에 둔다.
+# 이렇게 하면 runpod SDK 버전만 바꿀 때 bake 캐시가 유지되고 SDXL 수 GB 재다운로드가 생략된다.
+COPY requirements-ml.txt ./
+RUN pip install --no-cache-dir -r requirements-ml.txt
 
-# 공개 베이스 모델(SDXL + ControlNet + rembg u2net)을 빌드 시 미리 받아 콜드스타트 단축
 COPY bake.py ./
 RUN python bake.py
 
-COPY pipeline.py handler.py ./
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 런타임 필수 env:
-#   LORA_REPO_ID — 픽셀아트 LoRA HF repo ID
-#   HF_TOKEN     — private repo 면 필요
+COPY pipeline.py handler.py character_mode.py bg_mode.py ./
+
+# 런타임 env (설정된 어댑터만 등록 — 단독/합본 겸용):
+#   LORA_CHARACTER_REPO — 캐릭터 픽셀아트 LoRA HF repo ID (adapter="character")
+#   LORA_BG_REPO        — 배경 LoRA HF repo ID            (adapter="bg")
+#   HF_TOKEN            — private repo 면 필요
 CMD ["python", "-u", "handler.py"]

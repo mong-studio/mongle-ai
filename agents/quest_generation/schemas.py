@@ -30,7 +30,7 @@ class QuestGenerationInput(BaseModel):
 class GeneratedQuest(BaseModel):
     character_id: UUID
     todo_id: UUID
-    quest_text: Annotated[str, Field(min_length=1, max_length=80)]
+    quest_text: Annotated[str, Field(min_length=1, max_length=30)]
 
 
 class SkippedItem(BaseModel):

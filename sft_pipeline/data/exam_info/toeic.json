@@ -1,0 +1,113 @@
+{
+  "exam_code": "toeic",
+  "display_name": "토익",
+  "aliases": ["토익", "toeic", "TOEIC", "TOEIC Listening & Reading"],
+  "last_verified": "2026-06-14",
+  "official_sources": [
+    {
+      "name": "한국TOEIC위원회(YBM) 공식 토익 안내",
+      "url": "https://exam.toeic.co.kr",
+      "notes": ["출제기관: ETS", "국내 시행: YBM 한국TOEIC위원회"]
+    },
+    {
+      "name": "ETS TOEIC Listening & Reading Test 공식 안내",
+      "url": "https://www.ets.org/toeic.html",
+      "notes": ["TOEIC Listening & Reading 기준", "합격/불합격이 없는 점수형 시험"]
+    }
+  ],
+  "exam_format": {
+    "total_questions": 200,
+    "total_minutes": 120,
+    "max_score": 990,
+    "passing_rule": "합격/불합격 없음 — 목표 점수 기준(990점 만점, LC 495 + RC 495)"
+  },
+  "exam_parts": {
+    "listening": {
+      "name": "토익 LC(Listening Comprehension)",
+      "parts": [
+        "Part1 사진 묘사(6문항)",
+        "Part2 질의응답(25문항)",
+        "Part3 짧은 대화(39문항)",
+        "Part4 짧은 담화(30문항)"
+      ],
+      "question_count": "100문항",
+      "duration_minutes": 45,
+      "max_score": 495,
+      "scoring_rule": "LC 100문항 환산점수 5~495점"
+    },
+    "reading": {
+      "name": "토익 RC(Reading Comprehension)",
+      "parts": [
+        "Part5 단문 빈칸(30문항)",
+        "Part6 장문 빈칸(16문항)",
+        "Part7 독해(54문항)"
+      ],
+      "question_count": "100문항",
+      "duration_minutes": 75,
+      "max_score": 495,
+      "scoring_rule": "RC 100문항 환산점수 5~495점"
+    }
+  },
+  "review_patterns": [
+    {
+      "case_id": "toeic-overall-nobase-30d-700",
+      "part": "overall",
+      "time_left_days": 30,
+      "daily_hours": 3,
+      "start_level": "노베이스, 모의고사 미응시",
+      "goal": "700점",
+      "reported_score": "700점대 초반",
+      "result": "달성",
+      "process": "공식 구성(LC 100문항·RC 100문항)을 먼저 파악하고, 매일 빈출 단어를 외우면서 Part5 문법과 Part3·4 받아쓰기를 병행했다. 마지막 주에는 ETS 공식 모의고사로 시간 배분을 맞췄다.",
+      "evidence_summary": "노베이스 단기 후기는 단어·Part5 문법·LC 받아쓰기를 매일 병행하고 모의고사로 점검하는 패턴이 많다."
+    },
+    {
+      "case_id": "toeic-reading-worker-14d-800",
+      "part": "reading",
+      "time_left_days": 14,
+      "daily_hours": 2,
+      "start_level": "직장 병행, LC는 안정 RC가 약점",
+      "goal": "800점",
+      "reported_score": "800점대 초반",
+      "result": "달성",
+      "process": "평일에는 Part5 문법 포인트와 Part7 독해 속도를 집중했고, 시간이 부족한 Part7은 지문 유형별로 풀이 순서를 정해 시간 배분을 연습했다.",
+      "evidence_summary": "RC 약점 후기는 Part5 문법과 Part7 독해 속도·시간 배분 훈련에 시간을 집중하는 경향이 있다."
+    },
+    {
+      "case_id": "toeic-listening-21d-850",
+      "part": "listening",
+      "time_left_days": 21,
+      "daily_hours": 3,
+      "start_level": "RC는 안정, LC 청취가 약점",
+      "goal": "850점",
+      "reported_score": "850점대",
+      "result": "달성",
+      "process": "Part2 질의응답 패턴을 익히고 Part3·4는 받아쓰기와 쉐도잉으로 청취력을 끌어올렸다. 매일 모의 LC 한 세트로 실전 감각을 유지했다.",
+      "evidence_summary": "LC 약점 후기는 Part2 패턴 학습과 Part3·4 쉐도잉·받아쓰기로 청취력을 보완하는 패턴이 많다."
+    },
+    {
+      "case_id": "toeic-overall-cram-7d-fail",
+      "part": "overall",
+      "time_left_days": 7,
+      "daily_hours": 4,
+      "start_level": "기출 미응시, 단어 부족",
+      "goal": "750점",
+      "reported_score": "650점대",
+      "result": "미달",
+      "process": "단어 암기에 시간을 거의 쓰고 Part7 독해와 모의고사 시간 배분 연습이 부족해, 실제 시험에서 RC 시간이 모자랐다.",
+      "evidence_summary": "초단기 미달 사례는 단어 암기에 치우치고 Part7 독해 속도·시간 배분 연습 부족이 자주 드러난다."
+    },
+    {
+      "case_id": "toeic-overall-45d-900",
+      "part": "overall",
+      "time_left_days": 45,
+      "daily_hours": 3,
+      "start_level": "중급, 750점 보유",
+      "goal": "900점",
+      "reported_score": "900점대 초반",
+      "result": "달성",
+      "process": "약점 파트(Part3·4, Part7)를 데이터로 확인해 집중 보완하고, 고난도 단어와 패러프레이징을 정리했다. 주 2회 ETS 공식 모의고사로 990점 만점 기준 컷을 점검했다.",
+      "evidence_summary": "고득점 후기는 오답 데이터로 약점 파트를 좁히고 공식 모의고사로 컷을 반복 점검하는 전략이 많다."
+    }
+  ]
+}
