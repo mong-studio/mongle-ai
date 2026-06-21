@@ -21,10 +21,18 @@ class QwenLLM:
     timeout_seconds: float = 30.0
 
     async def generate(self, prompt: str) -> str:
+        content = await self._complete_raw(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        if not content:
+            raise CaptionGenerationError("Qwen 응답에 content가 없습니다")
+        return content.strip()
+
+    async def _complete_raw(self, *, messages: list[dict[str, str]]) -> str:
         endpoint = self.base_url.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
@@ -37,11 +45,6 @@ class QwenLLM:
                 )
                 response.raise_for_status()
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            if not content:
-                raise CaptionGenerationError("Qwen 응답에 content가 없습니다")
-            return str(content).strip()
-        except CaptionGenerationError:
-            raise
+            return str(data["choices"][0]["message"]["content"] or "")
         except Exception as exc:
             raise CaptionGenerationError(str(exc)) from exc
