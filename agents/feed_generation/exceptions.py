@@ -29,7 +29,3 @@ class CaptionValidationError(FeedGenerationError):
         super().__init__(message)
         self.code = code
         self.message = message
-
-
-class PromptGenerationError(FeedGenerationError):
-    """피드 프롬프트(action/scene) 생성 실패."""
