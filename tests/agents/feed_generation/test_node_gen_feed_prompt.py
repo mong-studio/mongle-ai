@@ -26,3 +26,10 @@ async def test_missing_scene_falls_back_to_action():
 async def test_llm_failure_raises_prompt_error():
     with pytest.raises(PromptGenerationError):
         await gen_feed_prompt_node(make_state(), {"configurable": {"ports": make_ports(llm=FailingLLM())}})
+
+
+async def test_garbled_llm_output_raises_prompt_error():
+    # action:/scene: 마커가 없는 출력 → 파싱 결과 빈 action → PromptGenerationError
+    llm = FakeLLM("sorry I cannot help with that")
+    with pytest.raises(PromptGenerationError):
+        await gen_feed_prompt_node(make_state(), {"configurable": {"ports": make_ports(llm=llm)}})
