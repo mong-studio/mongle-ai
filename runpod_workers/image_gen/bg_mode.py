@@ -57,7 +57,11 @@ class BgMode:
         return buf.getvalue()
 
     def generate(
-        self, *, source_image_bytes: bytes | None = None, prompt: str | None = None
+        self,
+        *,
+        source_image_bytes: bytes | None = None,
+        prompt: str | None = None,
+        scene_prompt: str | None = None,  # feed 합본 계약 호환용 — bg 모드는 미사용
     ) -> bytes:
         """bg 모드는 텍스트 프롬프트 기반 — source_image_bytes 인자는 사용하지 않는다."""
         if not prompt or not prompt.strip():

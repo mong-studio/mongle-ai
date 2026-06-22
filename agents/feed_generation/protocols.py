@@ -9,7 +9,9 @@ class LLMPort(Protocol):
 
 
 class ImageGeneratorPort(Protocol):
-    async def generate_img2img(self, reference_url: str, prompt: str) -> bytes: ...
+    async def generate_feed(
+        self, reference_url: str, character_prompt: str, scene_prompt: str
+    ) -> bytes: ...
 
 
 class S3Port(Protocol):

@@ -6,15 +6,15 @@ from agents.feed_generation.exceptions import CaptionGenerationError
 from agents.feed_generation.protocols import Ports
 from agents.feed_generation.state import FeedGraphState
 
-_Target = Literal["validate_caption"]
+_Target = Literal["builder"]
 
 
 async def llm_caption_node(state: FeedGraphState, config: dict[str, Any]) -> Command[_Target]:
     ports: Ports = config["configurable"]["ports"]
     try:
-        raw_caption = await ports.llm.generate(state["caption_ctx"])
+        raw_caption = await ports.llm.generate(state["caption_prompt"])
     except CaptionGenerationError:
         raise
     except Exception as exc:
         raise CaptionGenerationError(str(exc)) from exc
-    return Command(update={"raw_caption": raw_caption}, goto="validate_caption")
+    return Command(update={"raw_caption": raw_caption}, goto="builder")

@@ -106,6 +106,7 @@ async def test_generate_without_source_sends_null_b64() -> None:
                 "source_image_b64": None,
                 "adapter": "character",
                 "prompt": "둥근 갈색 곰",
+                "scene_prompt": None,
             }
         }
     ]

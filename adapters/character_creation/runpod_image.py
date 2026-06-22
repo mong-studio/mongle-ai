@@ -56,23 +56,41 @@ class RunPodImageGenerator:
                 f"[ERROR] RunPod image generation failed: {err}"
             ) from err
 
-    async def generate_img2img(self, reference_url: str, prompt: str) -> bytes:
-        """피드 파이프라인용: reference_url 이미지를 기반으로 img2img 생성."""
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            resp = await client.get(reference_url)
+    async def generate_feed(
+        self, reference_url: str, character_prompt: str, scene_prompt: str
+    ) -> bytes:
+        """피드: reference 이미지 기반 5단계 feed 모드(adapter="feed").
+
+        character_prompt(캐릭터 포즈)와 scene_prompt(배경 장면)를 워커로 보내
+        캐릭터 img2img→배경→합성→블렌딩까지 마친 완성 PNG를 받는다.
+        """
+        client = self._client or httpx.AsyncClient()
+        owns_client = self._client is None
+        try:
+            resp = await client.get(reference_url, timeout=_HTTP_TIMEOUT)
             resp.raise_for_status()
             source_image_bytes = resp.content
+        finally:
+            if owns_client:
+                await client.aclose()
         try:
-            return await self._submit_and_poll(source_image_bytes, prompt, adapter="character")
+            return await self._submit_and_poll(
+                source_image_bytes, character_prompt, adapter="feed", scene_prompt=scene_prompt
+            )
         except ImageGenerationFailedError:
             raise
         except Exception as err:
             raise ImageGenerationFailedError(
-                f"[ERROR] RunPod img2img failed: {err}"
+                f"[ERROR] RunPod feed 생성 실패: {err}"
             ) from err
 
     async def _submit_and_poll(
-        self, source_image_bytes: bytes | None, prompt: str | None, *, adapter: str = "character"
+        self,
+        source_image_bytes: bytes | None,
+        prompt: str | None,
+        *,
+        adapter: str = "character",
+        scene_prompt: str | None = None,
     ) -> bytes:
         source_b64 = (
             base64.b64encode(source_image_bytes).decode()
@@ -84,6 +102,7 @@ class RunPodImageGenerator:
                 "source_image_b64": source_b64,
                 "adapter": adapter,
                 "prompt": prompt,
+                "scene_prompt": scene_prompt,
             }
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}

@@ -5,17 +5,16 @@ from agents.feed_generation.exceptions import (
     CaptionGenerationError,
     FeedGenerationError,
     ImageGenerationError,
+    PromptGenerationError,
     S3UploadError,
 )
 from agents.feed_generation.nodes import (
-    assemble_caption_ctx,
-    assemble_image_prompt,
     builder,
-    img2img,
+    feed_image,
+    gen_caption_prompt,
+    gen_feed_prompt,
     llm_caption,
     s3_upload,
-    validate,
-    validate_caption,
 )
 from agents.feed_generation.protocols import Ports
 from agents.feed_generation.schemas import FeedGenerationInput, GeneratedFeed
@@ -25,11 +24,14 @@ from agents.feed_generation.state import FeedGraphState
 def build_graph():
     graph = StateGraph(FeedGraphState)
 
-    graph.add_node("validate", validate.validate_node)
-    graph.add_node("assemble_image_prompt", assemble_image_prompt.assemble_image_prompt_node)
     graph.add_node(
-        "img2img",
-        img2img.img2img_node,
+        "gen_feed_prompt",
+        gen_feed_prompt.gen_feed_prompt_node,
+        retry=RetryPolicy(max_attempts=3, retry_on=PromptGenerationError),
+    )
+    graph.add_node(
+        "feed_image",
+        feed_image.feed_image_node,
         retry=RetryPolicy(max_attempts=3, retry_on=ImageGenerationError),
     )
     graph.add_node(
@@ -37,23 +39,20 @@ def build_graph():
         s3_upload.s3_upload_node,
         retry=RetryPolicy(max_attempts=3, retry_on=S3UploadError),
     )
-    graph.add_node("assemble_caption_ctx", assemble_caption_ctx.assemble_caption_ctx_node)
+    graph.add_node("gen_caption_prompt", gen_caption_prompt.gen_caption_prompt_node)
     graph.add_node(
         "llm_caption",
         llm_caption.llm_caption_node,
         retry=RetryPolicy(max_attempts=3, retry_on=CaptionGenerationError),
     )
-    graph.add_node("validate_caption", validate_caption.validate_caption_node)
     graph.add_node("builder", builder.builder_node)
 
-    graph.add_edge(START, "validate")
-    graph.add_edge("validate", "assemble_image_prompt")
-    graph.add_edge("assemble_image_prompt", "img2img")
-    graph.add_edge("img2img", "s3_upload")
-    graph.add_edge("s3_upload", "assemble_caption_ctx")
-    graph.add_edge("assemble_caption_ctx", "llm_caption")
-    graph.add_edge("llm_caption", "validate_caption")
-    graph.add_edge("validate_caption", "builder")
+    graph.add_edge(START, "gen_feed_prompt")
+    graph.add_edge("gen_feed_prompt", "feed_image")
+    graph.add_edge("feed_image", "s3_upload")
+    graph.add_edge("s3_upload", "gen_caption_prompt")
+    graph.add_edge("gen_caption_prompt", "llm_caption")
+    graph.add_edge("llm_caption", "builder")
     graph.add_edge("builder", END)
 
     return graph.compile()
@@ -65,10 +64,10 @@ _graph = build_graph()
 async def run(feed_input: FeedGenerationInput, *, ports: Ports) -> GeneratedFeed:
     initial_state = {
         "input": feed_input,
-        "image_prompt": None,
+        "feed_prompt": None,
         "raw_image": None,
         "image_url": None,
-        "caption_ctx": None,
+        "caption_prompt": None,
         "raw_caption": None,
         "result": None,
     }

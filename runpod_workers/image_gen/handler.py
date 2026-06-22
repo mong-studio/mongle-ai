@@ -1,8 +1,9 @@
 """RunPod Serverless 핸들러 — 멀티-어댑터 이미지 생성.
 
-입력:  {"input": {"adapter": "character|bg",
-                  "source_image_b64": "<base64|null>",   # character 모드
-                  "prompt": "<씬 묘사 텍스트>"}}            # bg 모드
+입력:  {"input": {"adapter": "character|bg|feed",
+                  "source_image_b64": "<base64|null>",   # character/feed 모드(기준 이미지)
+                  "prompt": "<프롬프트 텍스트>",            # bg=씬, feed=캐릭터 포즈
+                  "scene_prompt": "<배경 장면 텍스트|null>"}}  # feed 모드 배경
 출력:  {"image_b64": "<base64 PNG>"}
 실패:  예외 전파 → RunPod 이 job 을 FAILED 로 마킹 (호출측 어댑터가 처리)
 """
@@ -20,16 +21,16 @@ def handler(job: dict) -> dict:
 
     adapter = job_input.get("adapter")
     if not adapter or not isinstance(adapter, str):
-        raise ValueError("[ERROR] 'adapter' 필드가 필요합니다 (character|bg)")
+        raise ValueError("[ERROR] 'adapter' 필드가 필요합니다 (character|bg|feed)")
 
     source_b64 = job_input.get("source_image_b64")
     source_bytes = base64.b64decode(source_b64, validate=True) if source_b64 else None
-    prompt = job_input.get("prompt")
 
     png_bytes = get_pipeline().generate(
         adapter=adapter,
         source_image_bytes=source_bytes,
-        prompt=prompt,
+        prompt=job_input.get("prompt"),
+        scene_prompt=job_input.get("scene_prompt"),
     )
     return {"image_b64": base64.b64encode(png_bytes).decode()}
 

@@ -25,10 +25,11 @@ RUN python bake.py
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY pipeline.py handler.py character_mode.py bg_mode.py ./
+COPY pipeline.py handler.py character_mode.py bg_mode.py feed_mode.py ./
 
 # 런타임 env (설정된 어댑터만 등록 — 단독/합본 겸용):
 #   LORA_CHARACTER_REPO — 캐릭터 픽셀아트 LoRA HF repo ID (adapter="character")
 #   LORA_BG_REPO        — 배경 LoRA HF repo ID            (adapter="bg")
+#   (둘 다 설정 시) adapter="feed" 5단계 파이프라인 사용 가능 (feed_mode.py)
 #   HF_TOKEN            — private repo 면 필요
 CMD ["python", "-u", "handler.py"]

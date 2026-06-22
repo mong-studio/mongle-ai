@@ -119,7 +119,11 @@ class CharacterMode:
         return buf.getvalue()
 
     def generate(
-        self, *, source_image_bytes: bytes | None = None, prompt: str | None = None
+        self,
+        *,
+        source_image_bytes: bytes | None = None,
+        prompt: str | None = None,
+        scene_prompt: str | None = None,  # feed 합본 계약 호환용 — character 모드는 미사용
     ) -> bytes:
         """사진이 있으면 img2img(ControlNet), 없으면 text2img. 둘 다 카드 프롬프트 패턴."""
         full_prompt = self._prompt_for(prompt)
