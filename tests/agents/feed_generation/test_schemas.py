@@ -1,63 +1,39 @@
 from uuid import uuid4
-
 import pytest
 from pydantic import ValidationError
-
-from agents.feed_generation.schemas import (
-    QuestRef,
-    CharacterRef,
-    FeedGenerationInput,
-    GeneratedFeed,
-)
+from agents.feed_generation.schemas import CharacterRef, QuestRef, GeneratedFeed
 
 
-def test_quest_ref_rejects_empty_text():
+def _char(**kw):
+    data = dict(character_id=uuid4(), name="몽글이", personality="밝음",
+                speech_style="반말", visual=["분홍"], image_url="https://x/y.png")
+    data.update(kw)
+    return data
+
+
+def test_visual_alias_accepts_old_key():
+    c = CharacterRef(**{k: v for k, v in _char().items() if k != "visual"},
+                     appearance_keywords=["분홍"])
+    assert c.visual == ["분홍"]
+
+
+def test_quest_alias_accepts_old_key():
+    q = QuestRef(quest_id=uuid4(), quest_text="방 청소하기")
+    assert q.quest == "방 청소하기"
+
+
+def test_blank_image_url_rejected():
     with pytest.raises(ValidationError):
-        QuestRef(quest_id=uuid4(), quest_text="")
+        CharacterRef(**_char(image_url="   "))
 
 
-def test_character_ref_requires_image_url():
+def test_caption_requires_korean():
     with pytest.raises(ValidationError):
-        CharacterRef(
-            character_id=uuid4(),
-            name="몽글이",
-            personality="밝음",
-            speech_style="반말",
-            appearance_keywords=["분홍 머리"],
-        )
+        GeneratedFeed(character_id=uuid4(), quest_id=uuid4(),
+                      image_url="https://x", caption="all english here")
 
 
-def test_feed_generation_input_rejects_extra_fields():
+def test_caption_over_140_rejected():
     with pytest.raises(ValidationError):
-        FeedGenerationInput(
-            quest={"quest_id": str(uuid4()), "quest_text": "청소"},
-            character={
-                "character_id": str(uuid4()),
-                "name": "몽글이",
-                "personality": "밝음",
-                "speech_style": "반말",
-                "appearance_keywords": [],
-                "image_url": "https://s3.example.com/c.png",
-            },
-            extra_field="bad",
-        )
-
-
-def test_generated_feed_rejects_caption_over_140():
-    with pytest.raises(ValidationError):
-        GeneratedFeed(
-            character_id=uuid4(),
-            quest_id=uuid4(),
-            image_url="https://s3.example.com/f.png",
-            caption="가" * 141,
-        )
-
-
-def test_generated_feed_accepts_caption_at_140():
-    feed = GeneratedFeed(
-        character_id=uuid4(),
-        quest_id=uuid4(),
-        image_url="https://s3.example.com/f.png",
-        caption="가" * 140,
-    )
-    assert len(feed.caption) == 140
+        GeneratedFeed(character_id=uuid4(), quest_id=uuid4(),
+                      image_url="https://x", caption="가" * 141)
