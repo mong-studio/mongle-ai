@@ -5,41 +5,57 @@ config:
 flowchart TB
     A[/"Input
     FeedGenerationInput
-    (quest, character + image_url)"/]
+    (quest, character + image_url)
+    image_url 공백 검증은 스키마(Pydantic)에서"/]
 
-    A --> VAL["validate
-    character.image_url 비어있으면 InputValidationError"]
-
-    VAL --> CTX1["assemble_image_prompt
-    appearance_keywords + quest_text
-    → image_prompt (텍스트)"]
-
-    CTX1 --> IMG{{"img2img
-    기준 이미지 + image_prompt
-    → raw_image (bytes)
+    A --> CTX1{{"gen_feed_prompt
+    LLM: 한글 quest → action(포즈)/scene(배경) 영문 분해
+    + visual 결합
+    → feed_prompt.character (visual+action)
+    → feed_prompt.scene (배경 장면)
     RetryPolicy max=3"}}
 
-    IMG --> S3{{"s3_upload
-    raw_image → S3 업로드
-    → image_url
+    CTX1 --> FEED{{"feed_image
+    generate_feed(reference_url,
+    feed_prompt.character, feed_prompt.scene)
+    → raw_image (완성 PNG)
+    adapter=feed, RetryPolicy max=3"}}
+
+    subgraph WORKER["RunPod 워커 · FeedMode (GPU, in-process)"]
+      direction TB
+      W1["STEP1 캐릭터 img2img
+      feed_prompt.character 포즈 변환
+      strength 0.75 · LCM 8step"]
+      W2["STEP2 rembg 누끼
+      → 투명 RGBA 스프라이트"]
+      W3["STEP3 배경 text2img
+      feed_prompt.scene · bg LoRA"]
+      W4["STEP4 합성 + 그림자 + rim 마스크"]
+      W5["STEP5 inpaint 블렌딩
+      경계 봉합 strength 0.35"]
+      W1 --> W2 --> W4
+      W3 --> W4 --> W5
+    end
+
+    FEED -. "RunPod /run + poll" .-> WORKER
+    W5 -. "image_b64" .-> FEED
+
+    FEED --> S3{{"s3_upload
+    raw_image → S3 업로드 → image_url
     RetryPolicy max=3"}}
 
-    S3 --> CTX2["assemble_caption_ctx
-    quest + 캐릭터 말투/페르소나 + image_prompt
-    → caption_ctx (LLM 프롬프트)"]
+    S3 --> CTX2["gen_caption_prompt
+    quest + 캐릭터 말투/페르소나
+    → caption_prompt (LLM 프롬프트)"]
 
     CTX2 --> LLM{{"llm_caption
-    Qwen 7B LLM
-    → raw_caption (한글)
+    Qwen 7B LLM → raw_caption (한글)
     RetryPolicy max=3"}}
 
-    LLM --> VCHK["validate_caption
-    len ≤ 140 · 한글 포함 여부
-    CaptionValidationError (재시도 없음)"]
-
-    VCHK --> BUILD["builder
+    LLM --> BUILD["builder
     character_id + quest_id + image_url + caption
-    → GeneratedFeed"]
+    → GeneratedFeed
+    (len ≤ 140 · 한글 포함은 스키마 검증)"]
 
     BUILD --> OUT[/"Output
     GeneratedFeed"/]
@@ -48,14 +64,18 @@ flowchart TB
     classDef process fill:#ffffff,stroke:#6b7280,color:#111827
     classDef ai fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
     classDef gate fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+    classDef worker fill:#ecfeff,stroke:#0891b2,color:#164e63
 
     A:::input
     OUT:::input
-    VAL:::process
-    CTX1:::process
-    IMG:::ai
+    CTX1:::ai
+    FEED:::ai
     S3:::process
     CTX2:::process
     LLM:::ai
-    VCHK:::gate
     BUILD:::process
+    W1:::worker
+    W2:::worker
+    W3:::worker
+    W4:::worker
+    W5:::worker

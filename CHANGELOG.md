@@ -15,6 +15,17 @@
 ## [Unreleased]
 
 ### Added
+- **피드 풀 파이프라인 (RunPod `feed` 모드)**: 피드 이미지가 "정면 캐릭터 스프라이트 한 장"만
+  생성되던 것을, Hadimee `mongle-bg-lora/feed_pipeline` 5단계(캐릭터 img2img 포즈 변환 → rembg
+  누끼 → 배경 text2img → 합성+그림자+rim마스크 → inpaint 경계 블렌딩)로 확장. 5단계는 GPU
+  inpaint 가 필요해 RunPod 워커 안 `feed_mode.FeedMode` 에서 in-process 수행(SDXL 1벌,
+  char+bg+lcm LoRA, `from_pipe` 공유)하고, 에이전트는 워커를 1회 호출한다.
+  - 에이전트 그래프 단순화: `gen_feed_prompt(LLM action/scene 분해) → feed_image → s3_upload →
+    gen_caption_prompt → llm_caption → builder`. 입력/출력 검증을 LangGraph 노드에서 Pydantic
+    스키마로 이전(`validate`/`validate_caption` 노드 제거; caption ≤140·한글은 `GeneratedFeed`).
+  - 스키마 필드 개명 `appearance_keywords→visual`, `quest_text→quest` (구 키 `AliasChoices` 호환 →
+    mongle-server payload 무중단 전환). 워커 `adapter="feed"` 추가 + 모드 lazy-load + `scene_prompt`
+    계약. 워커/RunPod LoRA env 는 불변(이미 char+bg 둘 다 설정).
 - **캐릭터 appearance 영어 번역 노드 (이미지 충실도 수정)**: SDXL 텍스트 인코더(CLIP)가
   영어 전용이라 한국어 `appearance`(외형)가 이미지에 반영되지 않던 문제. 라이브 검증으로
   확인(한국어 "갈색 곰"→초록 blob, 동일 의미 **영어**→정확한 여우). 페르소나 그래프에
