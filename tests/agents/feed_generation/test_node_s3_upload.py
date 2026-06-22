@@ -9,7 +9,7 @@ from tests.agents.feed_generation.fakes import (
 )
 
 
-async def test_s3_upload_node_sets_image_url_and_routes_to_assemble_caption_ctx():
+async def test_s3_upload_node_sets_image_url_and_routes_to_gen_caption_prompt():
     fake_s3 = FakeS3(url="https://s3.example.com/feeds/out.png")
     ports = make_ports(s3=fake_s3)
     state = make_state(raw_image=b"img_data")
@@ -17,7 +17,7 @@ async def test_s3_upload_node_sets_image_url_and_routes_to_assemble_caption_ctx(
 
     cmd = await s3_upload_node(state, config)
 
-    assert cmd.goto == "assemble_caption_ctx"
+    assert cmd.goto == "gen_caption_prompt"
     assert cmd.update["image_url"] == "https://s3.example.com/feeds/out.png"
 
 

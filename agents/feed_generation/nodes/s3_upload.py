@@ -6,7 +6,7 @@ from agents.feed_generation.exceptions import S3UploadError
 from agents.feed_generation.protocols import Ports
 from agents.feed_generation.state import FeedGraphState
 
-_Target = Literal["assemble_caption_ctx"]
+_Target = Literal["gen_caption_prompt"]
 
 
 async def s3_upload_node(state: FeedGraphState, config: dict[str, Any]) -> Command[_Target]:
@@ -20,4 +20,4 @@ async def s3_upload_node(state: FeedGraphState, config: dict[str, Any]) -> Comma
         raise
     except Exception as exc:
         raise S3UploadError(str(exc)) from exc
-    return Command(update={"image_url": image_url}, goto="assemble_caption_ctx")
+    return Command(update={"image_url": image_url}, goto="gen_caption_prompt")
