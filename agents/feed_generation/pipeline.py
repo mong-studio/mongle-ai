@@ -5,7 +5,6 @@ from agents.feed_generation.exceptions import (
     CaptionGenerationError,
     FeedGenerationError,
     ImageGenerationError,
-    PromptGenerationError,
     S3UploadError,
 )
 from agents.feed_generation.nodes import (
@@ -24,11 +23,7 @@ from agents.feed_generation.state import FeedGraphState
 def build_graph():
     graph = StateGraph(FeedGraphState)
 
-    graph.add_node(
-        "gen_feed_prompt",
-        gen_feed_prompt.gen_feed_prompt_node,
-        retry=RetryPolicy(max_attempts=3, retry_on=PromptGenerationError),
-    )
+    graph.add_node("gen_feed_prompt", gen_feed_prompt.gen_feed_prompt_node)
     graph.add_node(
         "feed_image",
         feed_image.feed_image_node,

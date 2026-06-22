@@ -1,51 +1,25 @@
 from typing import Any, Literal
+
 from langgraph.types import Command
-from agents.feed_generation.exceptions import PromptGenerationError
-from agents.feed_generation.protocols import Ports
+
 from agents.feed_generation.schemas import CharacterRef, FeedPrompt, QuestRef
 from agents.feed_generation.state import FeedGraphState
 
 _Target = Literal["feed_image"]
 
-_SYSTEM = (
-    "You convert a Korean quest into two English lines for a pixel-art image.\n"
-    "Output EXACTLY two lines:\n"
-    "action: <6-12 word verb-starting phrase, the character performing the quest>\n"
-    "scene: <short background scene description, no characters>\n"
-    "Quest: {quest}"
-)
 
-
-def _parse(text: str) -> tuple[str, str]:
-    action = scene = ""
-    for line in text.splitlines():
-        low = line.strip().lower()
-        if low.startswith("action:"):
-            action = line.split(":", 1)[1].strip()
-        elif low.startswith("scene:"):
-            scene = line.split(":", 1)[1].strip()
-    action = action or scene
-    scene = scene or action
-    return action, scene
-
-
-def _character_prompt(character: CharacterRef, action: str) -> str:
+def _character_prompt(character: CharacterRef, quest: QuestRef) -> str:
     visual = ", ".join(k for k in character.visual if k.strip())
-    return f"{visual}, {action}" if visual else action
+    return f"{visual}, {quest.quest}" if visual else quest.quest
 
 
 async def gen_feed_prompt_node(state: FeedGraphState, config: dict[str, Any]) -> Command[_Target]:
-    ports: Ports = config["configurable"]["ports"]
-    quest: QuestRef = state["input"].quest
-    try:
-        raw = await ports.llm.generate(_SYSTEM.format(quest=quest.quest))
-    except Exception as exc:
-        raise PromptGenerationError(str(exc)) from exc
-    action, scene = _parse(raw)
-    if not action:
-        raise PromptGenerationError("LLM이 action/scene을 반환하지 않음")
+    # quest 를 캐릭터 포즈·배경 장면에 직접 사용(reference run.py 의 --quest-en pass-through).
+    # 영문 action/scene 분리는 별도 VLM 몫이라 생략 — 워커 프롬프트 템플릿(monglestyle
+    # LoRA + BG_STYLE)이 스타일·배경을 잡는다. LLM 호출이 없어 실패 지점도 없다.
+    quest = state["input"].quest
     feed_prompt = FeedPrompt(
-        character=_character_prompt(state["input"].character, action),
-        scene=scene,
+        character=_character_prompt(state["input"].character, quest),
+        scene=quest.quest,
     )
     return Command(update={"feed_prompt": feed_prompt}, goto="feed_image")
