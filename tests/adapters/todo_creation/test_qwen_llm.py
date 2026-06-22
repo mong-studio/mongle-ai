@@ -268,6 +268,188 @@ async def test_judge_sufficiency_parses_out_of_scope() -> None:
     assert goal["intent"] == "out_of_scope"
 
 
+async def test_judge_sufficiency_routine_schema_driven_sufficient() -> None:
+    # routine 필수 슬롯(activity, cadence) 이 다 차면, 모델이 is_sufficient 를
+    # 무엇이라 보냈든 코드(스키마 뱅크)가 충족으로 판정한다.
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": False,
+                        "missing_aspects": ["scope"],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": "routine",
+                            "slots": {"activity": "헬스", "cadence": "주3"},
+                            "goal_text": "주 3회 헬스",
+                            "goal_tag": "헬스루틴",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, goal = await llm.judge_sufficiency(
+        history=[], message="매주 3번 헬스", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is True
+    assert missing == []
+    assert goal["plan_kind"] == "routine"
+    assert goal["slots"]["activity"] == "헬스"
+
+
+async def test_judge_sufficiency_routine_missing_slot_follows_up() -> None:
+    # cadence 가 비면 스키마 기준 미충족 → cadence 를 missing 으로.
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": True,
+                        "missing_aspects": [],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": "routine",
+                            "slots": {"activity": "헬스"},
+                            "goal_text": "헬스",
+                            "goal_tag": "헬스",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, _ = await llm.judge_sufficiency(
+        history=[], message="헬스 하고 싶어", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is False
+    assert missing == ["cadence"]
+
+
+async def test_judge_sufficiency_routine_vague_cadence_follows_up() -> None:
+    # cadence 가 '매주'처럼 빈도(주 N회/요일) 없는 모호 표현이면, 슬롯이 차 있어도
+    # 미충족으로 보고 cadence 를 되묻는다.
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": True,
+                        "missing_aspects": [],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": "routine",
+                            "slots": {"activity": "운동", "cadence": "매주"},
+                            "goal_text": "매주 운동",
+                            "goal_tag": "운동",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, _ = await llm.judge_sufficiency(
+        history=[], message="매주 운동하고 싶어", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is False
+    assert missing == ["cadence"]
+
+
+async def test_judge_sufficiency_malformed_plan_kind_does_not_crash() -> None:
+    # 모델이 plan_kind 를 비정상(리스트 등 unhashable)으로 주어도 크래시 없이
+    # 미분류로 폴백하고 모델 결정을 따른다.
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": True,
+                        "missing_aspects": [],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": ["routine"],
+                            "slots": {"activity": "헬스"},
+                            "goal_text": "헬스",
+                            "goal_tag": "헬스",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, goal = await llm.judge_sufficiency(
+        history=[], message="헬스", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is True
+    assert missing == []
+    assert "plan_kind" not in goal  # 비정상 값은 폴백되어 제거
+
+
+async def test_judge_sufficiency_exam_preserves_model_decision() -> None:
+    # exam 은 스키마 override 하지 않고 모델의 is_sufficient/missing 을 유지(기존 거동·deadline 휴리스틱 보존).
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "plan",
+                        "is_sufficient": False,
+                        "missing_aspects": ["scope"],
+                        "parsed_goal": {
+                            "intent": "plan",
+                            "plan_kind": "exam",
+                            "slots": {},
+                            "goal_text": "정처기 준비",
+                            "goal_tag": "정처기",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    sufficient, missing, goal = await llm.judge_sufficiency(
+        history=[], message="정처기 준비", today=date(2026, 5, 24)
+    )
+
+    assert sufficient is False
+    assert missing == ["scope"]
+    assert goal["plan_kind"] == "exam"
+
+
 async def test_generate_follow_up_question_parses_json() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
 

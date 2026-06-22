@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from agents.todo_creation.planner.date_parser import (
     has_explicit_deadline,
     parse_explicit_deadline,

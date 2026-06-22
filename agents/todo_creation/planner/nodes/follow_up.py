@@ -14,14 +14,16 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
 from agents.todo_creation.config_utils import get_ports
+from agents.todo_creation.planner.slot_schemas import slot_hints
 
 
 async def follow_up_node(
     state: dict[str, Any], config: RunnableConfig
 ) -> dict[str, Any]:
     ports = get_ports(config)
+    parsed_goal = state.get("parsed_goal") or {}
     question = await ports.llm.generate_follow_up_question(
-        missing_aspects=state.get("missing_aspects", []),
+        missing_aspects=slot_hints(parsed_goal.get("plan_kind"), state.get("missing_aspects", [])),
         history=state.get("history", []),
     )
     user_answer = interrupt(question)

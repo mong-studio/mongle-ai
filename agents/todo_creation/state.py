@@ -22,6 +22,8 @@ class Turn(TypedDict):
 
 class ParsedGoal(TypedDict, total=False):
     intent: Literal["plan", "out_of_scope"]
+    plan_kind: Literal["exam", "routine", "vague_goal", "lifestyle"]
+    slots: dict[str, Any]
     goal_text: str
     goal_tag: str
     deadline: date | None

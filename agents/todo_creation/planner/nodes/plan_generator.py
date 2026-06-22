@@ -7,10 +7,12 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.config_utils import get_ports
+from agents.todo_creation.planner.allocator import expand_routine
 from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.state import ParsedGoal, PlanDay
 
 _MAX_SUMMARY_CHARS = 1500
+_DEFAULT_ROUTINE_HORIZON = 28
 
 
 async def plan_generator_node(
@@ -20,6 +22,10 @@ async def plan_generator_node(
     llm = ports.llm
     parsed_goal: ParsedGoal = state.get("parsed_goal") or {}
     today = state["today"]
+
+    # routine: cadence 를 horizon 으로 결정적 전개(LLM 생략, 설계서 §3.4).
+    if parsed_goal.get("plan_kind") == "routine":
+        return _routine_plan(parsed_goal, today=today)
 
     goal_tag = await llm.generate_goal_tag(
         parsed_goal=parsed_goal,
@@ -49,6 +55,51 @@ async def plan_generator_node(
         "calendar_events": calendar_events,
         "personalization_patch": parsed_goal.get("personalization_patch"),
     }
+
+
+def _routine_plan(parsed_goal: ParsedGoal, *, today: date) -> dict[str, Any]:
+    """routine plan_kind 을 코드로 전개한다 — cadence 를 horizon 내 날짜로 펼침.
+
+    LLM 을 전혀 호출하지 않는다(설계서 §3.4: 슬롯이 곧 내용). judge 가 채운
+    goal_tag 로 일괄 태깅하고, 마감일 이후는 expand_routine 이 clamp 한다.
+    """
+    slots = parsed_goal.get("slots") or {}
+    activity = str(slots.get("activity") or parsed_goal.get("goal_text") or "루틴")
+    cadence = str(slots.get("cadence") or "")
+    horizon = _routine_horizon(slots.get("horizon"))
+    goal_tag = _normalize_goal_tag(parsed_goal.get("goal_tag"))
+    deadline = parsed_goal.get("deadline")
+
+    events = [
+        event.model_copy(update={"tags": [goal_tag]})
+        for event in expand_routine(
+            activity, cadence, today=today, horizon_days=horizon, deadline=deadline
+        )
+    ]
+    todos = [e for e in events if e.due_date == today]
+    calendar_events = [e for e in events if e.due_date != today]
+    plan: list[PlanDay] = [{"date": e.due_date, "tasks": [e]} for e in events]
+    summary_text = _truncate_summary(
+        f"'{activity}' 루틴을 {cadence or '정해진 주기'} 기준으로 "
+        f"다음 {horizon}일 동안 잡아뒀어요."
+    )
+    return {
+        "summary_text": summary_text,
+        "plan": plan,
+        "todos": todos,
+        "calendar_events": calendar_events,
+        "personalization_patch": parsed_goal.get("personalization_patch"),
+    }
+
+
+def _routine_horizon(value: Any) -> int:
+    """horizon 슬롯이 정수 일수면 사용, 아니면 기본 28일.
+
+    ponytail: 자연어 기간("한 달")은 v1 비범위 — 기본 28일로 충분(설계서 D5).
+    """
+    if isinstance(value, int) and value > 0:
+        return value
+    return _DEFAULT_ROUTINE_HORIZON
 
 
 def _truncate_summary(value: str) -> str:

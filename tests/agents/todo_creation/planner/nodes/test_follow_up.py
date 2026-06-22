@@ -58,3 +58,24 @@ async def test_history_preserves_prior_turns() -> None:
     # 기존 3 + assistant question + user answer = 5
     assert len(out["history"]) == 5
     assert out["history"][:3] == prior
+
+
+@pytest.mark.asyncio
+async def test_routine_missing_cadence_passes_korean_hint() -> None:
+    # routine 의 미충족 슬롯 key(cadence)는 사람용 한국어 힌트로 변환돼 전달된다.
+    llm = AsyncMock()
+    llm.generate_follow_up_question = AsyncMock(return_value="주 몇 번 하실래요?")
+    state = {
+        "history": [{"role": "user", "content": "매주 운동하고 싶어"}],
+        "missing_aspects": ["cadence"],
+        "parsed_goal": {"plan_kind": "routine"},
+    }
+    with patch(
+        "agents.todo_creation.planner.nodes.follow_up.interrupt",
+        return_value="주 3회",
+    ):
+        await follow_up_node(state, _config(llm))
+    llm.generate_follow_up_question.assert_awaited_once_with(
+        missing_aspects=["주 몇 회 또는 어떤 요일인지"],
+        history=[{"role": "user", "content": "매주 운동하고 싶어"}],
+    )
