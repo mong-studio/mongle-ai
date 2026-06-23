@@ -92,27 +92,45 @@ class CharacterMode:
         white_bg.paste(removed, mask=removed.split()[3])
         return white_bg.convert("RGB")
 
-    def _remove_background_by_color(self, image: Image.Image, tolerance: int = 40) -> Image.Image:
-        # "흰색"을 고정 임계값(>=245)으로 가정하면 SDXL이 정확히 순백을 안 그릴 때
-        # (예: 회갈색에 가까운 배경) near_white 가 텅 비어 아무것도 제거되지 않는다.
-        # 대신 이미지 가장자리 픽셀에서 실제 배경색을 직접 샘플링해 그 색과
-        # 가까운 영역만 배경으로 본다 — 배경이 무슨 색이든 동작한다.
+    def _remove_background_by_color(self, image: Image.Image, tolerance: int = 30) -> Image.Image:
+        # 가장자리 전체에서 단일 대표색(중앙값) 하나만 뽑아 그 색과 비교하면,
+        # 배경이 한 가지 톤이 아닐 때(예: 위쪽 배경색 + 아래쪽 바닥/그림자색이
+        # 다른 경우) 둘 중 한쪽만 맞아 나머지가 안 지워진다.
+        # 대신 가장자리 전체를 동시에 출발점으로 삼아, 이웃 픽셀끼리 색이
+        # 비슷하면 계속 번져나가는 방식(체이닝)으로 배경을 찾는다 — 배경이
+        # 여러 톤이어도 각자 자기 영역을 따라가며 지워진다. 외곽선(엣지)은
+        # 여전히 못 넘는 벽으로 막아서 캐릭터 내부로 새지 않게 한다.
         rgb = np.array(image.convert("RGB")).astype(np.int16)
-        border_pixels = np.concatenate(
-            [rgb[0, :], rgb[-1, :], rgb[:, 0], rgb[:, -1]], axis=0
-        )
-        bg_color = np.median(border_pixels, axis=0)
-        near_bg = (np.abs(rgb - bg_color).sum(axis=2) <= tolerance).astype(np.uint8)
+        h, w = rgb.shape[:2]
         gray = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(gray, 30, 100)
-        walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
-        passable = (near_bg & (walls == 0)).astype(np.uint8)
-        num_labels, labels = cv2.connectedComponents(passable, connectivity=4)
-        border_labels = set(labels[0, :]) | set(labels[-1, :])
-        border_labels |= set(labels[:, 0]) | set(labels[:, -1])
-        border_labels.discard(0)
-        bg_mask = np.isin(labels, list(border_labels))
-        alpha = np.where(bg_mask, 0, 255).astype(np.uint8)
+        walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2) > 0
+
+        visited = np.zeros((h, w), dtype=bool)
+        queue: list[tuple[int, int]] = []
+        for x in range(w):
+            for y in (0, h - 1):
+                if not walls[y, x] and not visited[y, x]:
+                    visited[y, x] = True
+                    queue.append((y, x))
+        for y in range(h):
+            for x in (0, w - 1):
+                if not walls[y, x] and not visited[y, x]:
+                    visited[y, x] = True
+                    queue.append((y, x))
+
+        head = 0
+        while head < len(queue):
+            y, x = queue[head]
+            head += 1
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and not walls[ny, nx]:
+                    if np.abs(rgb[ny, nx] - rgb[y, x]).sum() <= tolerance:
+                        visited[ny, nx] = True
+                        queue.append((ny, nx))
+
+        alpha = np.where(visited, 0, 255).astype(np.uint8)
         return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), mode="RGBA")
 
     def _bg_ok(self, image: Image.Image) -> bool:
