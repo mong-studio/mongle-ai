@@ -27,7 +27,7 @@ _TRIGGER = "monglestyle"  # mongle-character-lora 트리거(카드: 항상 맨 �
 _STYLE_SUFFIX = (
     "single stuffed animal toy mascot character, full body, centered, "
     "front view, cute chibi proportions, 32-bit pixel art sprite, "
-    "soft pixel shading, clean silhouette, pure white background"
+    "soft pixel shading, clean silhouette, solid chroma key green background"
 )
 # 외형 묘사가 없을 때 쓸 중립 subject.
 _FALLBACK_SUBJECT = "cute stuffed animal mascot"
@@ -92,22 +92,28 @@ class CharacterMode:
         white_bg.paste(removed, mask=removed.split()[3])
         return white_bg.convert("RGB")
 
-    def _remove_background_by_color(self, image: Image.Image, threshold: int = 245) -> Image.Image:
-        rgb = np.array(image.convert("RGB"))
-        near_white = (
-            (rgb[:, :, 0] >= threshold) & (rgb[:, :, 1] >= threshold) & (rgb[:, :, 2] >= threshold)
-        ).astype(np.uint8)
-        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    def _remove_background_by_color(self, image: Image.Image, tolerance: int = 40) -> Image.Image:
+        # "흰색"을 고정 임계값(>=245)으로 가정하면 SDXL이 정확히 순백을 안 그릴 때
+        # (예: 회갈색에 가까운 배경) near_white 가 텅 비어 아무것도 제거되지 않는다.
+        # 대신 이미지 가장자리 픽셀에서 실제 배경색을 직접 샘플링해 그 색과
+        # 가까운 영역만 배경으로 본다 — 배경이 무슨 색이든 동작한다.
+        rgb = np.array(image.convert("RGB")).astype(np.int16)
+        border_pixels = np.concatenate(
+            [rgb[0, :], rgb[-1, :], rgb[:, 0], rgb[:, -1]], axis=0
+        )
+        bg_color = np.median(border_pixels, axis=0)
+        near_bg = (np.abs(rgb - bg_color).sum(axis=2) <= tolerance).astype(np.uint8)
+        gray = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(gray, 30, 100)
         walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
-        passable = (near_white & (walls == 0)).astype(np.uint8)
+        passable = (near_bg & (walls == 0)).astype(np.uint8)
         num_labels, labels = cv2.connectedComponents(passable, connectivity=4)
         border_labels = set(labels[0, :]) | set(labels[-1, :])
         border_labels |= set(labels[:, 0]) | set(labels[:, -1])
         border_labels.discard(0)
         bg_mask = np.isin(labels, list(border_labels))
         alpha = np.where(bg_mask, 0, 255).astype(np.uint8)
-        return Image.fromarray(np.dstack([rgb, alpha]), mode="RGBA")
+        return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), mode="RGBA")
 
     def _bg_ok(self, image: Image.Image) -> bool:
         arr = np.array(image.convert("RGB"))
