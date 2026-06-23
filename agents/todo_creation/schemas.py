@@ -101,12 +101,9 @@ PlannerResult = Annotated[
 ]
 
 
-# === Single-turn types ===
+# 투두 전용 메시지
 
-OUT_OF_SCOPE_MESSAGE = (
-    "나는 목표를 TODO랑 일정으로 차근차근 나눠주는 이장님이야. "
-    "준비할 일이나 이루고 싶은 목표를 말해주면 같이 계획을 짜볼게."
-)
+OUT_OF_SCOPE_MESSAGE = "일정과 관련된 입력이 아닙니다."
 
 
 class SplitResult(BaseModel):
