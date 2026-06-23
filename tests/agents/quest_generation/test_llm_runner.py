@@ -50,3 +50,22 @@ async def test_zero_retries_means_single_attempt():
     with pytest.raises(LLMFailedError):
         await runner.generate(character=_char())
     assert len(llm.calls) == 1
+
+
+async def test_non_korean_output_is_rejected_and_retried():
+    # 한자/외국어가 섞인 출력은 검증 실패로 보고 재시도하다가 소진되면 LLMFailedError.
+    llm = FakeLLM(text_for=lambda c: "Hello world 任务")
+    runner = LLMRunner(llm, max_retries=2)
+    with pytest.raises(LLMFailedError):
+        await runner.generate(character=_char())
+    assert len(llm.calls) == 3
+
+
+async def test_recovers_when_korean_appears():
+    # 1차 비한국어 → 2차 한국어면 한국어 결과를 반환한다.
+    seq = iter(["タスク 任务", "산책하기"])
+    llm = FakeLLM(text_for=lambda c: next(seq))
+    runner = LLMRunner(llm, max_retries=2)
+    text = await runner.generate(character=_char())
+    assert text == "산책하기"
+    assert len(llm.calls) == 2
