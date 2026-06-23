@@ -92,9 +92,22 @@ class CharacterMode:
         white_bg.paste(removed, mask=removed.split()[3])
         return white_bg.convert("RGB")
 
-    def _remove_background_rgba(self, image: Image.Image) -> Image.Image:
-        """최종 결과용 — 카드 reference 의 remove_bg_rgba: 투명 RGBA(result_nobg)."""
-        return remove(image.convert("RGBA"))
+    def _remove_background_by_color(self, image: Image.Image, threshold: int = 245) -> Image.Image:
+        rgb = np.array(image.convert("RGB"))
+        near_white = (
+            (rgb[:, :, 0] >= threshold) & (rgb[:, :, 1] >= threshold) & (rgb[:, :, 2] >= threshold)
+        ).astype(np.uint8)
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+        edges = cv2.Canny(gray, 30, 100)
+        walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
+        passable = (near_white & (walls == 0)).astype(np.uint8)
+        num_labels, labels = cv2.connectedComponents(passable, connectivity=4)
+        border_labels = set(labels[0, :]) | set(labels[-1, :])
+        border_labels |= set(labels[:, 0]) | set(labels[:, -1])
+        border_labels.discard(0)
+        bg_mask = np.isin(labels, list(border_labels))
+        alpha = np.where(bg_mask, 0, 255).astype(np.uint8)
+        return Image.fromarray(np.dstack([rgb, alpha]), mode="RGBA")
 
     def _bg_ok(self, image: Image.Image) -> bool:
         arr = np.array(image.convert("RGB"))
@@ -158,6 +171,9 @@ class CharacterMode:
                 cross_attention_kwargs={"scale": _LORA_SCALE},
             ).images[0]
 
-        # 카드 reference(pipeline.py)와 동일: 최종 결과에서 배경 제거 → 투명 PNG.
-        # 도트 팔레트 양자화(흰 배경 포함) 후 rembg 로 흰 배경을 알파로 제거한다.
-        return self._to_bytes(self._remove_background_rgba(self._quantize(result)))
+        # 양자화로 색을 32색 평면으로 정리한 뒤, 색상 기반으로 배경을 제거한다.
+        # (신경망 기반 rembg는 흰 배경+흰 캐릭터를 구분하지 못해 캐릭터 내부
+        # 흰 영역까지 같이 지워버리는 문제가 있어 색상+연결성 판정으로 대체.)
+        quantized_rgb = self._quantize(result)
+        final = self._remove_background_by_color(quantized_rgb)
+        return self._to_bytes(final)
