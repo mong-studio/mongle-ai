@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import zlib
 from typing import Any
 
@@ -52,6 +53,45 @@ def _is_grounded(title: str, prompt: str) -> bool:
     return bool(tb & _char_bigrams(prompt))
 
 
+# 한자·가나 등 비한국어 CJK — base 모델이 희귀 음절을 깨뜨릴 때 새는 스크립트.
+_CJK_RE = re.compile("[぀-ヿ㄀-ㄯ㐀-䶿一-鿿豈-﫿]")
+
+
+def _best_input_match(word: str, input_words: list[str]) -> str | None:
+    """word 와 가장 닮은 입력 어절을 고른다(없으면 None).
+    손상은 보통 첫 음절을 보존하므로 공통 접두(가중치 2배) + 공통 글자수로 점수."""
+    best, best_score = None, 0
+    wset = set(word)
+    for iw in input_words:
+        lcp = 0
+        for a, b in zip(word, iw):
+            if a != b:
+                break
+            lcp += 1
+        score = lcp * 2 + len(wset & set(iw))
+        if score > best_score:
+            best, best_score = iw, score
+    return best
+
+
+def _repair_title(title: str, prompt: str) -> str:
+    """base 모델이 깬 희귀어(예: '두쫀쿠'→'두啭iku')를 입력의 표면형으로 되돌린다.
+
+    디코딩 제약으론 못 고친다 — 모델이 올바른 한국어 토큰에 확률이 없어, 마스킹하면 다른
+    garbage 로 갈 뿐(POC 3종으로 확인: char-class·CJK밴 모두 실패). 그래서 사후에, CJK가
+    섞인 깨진 어절만 입력의 가장 가까운 어절로 치환해 사용자가 친 글자를 복원한다.
+    손상 없는 어절(정규화된 한국어)은 그대로 둔다.
+    """
+    # ponytail: 어절 단위 char-overlap 정렬 휴리스틱(첫음절 보존 가정). 형태소 분석은 안 한다.
+    if not _CJK_RE.search(title):
+        return title
+    input_words = prompt.split()
+    return " ".join(
+        (_best_input_match(w, input_words) or w) if _CJK_RE.search(w) else w
+        for w in title.split()
+    )
+
+
 async def _split_or_out_of_scope(
     ports: Any, prompt: str, today: date
 ) -> SplitResult | None:
@@ -99,8 +139,14 @@ async def task_splitter_node(
             f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
         )
 
+    # 손상 복원: base 모델이 깬 희귀어(두啭iku)를 입력 표면형(두쫀쿠)으로 되돌린다.
+    #   디코딩 제약으론 불가(모델이 올바른 토큰에 확률 0, POC 3종 확인) → 사후 복원.
+    repaired = [
+        t.model_copy(update={"title": _repair_title(t.title, prompt)}) for t in raw
+    ]
+
     # 출력 그라운딩: 입력에 근거 없는 환각 task(예: 긴 컨텍스트에서 튀어나오는 '토익')를 떨군다.
-    grounded = [t for t in raw if _is_grounded(t.title, prompt)]
+    grounded = [t for t in repaired if _is_grounded(t.title, prompt)]
     if not grounded:
         return {"intent": "out_of_scope"}
 
