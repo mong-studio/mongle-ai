@@ -10,6 +10,7 @@ from agents.todo_creation.schemas import TodoInput, TaskCandidate
 from agents.todo_creation.todo.nodes.task_splitter import (
     _is_grounded,
     _is_low_information,
+    _repair_title,
     task_splitter_node,
 )
 
@@ -147,6 +148,26 @@ def test_is_grounded_keeps_input_words_drops_hallucination() -> None:
     assert _is_grounded("토익 시험", "내일 토익 시험") is True
     assert _is_grounded("건강하기", "건강하고 건강해야해") is True  # 어간 겹침
     assert _is_grounded("토익 공부", "오늘 코테 발표") is False  # 입력에 없음
+
+
+# --- 손상 복원 (repair) ---
+
+
+def test_repair_title_recovers_corrupted_word() -> None:
+    p = "헬스장 갔다가 두쫀쿠 먹고 엄마 보러 가야지"
+    # base 모델이 깬 '두啭iku' → 입력 표면형 '두쫀쿠'로 복원
+    assert _repair_title("두啭iku 먹기", p) == "두쫀쿠 먹기"
+    # 손상(CJK) 없는 정상 제목은 그대로
+    assert _repair_title("헬스장 가기", p) == "헬스장 가기"
+    assert _repair_title("먹기", p) == "먹기"
+
+
+async def test_node_repairs_corrupted_title() -> None:
+    # 노드가 깨진 제목을 입력 표면형으로 복원해 내보낸다.
+    llm = FakeLLM(responses=[[_t("두啭iku 먹기")]])
+    state, config = _state_and_config(llm, prompt="두쫀쿠 먹고")
+    diff = await task_splitter_node(state, config)
+    assert [t.title for t in diff["split_tasks"]] == ["두쫀쿠 먹기"]
 
 
 async def test_node_drops_ungrounded_task() -> None:
