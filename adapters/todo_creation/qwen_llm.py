@@ -242,7 +242,7 @@ class QwenLLM:
     model: str = DEFAULT_QWEN_MODEL
     api_key: str = "EMPTY"
     temperature: float = 0.1
-    max_tokens: int = 800
+    max_tokens: int = 1024
     timeout_seconds: float = 90.0
 
     async def complete_raw(

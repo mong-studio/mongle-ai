@@ -14,7 +14,7 @@ from agents.todo_creation.todo.state import GenerateGraphState
 
 logger = logging.getLogger(__name__)
 
-MAX_TASKS = 20
+MAX_TASKS = 30
 
 
 # 정보량 게이트: 반복뿐인 입력은 잘 압축돼 ratio 가 낮다. 단일 splitter 입력 길이대(짧음)에서
@@ -134,7 +134,8 @@ async def task_splitter_node(
             return {"intent": "out_of_scope"}
 
     if len(raw) > MAX_TASKS:
-        # 한 문장에서 20개 초과 = 모델 오동작(입력 문제 아님). 내부 이상 신호로 유지.
+        # 200자 입력에 들어갈 수 있는 task 는 최대 ~25개라, 30개 초과 = 모델 오동작
+        # (입력 문제 아님). 내부 이상 신호로 유지.
         raise LLMOutputError(
             f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
         )
