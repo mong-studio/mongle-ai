@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import zlib
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -15,32 +16,40 @@ logger = logging.getLogger(__name__)
 MAX_TASKS = 20
 
 
-def _collapse_repeated_stems(text: str, *, min_run: int = 3, min_stem: int = 2) -> str:
-    """같은 어간(앞 min_stem자)을 공유하는 토큰이 min_run개 이상 연속되면 첫 토큰 하나로 압축.
+# 정보량 게이트: 반복뿐인 입력은 잘 압축돼 ratio 가 낮다. 단일 splitter 입력 길이대(짧음)에서
+# 실측상 degenerate≈0.65, 정상≈0.84~1.17 로 갈려 0.75 가 안전한 경계다. 긴 자연어도 잘 압축되므로
+# 길이대를 벗어나면 판정하지 않는다(긴 컨텍스트 환각은 그라운딩 검증이 따로 잡는다).
+_LOW_INFO_THRESHOLD = 0.75
+_LOW_INFO_MIN_BYTES = 30
+_LOW_INFO_MAX_BYTES = 400
 
-    '건강하고 건강하며 건강한데 또 건강했다가 건강하려다가 건강해야해' 같은 반복 입력이
-    base 모델을 루프/파싱붕괴로 몰지 않도록 LLM 호출 전에 신호를 정리한다. 정상 문장은
-    같은 어간 토큰이 3개 이상 연속될 일이 드물어 거의 건드리지 않는다.
+
+def _is_low_information(text: str) -> bool:
+    """압축률로 입력 정보량을 잰다. 반복뿐이라 정보가 거의 없으면 True."""
+    raw = text.encode("utf-8")
+    if not (_LOW_INFO_MIN_BYTES <= len(raw) <= _LOW_INFO_MAX_BYTES):
+        return False
+    return len(zlib.compress(raw, 6)) / len(raw) < _LOW_INFO_THRESHOLD
+
+
+def _char_bigrams(text: str) -> set[str]:
+    s = "".join(text.split())
+    return {s[i : i + 2] for i in range(len(s) - 1)}
+
+
+def _is_grounded(title: str, prompt: str) -> bool:
+    """title 내용이 입력에 근거하는지 음절 2-gram 겹침으로 느슨히 본다.
+
+    '입력에 없는 단어 금지'는 base 모델이 어기는 프롬프트 부탁일 뿐이라, 파싱 후 코드로 검증해
+    '토익'처럼 입력에 없는(특히 긴 컨텍스트에서 사전확률로 튀어나오는) 환각 task 를 떨군다.
+    title 은 어미 제거·명사형으로 정규화돼 입력과 글자 그대로 일치하진 않으므로 2-gram 겹침으로 판정한다.
     """
-    # ponytail: 공백 토큰 + 접두 비교만 하는 휴리스틱. 형태소 분석이 필요할 만큼 정밀하진 않다.
-    #           오탐이 문제되면 min_run 을 올리거나 형태소 분석기로 교체.
-    tokens = text.split()
-    if len(tokens) < min_run:
-        return text
-    out: list[str] = []
-    i = 0
-    while i < len(tokens):
-        stem = tokens[i][:min_stem]
-        j = i + 1
-        if len(stem) >= min_stem:
-            while j < len(tokens) and tokens[j][:min_stem] == stem:
-                j += 1
-        if j - i >= min_run:
-            out.append(tokens[i])  # 반복 런 → 대표 토큰 하나로
-        else:
-            out.extend(tokens[i:j])
-        i = j
-    return " ".join(out)
+    # ponytail: 음절 2-gram 겹침 휴리스틱. 어간이 살아남는 한국어 정규화엔 충분하다.
+    #           정밀 판정이 필요하면 형태소 분석기로 교체.
+    tb = _char_bigrams(title)
+    if not tb:
+        return True  # 1글자 제목 등 너무 짧으면 보수적으로 통과
+    return bool(tb & _char_bigrams(prompt))
 
 
 async def _split_or_out_of_scope(
@@ -63,8 +72,11 @@ async def task_splitter_node(
     # 모두 끝낸 TaskCandidate 를 돌려준다. 노드는 분기/한도 검증만 한다.
     ports = get_ports(config)
     today = state["input"].today
-    # 반복 어절을 LLM 호출 전에 압축해 루프/파싱붕괴를 줄이고 깔끔한 신호를 준다.
-    prompt = _collapse_repeated_stems(state["input"].prompt)
+    prompt = state["input"].prompt
+
+    # 정보량 게이트: 반복뿐이라 정보가 거의 없는 입력은 LLM 을 부르지 않고 out_of_scope 안내로.
+    if _is_low_information(prompt):
+        return {"intent": "out_of_scope"}
 
     split = await _split_or_out_of_scope(ports, prompt, today)
     if split is None or split.intent == "out_of_scope":
@@ -87,4 +99,9 @@ async def task_splitter_node(
             f"task_splitter returned {len(raw)} tasks (max {MAX_TASKS})"
         )
 
-    return {"intent": "plan", "split_tasks": list(raw)}
+    # 출력 그라운딩: 입력에 근거 없는 환각 task(예: 긴 컨텍스트에서 튀어나오는 '토익')를 떨군다.
+    grounded = [t for t in raw if _is_grounded(t.title, prompt)]
+    if not grounded:
+        return {"intent": "out_of_scope"}
+
+    return {"intent": "plan", "split_tasks": grounded}
