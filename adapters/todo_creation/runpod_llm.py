@@ -22,7 +22,7 @@ class RunPodQwenLLM(QwenLLM):
         adapter: str,
         model: str = DEFAULT_QWEN_MODEL,
         temperature: float = 0.1,
-        max_tokens: int = 800,
+        max_tokens: int = 1024,
         poll_interval: float = 2.0,
         poll_timeout: float = 300.0,
     ) -> None:
