@@ -82,7 +82,14 @@ class QwenLoraPipeline:
         prompt: str = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        params = SamplingParams(temperature=temperature, max_tokens=max_tokens)
+        # vLLM 기본 stop 은 eos(<|endoftext|>)뿐이라, 모델이 턴 종료로 내는 <|im_end|>
+        # 에서 안 멈추고 system 의 few-shot(입력:/출력:) 패턴을 이어받아 가짜 턴을
+        # 계속 생성(runaway)한다. <|im_end|> 토큰 id 를 stop 에 추가해 턴 끝에서 정지시킨다.
+        params = SamplingParams(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop_token_ids=[self._tokenizer.convert_tokens_to_ids("<|im_end|>")],
+        )
         outputs = self._llm.generate([prompt], params, lora_request=lora_request)
         return outputs[0].outputs[0].text
 
