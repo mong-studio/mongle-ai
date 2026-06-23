@@ -27,7 +27,7 @@ _TRIGGER = "monglestyle"  # mongle-character-lora 트리거(카드: 항상 맨 �
 _STYLE_SUFFIX = (
     "single stuffed animal toy mascot character, full body, centered, "
     "front view, cute chibi proportions, 32-bit pixel art sprite, "
-    "soft pixel shading, clean silhouette, solid chroma key green background"
+    "soft pixel shading, clean silhouette, pure white background"
 )
 # 외형 묘사가 없을 때 쓸 중립 subject.
 _FALLBACK_SUBJECT = "cute stuffed animal mascot"
@@ -93,13 +93,12 @@ class CharacterMode:
         return white_bg.convert("RGB")
 
     def _remove_background_by_color(self, image: Image.Image, tolerance: int = 30) -> Image.Image:
-        # 가장자리 전체에서 단일 대표색(중앙값) 하나만 뽑아 그 색과 비교하면,
-        # 배경이 한 가지 톤이 아닐 때(예: 위쪽 배경색 + 아래쪽 바닥/그림자색이
-        # 다른 경우) 둘 중 한쪽만 맞아 나머지가 안 지워진다.
+        # rembg(신경망)는 흰 배경 위에 흰 캐릭터가 있으면 캐릭터 내부의 흰
+        # 영역(배, 눈 등)도 배경으로 오인해 같이 지워버린다 — 외곽선이 있어도
+        # rembg는 색/엣지를 보는 게 아니라 의미상 판단이라 못 막아준다.
         # 대신 가장자리 전체를 동시에 출발점으로 삼아, 이웃 픽셀끼리 색이
-        # 비슷하면 계속 번져나가는 방식(체이닝)으로 배경을 찾는다 — 배경이
-        # 여러 톤이어도 각자 자기 영역을 따라가며 지워진다. 외곽선(엣지)은
-        # 여전히 못 넘는 벽으로 막아서 캐릭터 내부로 새지 않게 한다.
+        # 비슷하면 계속 번져나가는 방식(region-growing)으로 배경을 찾는다.
+        # 외곽선(Canny 엣지)은 못 넘는 벽으로 막아서 캐릭터 내부로 안 새게 한다.
         rgb = np.array(image.convert("RGB")).astype(np.int16)
         h, w = rgb.shape[:2]
         gray = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY)
@@ -195,9 +194,8 @@ class CharacterMode:
                 cross_attention_kwargs={"scale": _LORA_SCALE},
             ).images[0]
 
-        # 양자화로 색을 32색 평면으로 정리한 뒤, 색상 기반으로 배경을 제거한다.
-        # (신경망 기반 rembg는 흰 배경+흰 캐릭터를 구분하지 못해 캐릭터 내부
-        # 흰 영역까지 같이 지워버리는 문제가 있어 색상+연결성 판정으로 대체.)
+        # 양자화로 색을 32색 평면으로 정리한 뒤, region-growing 방식으로 배경을
+        # 제거한다 (rembg는 흰 배경+흰 캐릭터를 구분 못해 사용하지 않음).
         quantized_rgb = self._quantize(result)
         final = self._remove_background_by_color(quantized_rgb)
         return self._to_bytes(final)
