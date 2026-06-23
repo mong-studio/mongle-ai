@@ -79,9 +79,9 @@ async def test_unparseable_output_degrades_to_out_of_scope() -> None:
     assert "split_tasks" not in diff
 
 
-async def test_over_20_tasks_raises_llm_output_error() -> None:
-    # 한 문장에서 20개 초과 = 모델 오동작. 그라운딩 이전에 에러로 막는다.
-    too_many = [_t(f"t{i}") for i in range(21)]
+async def test_over_30_tasks_raises_llm_output_error() -> None:
+    # 200자 입력 task 상한(~25)을 넘는 30개 초과 = 모델 오동작. 그라운딩 이전에 에러로 막는다.
+    too_many = [_t(f"t{i}") for i in range(31)]
     llm = FakeLLM(responses=[too_many])
     state, config = _state_and_config(llm)
     with pytest.raises(LLMOutputError):
