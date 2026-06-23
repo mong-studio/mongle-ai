@@ -7,7 +7,10 @@ import pytest
 from tests.agents.todo_creation.fake_llm import FakeLLM
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
 from agents.todo_creation.schemas import TodoInput, TaskCandidate
-from agents.todo_creation.todo.nodes.task_splitter import task_splitter_node
+from agents.todo_creation.todo.nodes.task_splitter import (
+    _collapse_repeated_stems,
+    task_splitter_node,
+)
 
 
 def _input(prompt: str = "오늘 코테") -> TodoInput:
@@ -95,6 +98,21 @@ async def test_out_of_scope_sets_intent_and_no_split() -> None:
     assert diff["intent"] == "out_of_scope"
     assert "split_tasks" not in diff
     assert llm.calls == 1
+
+
+def test_collapse_repeated_stems_compresses_repetition() -> None:
+    s = "건강하고 건강하며 건강한데 또 건강했다가 건강하려다가 건강해야해"
+    out = _collapse_repeated_stems(s)
+    # 6번 반복된 '건강X' 가 대표 토큰으로 줄어 신호가 짧아진다.
+    assert len(out) < len(s)
+    assert out.count("건강") < s.count("건강")
+    assert "또" in out  # 런 사이 비반복 토큰은 보존
+
+
+def test_collapse_leaves_normal_sentence_untouched() -> None:
+    # 정상 문장은 같은 어간 3연속이 없어 그대로 통과한다.
+    for s in ("내일 회의 준비하고 장보러 가기", "운동하고 운동복 챙기기", "코테 발표 과제"):
+        assert _collapse_repeated_stems(s) == s
 
 
 async def test_plan_intent_sets_split_tasks() -> None:
