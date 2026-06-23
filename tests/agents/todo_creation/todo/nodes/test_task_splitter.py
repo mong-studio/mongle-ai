@@ -53,11 +53,22 @@ async def test_empty_response_retries_once() -> None:
     assert llm.calls == 2
 
 
-async def test_empty_twice_raises_llm_output_error() -> None:
+async def test_empty_twice_degrades_to_out_of_scope() -> None:
+    # 재시도 후에도 빈 결과 = 나눌 수 없는 입력 → 에러가 아니라 친절 안내로 강등.
     llm = FakeLLM(responses=[[], []])
     state, config = _state_and_config(llm)
-    with pytest.raises(LLMOutputError):
-        await task_splitter_node(state, config)
+    diff = await task_splitter_node(state, config)
+    assert diff == {"intent": "out_of_scope"}
+    assert llm.calls == 2
+
+
+async def test_unparseable_output_degrades_to_out_of_scope() -> None:
+    # 반복/무의미 입력으로 모델이 끝내 파싱 가능한 분해를 못 냄 → out_of_scope 안내.
+    llm = FakeLLM(responses=[[_t()]], output_fail_times=1)
+    state, config = _state_and_config(llm)
+    diff = await task_splitter_node(state, config)
+    assert diff == {"intent": "out_of_scope"}
+    assert "split_tasks" not in diff
 
 
 async def test_over_20_tasks_raises_llm_output_error() -> None:
