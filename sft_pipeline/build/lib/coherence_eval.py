@@ -18,7 +18,12 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-from sft_pipeline.build.lib.plan_schemas import check_plan_consistency, parse_plan
+from sft_pipeline.build.lib.plan_schemas import (
+    check_plan_consistency,
+    check_runtime_plan_consistency,
+    parse_plan,
+    parse_runtime_plan,
+)
 from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES, _horizon_days
 
 # M1(분배 합리성)의 자동 근사: 제목이 'N단원/N일차/N장/N주차/N강' 식 기계적 열거인지.
@@ -39,14 +44,18 @@ def _canonical(sample: dict) -> str:
     return json.dumps(sample.get("messages"), ensure_ascii=False, sort_keys=True)
 
 
-def _parse_plan_or_none(content: str):
+def _parse_plan_or_none(sample: dict):
     try:
-        return parse_plan(content)
+        if _provenance(sample) == "planner-runtime":
+            return parse_runtime_plan(_assistant(sample))
+        return parse_plan(_assistant(sample))
     except Exception:  # noqa: BLE001 - 파싱 실패 = 구문 게이트 FAIL
         return None
 
 
 def _titles(plan) -> list[str]:
+    if hasattr(plan, "days"):
+        return [task.title for day in plan.days for task in day.tasks]
     return [t.title for t in plan.todos] + [t.title for t in plan.calendar_events]
 
 
@@ -143,7 +152,7 @@ def eval_dataset(samples: list[dict]) -> dict:
     # --- 플랜 논리성(evaluating-plan-coherence) ---
     plan_samples = [s for s in samples if _provenance(s) in PLAN_PROVENANCES]
     n_plan = len(plan_samples)
-    parsed = [(s, _parse_plan_or_none(_assistant(s))) for s in plan_samples]
+    parsed = [(s, _parse_plan_or_none(s)) for s in plan_samples]
     syntax_ok = [s for s, p in parsed if p is not None]
     parseable = [(s, p) for s, p in parsed if p is not None]
 
@@ -162,6 +171,9 @@ def eval_dataset(samples: list[dict]) -> dict:
             today = None
         if today is None:
             s2 = True
+        elif _provenance(s) == "planner-runtime":
+            errs = check_runtime_plan_consistency(plan, today=today)
+            s2 = any("날짜" in e for e in errs)
         else:
             errs = check_plan_consistency(plan, today=today, horizon_days=_horizon_days(meta))
             s2 = any("단조 분해" not in e for e in errs)
@@ -174,7 +186,7 @@ def eval_dataset(samples: list[dict]) -> dict:
 
     # --- distractor 누수(네거티브가 플랜을 뱉으면 안 됨) ---
     distractors = [s for s in samples if _provenance(s) == "distractor"]
-    leak = sum(1 for s in distractors if _parse_plan_or_none(_assistant(s)) is not None)
+    leak = sum(1 for s in distractors if _parse_plan_or_none(s) is not None)
 
     quantitative = {
         "exact_duplicate_rate": _metric(

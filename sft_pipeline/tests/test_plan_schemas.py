@@ -17,7 +17,9 @@ from sft_pipeline.build.lib.plan_schemas import (
     _loads_lenient,
     _normalize_plan_dict,
     check_plan_consistency,
+    check_runtime_plan_consistency,
     parse_plan,
+    parse_runtime_plan,
 )
 
 TODAY = date(2026, 6, 6)
@@ -79,6 +81,52 @@ def test_parse_plan_rejects_bad_date():
 def test_parse_plan_rejects_non_json():
     with pytest.raises(ValueError):
         parse_plan("주말 아침에 하는 걸 추천해요.")
+
+
+def test_runtime_plan_schema_accepts_thirty_day_window():
+    plan = parse_runtime_plan(
+        """
+        {
+          "summary_text": "첫 30일 플랜",
+          "personalization_patch": {},
+          "days": [
+            {
+              "date": "2026-06-06",
+              "tasks": [
+                {"title": "현재 상태 점검", "due_date": "2026-06-06", "tags": []}
+              ]
+            },
+            {
+              "date": "2026-07-05",
+              "tasks": [
+                {"title": "첫 구간 최종 점검", "due_date": "2026-07-05", "tags": []}
+              ]
+            }
+          ]
+        }
+        """
+    )
+    assert check_runtime_plan_consistency(plan, today=TODAY) == []
+
+
+def test_runtime_plan_rejects_task_after_thirty_days():
+    plan = parse_runtime_plan(
+        """
+        {
+          "summary_text": "범위 초과",
+          "days": [
+            {
+              "date": "2026-07-06",
+              "tasks": [
+                {"title": "늦은 일정", "due_date": "2026-07-06", "tags": []}
+              ]
+            }
+          ]
+        }
+        """
+    )
+    errors = check_runtime_plan_consistency(plan, today=TODAY)
+    assert any("30일" in error for error in errors)
 
 
 # === check_plan_consistency ===
