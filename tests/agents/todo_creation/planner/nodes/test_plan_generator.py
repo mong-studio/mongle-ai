@@ -19,14 +19,20 @@ class _FakeLLM:
     goal_tag_response: str = "목표"
     tag_response: list[PlanDay] | None = None
     tag_error: Exception | None = None
+    rationale_to_stash: str | None = None
     generate_calls: int = 0
     goal_tag_calls: int = 0
     tag_calls: int = 0
+    seen_temperatures: list[float | None] = field(default_factory=list)
 
     async def generate_plan(
-        self, *, parsed_goal: ParsedGoal, today: date
+        self, *, parsed_goal: ParsedGoal, today: date, temperature: float | None = None
     ) -> tuple[str, list[PlanDay]]:
         self.generate_calls += 1
+        self.seen_temperatures.append(temperature)
+        # 실제 어댑터처럼 rationale 을 parsed_goal 에 실어둔다.
+        if self.rationale_to_stash is not None:
+            parsed_goal["rationale"] = self.rationale_to_stash
         return self.plan_response
 
     async def generate_goal_tag(
@@ -72,6 +78,44 @@ async def test_splits_today_tasks_into_todos() -> None:
     assert result["calendar_events"] == []
     assert result["summary_text"] == "오늘 코테 준비"
     assert result["todos"][0].tags == ["목표"]
+
+
+async def test_propagates_parsed_goal_with_rationale_into_state() -> None:
+    """critic 이 읽도록 rationale·goal_tag 가 실린 parsed_goal 을 state 로 전파한다."""
+    task = TaskCandidate(title="코테", due_date=_TODAY)
+    plan: list[PlanDay] = [{"date": _TODAY, "tasks": [task]}]
+    llm = _FakeLLM(
+        plan_response=("요약", plan),
+        goal_tag_response="코테",
+        rationale_to_stash="개념→점검 순으로 난이도를 점증시켰습니다.",
+    )
+
+    result = await plan_generator_node(_state({"goal_text": "코테 준비"}), _config(llm))
+
+    pg = result["parsed_goal"]
+    assert pg["rationale"] == "개념→점검 순으로 난이도를 점증시켰습니다."
+    assert pg["goal_tag"] == "코테"
+
+
+async def test_first_pass_uses_default_temperature() -> None:
+    """1차 생성(critique_retries=0)은 어댑터 기본 temp → None 전달."""
+    task = TaskCandidate(title="코테", due_date=_TODAY)
+    llm = _FakeLLM(plan_response=("요약", [{"date": _TODAY, "tasks": [task]}]))
+
+    await plan_generator_node(_state(), _config(llm))
+
+    assert llm.seen_temperatures == [None]
+
+
+async def test_regeneration_pass_uses_high_temperature() -> None:
+    """재생성(critique_retries>=1)은 Qwen 기본 0.7 로 샘플링 다양성을 준다(레버①)."""
+    task = TaskCandidate(title="코테", due_date=_TODAY)
+    llm = _FakeLLM(plan_response=("요약", [{"date": _TODAY, "tasks": [task]}]))
+    state = {**_state(), "critique_retries": 1}
+
+    await plan_generator_node(state, _config(llm))
+
+    assert llm.seen_temperatures == [0.7]
 
 
 async def test_splits_future_tasks_into_calendar_events() -> None:
@@ -190,6 +234,30 @@ async def test_drops_tasks_after_deadline() -> None:
     assert "회고" not in titles
     assert "개념" in titles
     assert "기출" in titles
+
+
+async def test_truncated_plan_is_stretched_to_deadline() -> None:
+    """모델이 마감 한참 전에 끝내면(truncation) 코드가 today~deadline 전체로 펼쳐 마지막날=deadline."""
+    deadline = _TODAY + timedelta(days=40)
+    # 모델은 첫 2주 안에 몰아넣음(마감까지 한참 못 미침) → 버그 재현.
+    d0 = TaskCandidate(title="기초 체력", due_date=_TODAY)
+    d1 = TaskCandidate(title="중간 점검", due_date=_TODAY + timedelta(days=5))
+    d2 = TaskCandidate(title="실전 대비", due_date=_TODAY + timedelta(days=10))
+    plan: list[PlanDay] = [
+        {"date": _TODAY, "tasks": [d0]},
+        {"date": _TODAY + timedelta(days=5), "tasks": [d1]},
+        {"date": _TODAY + timedelta(days=10), "tasks": [d2]},
+    ]
+    llm = _FakeLLM(plan_response=("요약", plan))
+
+    result = await plan_generator_node(
+        _state({"goal_tag": "철인삼종", "deadline": deadline}), _config(llm)
+    )
+
+    days = [d["date"] for d in result["plan"]]
+    assert days[0] == _TODAY
+    assert days[-1] == deadline  # 마지막날이 마감일까지 도달 (truncation 해소)
+    assert days == sorted(days)  # 단조 증가
 
 
 async def test_keeps_all_tasks_when_no_deadline() -> None:

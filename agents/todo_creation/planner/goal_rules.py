@@ -8,7 +8,12 @@ from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.state import ParsedGoal, Turn
 
 _AMBIGUOUS_DEADLINE_WORDS = ("곧", "조만간", "언젠가", "나중에", "머지않아")
-_DEADLINE_SENSITIVE_WORDS = ("시험", "마감", "발표", "면접", "여행", "결혼식", "행사")
+# '경기/대회/시합/공연' 등 정해진 날짜에 치르는 이벤트도 날짜가 핵심이라 되묻는다
+# (예: "철인 삼종 경기에 나가고 싶어"는 경기일을 모르면 horizon 을 지어내 plan 을 망친다).
+_DEADLINE_SENSITIVE_WORDS = (
+    "시험", "마감", "발표", "면접", "여행", "결혼식", "행사",
+    "경기", "대회", "시합", "공연", "출전", "예선", "본선",
+)
 
 
 def collect_user_text(state: PlannerGraphState) -> str:

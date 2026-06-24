@@ -39,16 +39,26 @@ class RunPodQwenLLM(QwenLLM):
         self._poll_timeout = poll_timeout
 
     async def complete_raw(
-        self, *, messages: list[dict[str, str]], label: str = "qwen"
+        self,
+        *,
+        messages: list[dict[str, str]],
+        label: str = "qwen",
+        temperature: float | None = None,
+        guided_json: dict | None = None,
     ) -> str:
-        payload = {
-            "input": {
-                "adapter": self._adapter,
-                "messages": messages,
-                "temperature": self.temperature,
-                "max_tokens": self.max_tokens,
-            }
+        job_input: dict = {
+            "adapter": self._adapter,
+            "messages": messages,
+            "temperature": self.temperature if temperature is None else temperature,
+            "max_tokens": self.max_tokens,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+            "repetition_penalty": self.repetition_penalty,
         }
+        if guided_json is not None:
+            # 워커가 vLLM GuidedDecodingParams 로 변환(외국 문자 차단). 미전달 시 기존 거동.
+            job_input["guided_json"] = guided_json
+        payload = {"input": job_input}
         try:
             output = await run_and_poll(
                 endpoint_url=self._endpoint_url,

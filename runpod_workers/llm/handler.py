@@ -25,12 +25,25 @@ def handler(job: dict) -> dict:
 
     temperature = float(job_input.get("temperature", 0.1))
     max_tokens = int(job_input.get("max_tokens", 800))
+    # Qwen2.5 공식 generation_config 권장값(미전달 시 near-greedy 퇴화 방지).
+    top_p = float(job_input.get("top_p", 0.8))
+    top_k = int(job_input.get("top_k", 20))
+    repetition_penalty = float(job_input.get("repetition_penalty", 1.05))
+
+    # 옵셔널: JSON 스키마 guided decoding(외국 문자 차단). 미전달 시 기존 거동.
+    guided_json = job_input.get("guided_json")
+    if guided_json is not None and not isinstance(guided_json, dict):
+        raise ValueError("'guided_json' 은 JSON 스키마 객체여야 합니다")
 
     text = get_pipeline().generate(
         adapter=adapter,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
+        top_p=top_p,
+        top_k=top_k,
+        repetition_penalty=repetition_penalty,
+        guided_json=guided_json,
     )
     return {"text": text}
 

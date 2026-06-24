@@ -138,6 +138,171 @@ async def test_split_tasks_sends_prompt_and_no_absolute_date() -> None:
     assert "2026-05-24" not in serialized  # 절대날짜는 모델에 안 보낸다
 
 
+# 디코딩 파라미터(레버①): base(범용 OpenAI 호환 HTTP)에는 표준 top_p 만 보낸다.
+# top_k/repetition_penalty 는 비표준 필드라 RunPod(vLLM) 경로에서만 보낸다(test_runpod_llm).
+async def test_complete_raw_sends_only_standard_top_p_on_base() -> None:
+    _FakeAsyncClient.responses = [_FakeResponse(_payload('{"ok": true}'))]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.complete_raw(messages=[{"role": "user", "content": "x"}], label="t")
+
+    body = _FakeAsyncClient.calls[0]["json"]
+    assert body["top_p"] == 0.8  # 표준 OpenAI 필드 → base 에도 전송
+    assert "top_k" not in body  # 비표준 → 순수 OpenAI 서버 400 방지, RunPod 한정
+    assert "repetition_penalty" not in body
+    assert body["temperature"] == 0.1  # 인스턴스 기본
+
+
+# 호출별 temperature override: 재생성(backprompt)은 높은 temp 로 다양성을 준다.
+async def test_complete_raw_per_call_temperature_override() -> None:
+    _FakeAsyncClient.responses = [_FakeResponse(_payload('{"ok": true}'))]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")  # 인스턴스 기본 0.1
+    await llm.complete_raw(
+        messages=[{"role": "user", "content": "x"}], temperature=0.7
+    )
+
+    assert _FakeAsyncClient.calls[0]["json"]["temperature"] == 0.7
+
+
+# difficulty(객관 부하·곡선 신호): 모델이 준 값은 보존, 누락 시 기본 1 로 호환.
+def test_parse_plan_days_preserves_and_defaults_difficulty() -> None:
+    from adapters.todo_creation.qwen_llm import _parse_plan_days
+
+    days = _parse_plan_days(
+        [
+            {
+                "date": "2026-06-25",
+                "tasks": [
+                    {"title": "어려운 일", "due_date": "2026-06-25", "difficulty": 3},
+                    {"title": "난이도 없는 일", "due_date": "2026-06-25"},
+                ],
+            }
+        ]
+    )
+
+    assert days[0]["tasks"][0].difficulty == 3
+    assert days[0]["tasks"][1].difficulty == 1  # 누락 → 기본 1
+
+
+def _one_day_plan() -> list:
+    return [
+        {
+            "date": date(2026, 6, 25),
+            "tasks": [
+                TaskCandidate(title="기획", due_date=date(2026, 6, 25), difficulty=1)
+            ],
+        }
+    ]
+
+
+# critic(레버②): major 이슈가 있으면 ok=False 로 정규화.
+async def test_critique_plan_flags_major_issue() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    verdict = {
+        "ok": False,
+        "issues": [
+            {
+                "day": "2026-06-25",
+                "category": "load",
+                "severity": "major",
+                "detail": "하루에 과부하",
+                "suggested_fix": "이틀로 분산",
+            }
+        ],
+    }
+    _FakeAsyncClient.responses = [_FakeResponse(_payload(json.dumps(verdict)))]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.critique_plan(
+        parsed_goal={"goal_text": "포폴", "plan_kind": "vague_goal"},
+        plan=_one_day_plan(),
+        today=date(2026, 6, 23),
+        overloaded_days=["2026-06-25"],
+    )
+
+    assert out["ok"] is False
+    assert len(out["issues"]) == 1
+    assert out["issues"][0]["severity"] == "major"
+
+
+# 깨끗한 계획: ok=True, issues 빈 배열.
+async def test_critique_plan_ok_when_clean() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload(json.dumps({"ok": True, "issues": []})))
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.critique_plan(
+        parsed_goal={"goal_text": "포폴", "plan_kind": "vague_goal"},
+        plan=_one_day_plan(),
+        today=date(2026, 6, 23),
+    )
+
+    assert out["ok"] is True
+    assert out["issues"] == []
+
+
+# 방어적 정규화: 모델이 ok=true 라 해도 major 이슈가 있으면 ok=False 로 강등.
+async def test_critique_plan_major_overrides_model_ok() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    verdict = {
+        "ok": True,  # 모델은 ok 라 했지만...
+        "issues": [{"category": "order", "severity": "major", "detail": "순서 뒤집힘"}],
+    }
+    _FakeAsyncClient.responses = [_FakeResponse(_payload(json.dumps(verdict)))]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.critique_plan(
+        parsed_goal={"goal_text": "포폴"},
+        plan=_one_day_plan(),
+        today=date(2026, 6, 23),
+    )
+
+    assert out["ok"] is False  # major ⇒ 강제 not ok
+
+
+# fail-open: verdict 가 끝까지 파싱 안 되면 ok=True 로 통과시킨다(배달 차단 금지).
+async def test_critique_plan_fail_open_on_unparseable() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload("쓰레기 응답 1")),
+        _FakeResponse(_payload("쓰레기 응답 2")),
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.critique_plan(
+        parsed_goal={"goal_text": "포폴"},
+        plan=_one_day_plan(),
+        today=date(2026, 6, 23),
+    )
+
+    assert out == {"ok": True, "issues": []}
+
+
+# 정규화 견고성: issues 가 list 가 아니면 빈 배열로(퇴화 응답 방어).
+def test_normalize_verdict_handles_non_list_issues() -> None:
+    from adapters.todo_creation.qwen_llm import _normalize_verdict
+
+    out = _normalize_verdict({"ok": False, "issues": "문제 있음"})
+
+    assert out["issues"] == []
+    assert out["ok"] is False
+
+
+# ok 진리값: 모델이 문자열 "false" 를 줘도 통과로 오인하지 않는다.
+def test_normalize_verdict_string_false_is_not_ok() -> None:
+    from adapters.todo_creation.qwen_llm import _normalize_verdict
+
+    assert _normalize_verdict({"ok": "false", "issues": []})["ok"] is False
+    assert _normalize_verdict({"ok": "true", "issues": []})["ok"] is True
+
+
 # 원문 파싱 보정: Qwen 이 코드펜스를 섞어도 JSON 본문만 추출한다.
 async def test_split_tasks_strips_code_fence() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
@@ -175,6 +340,35 @@ async def test_split_tasks_retries_once_on_invalid_json() -> None:
     retry_messages = _FakeAsyncClient.calls[1]["json"]["messages"]
     assert retry_messages[-1]["role"] == "user"
     assert "스키마" in retry_messages[-1]["content"]
+
+
+async def test_json_retry_bumps_temperature_to_escape_deterministic_failure() -> None:
+    """_complete_json_with_retry 경로(judge/plan/critic): 1차 실패 후 재시도는 high-temp.
+
+    near-greedy(0.1)는 같은 망가진 JSON 을 반복하므로 재시도를 0.7 로 샘플링한다.
+    """
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload("설명만 하고 JSON 아님")),  # 1차 파싱 실패
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {"summary_text": "플랜", "days": [
+                        {"date": "2026-05-24", "tasks": [
+                            {"title": "복습", "due_date": "2026-05-24"}]}]},
+                    ensure_ascii=False,
+                )
+            )
+        ),
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.generate_plan(parsed_goal={"goal_text": "코테"}, today=date(2026, 5, 24))
+
+    assert len(_FakeAsyncClient.calls) == 2
+    assert _FakeAsyncClient.calls[0]["json"]["temperature"] == 0.1  # 1차=기본
+    assert _FakeAsyncClient.calls[1]["json"]["temperature"] == 0.7  # 재시도=high-temp
 
 
 # 실패 처리: HTTP 오류는 LLMFailedError 로 변환된다.
@@ -508,6 +702,125 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert parsed_goal["personalization_patch"] == {"planning_style": ["짧은 TODO"]}
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "전체 tasks 는 12개 이하" in serialized
+
+
+async def test_generate_plan_stashes_rationale_into_parsed_goal() -> None:
+    """rationale(객관 근거)을 parsed_goal 에 실어 critic 이 검증하게 한다(≤200자 clamp)."""
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    long_rationale = "근" * 250
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "플랜",
+                        "rationale": long_rationale,
+                        "days": [
+                            {
+                                "date": "2026-05-24",
+                                "tasks": [
+                                    {
+                                        "title": "개념 복습",
+                                        "due_date": "2026-05-24",
+                                        "difficulty": 2,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    parsed_goal = {"goal_text": "코테 준비"}
+    _, days = await llm.generate_plan(parsed_goal=parsed_goal, today=date(2026, 5, 24))
+
+    assert parsed_goal["rationale"] == "근" * 200  # ≤200자로 잘림
+    assert days[0]["tasks"][0].difficulty == 2  # 모델이 준 난이도 보존
+
+
+async def test_generate_plan_forwards_temperature_to_request() -> None:
+    """재생성 high-temp 가 실제 요청까지 흐른다(critic 루프 재시도 다양성의 전제)."""
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "플랜",
+                        "days": [
+                            {
+                                "date": "2026-05-24",
+                                "tasks": [
+                                    {"title": "복습", "due_date": "2026-05-24"}
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.generate_plan(
+        parsed_goal={"goal_text": "코테"}, today=date(2026, 5, 24), temperature=0.7
+    )
+
+    assert _FakeAsyncClient.calls[0]["json"]["temperature"] == 0.7
+
+
+def test_korean_title_pattern_blocks_foreign_chars() -> None:
+    """제목 패턴이 한자·라틴 외국 문자를 막고 정상 한글 제목은 통과시킨다."""
+    import re
+
+    from adapters.todo_creation.qwen_llm import _KOREAN_TITLE_PATTERN
+
+    rx = re.compile(_KOREAN_TITLE_PATTERN)
+    assert rx.match("기초 체력 다지기")
+    assert rx.match("기온·날씨 확인")
+    assert not rx.match("미리备")        # 한자 혼입
+    assert not rx.match("학부모prech")   # 라틴 잉여
+
+
+async def test_generate_plan_sends_korean_guided_json() -> None:
+    """generate_plan 은 task.title 을 한국어-only 로 제약하는 guided_json 을 요청에 싣는다."""
+    from adapters.todo_creation.qwen_llm import QwenLLM, _KOREAN_TITLE_PATTERN
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "플랜",
+                        "days": [
+                            {
+                                "date": "2026-05-24",
+                                "tasks": [{"title": "복습", "due_date": "2026-05-24"}],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.generate_plan(parsed_goal={"goal_text": "코테"}, today=date(2026, 5, 24))
+
+    body = _FakeAsyncClient.calls[0]["json"]
+    assert body["guided_decoding_backend"] == "outlines"
+    title_schema = body["guided_json"]["properties"]["days"]["items"]["properties"][
+        "tasks"
+    ]["items"]["properties"]["title"]
+    assert title_schema["pattern"] == _KOREAN_TITLE_PATTERN
 
 
 async def test_generate_goal_tag_parses_structured_tag() -> None:

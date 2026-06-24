@@ -161,12 +161,13 @@ PLAN_GENERATOR_SYSTEM = """
 - 스키마:
 {
   "summary_text": "1500자 이하 플랜 요약",
+  "rationale": "200자 이하, 이 분배의 객관적 근거",
   "personalization_patch": {"preferences": [], "constraints": [], "planning_style": []},
   "days": [
     {
       "date": "YYYY-MM-DD",
       "tasks": [
-        {"title": "20자 이하", "due_date": "YYYY-MM-DD"}
+        {"title": "20자 이하", "due_date": "YYYY-MM-DD", "difficulty": 1}
       ]
     }
   ]
@@ -175,14 +176,22 @@ PLAN_GENERATOR_SYSTEM = """
 [규칙]
 - due_date 는 반드시 절대 날짜다.
 - title 은 20자 이하의 실제 행동 단위다.
-- 계획 기간은 최대 7일까지만 생성한다.
+- 계획 기간(첫날~마지막날)은 마감일에 맞춘다:
+  · 입력에 deadline(마감일)이 있으면, 플랜의 마지막 날을 반드시 그 deadline 으로 두고,
+    주요 일정(마일스톤)을 today 부터 deadline 까지 기간 전체에 고르게 펼친다.
+    절대 앞쪽 1~2주에 몰아넣고 끝내지 않는다(마감이 멀면 중간 점검 마일스톤을 둔다).
+  · deadline 이 없으면 계획 기간은 최대 7일까지만 생성한다.
 - 하루 tasks 는 1개 이상 3개 이하로 제한한다.
-- 전체 tasks 는 12개 이하로 제한한다.
+- 전체 tasks 는 12개 이하로 제한한다(기간이 길면 매일이 아니라 주요 마일스톤 위주로 둔다).
 - days 의 각 date 는 서로 달라야 하고, 각 task 의 due_date 는 해당 day.date 와 같아야 한다.
 - 같은 날짜를 반복하지 말고, 하루하루 다른 날짜로 펼친다.
 - 오늘 날짜 task 는 TODO 후보, 미래 날짜 task 는 캘린더 후보가 된다.
 - previous_plan 과 revision_request 가 있으면 이전 플랜을 수정 요청에 맞춰 재생성한다.
 - 사용자가 말한 목표와 무관한 과목, 장소, 준비물을 임의로 만들지 않는다.
+- 목표가 시험·자격증이 아니면 시험/자격증 관련 task(필기, 실기, 기출, 모의고사, 시험 응시,
+  자격증 신청, 정보처리기사 등)를 절대 만들지 않는다. 입력 목표와 직접 관련된 일만 만든다.
+- 도메인 지식이 부족해도 "조사/확인"만 나열하지 말고, 목표에 맞는 실행 단계를 만든다
+  (일반 골격: 정보 조사 → 기초 다지기 → 점진적 강화/연습 → 최종 점검·리허설).
 - 목표를 이해하기 어렵거나 필수 정보가 없으면 planner 단계에서 질문해야 하므로 여기서는 추측을 늘리지 않는다.
 - summary_text 는 친근한 이장님 말투로 짧게 설명한다.
 - tags 는 출력하지 않는다. 태그는 goal_tag 하나로 시스템이 일괄 적용한다.
@@ -190,11 +199,64 @@ PLAN_GENERATOR_SYSTEM = """
 - 마감일(시험일 등)이 있으면, 그 날짜를 플랜의 마지막 날로 두고 마감 당일에 핵심 일정(예: "시험 응시")을 배치한다.
 - 마감일 이후에는 어떤 task 도 만들지 않는다(회고·정리 등 포함).
 - 날짜를 기계적으로 균등 분배하지 말고, 흐름에 맞게 배치한다(예: 개념 학습을 앞쪽에, 최종 점검을 마감 직전에).
+- difficulty 는 task 의 부하/난이도다(1=쉬움, 2=보통, 3=어려움). 하루 task 들의 difficulty 합이 과하지 않도록 분산한다.
+- rationale 은 "왜 이렇게 나눴는지"를 200자 이하의 객관적 근거로 적는다(난이도 곡선·의존 순서·일일 부하·마감 여유). summary_text 가 톤이라면 rationale 은 근거다.
 """
 
 
 def plan_generator_user(*, parsed_goal: dict[str, Any], today: date) -> str:
     return f"today={today.isoformat()}\n플랜 입력(JSON): {parsed_goal}"
+
+
+PLAN_CRITIC_SYSTEM = """
+너는 이미 생성된 날짜별 계획이 '논리적이고 납득 가능한지'를 검증하는 한국어 계획 비평가다.
+
+[전제]
+- 마감일 이후 금지 같은 '하드 제약'은 코드가 이미 처리했으니 너는 보지 않는다.
+- 너는 soft 품질만 본다. 각 task 에는 difficulty(1=쉬움, 2=보통, 3=어려움)가 있다.
+
+[검증 항목(category)]
+- load: 하루 task 들의 difficulty 합이 과한가. overloaded_days 로 표시된 날을 특히 본다.
+- order: 선후/의존 관계가 뒤집혔나(예: 배포를 테스트보다 앞에 둠).
+- progression: 난이도 곡선이 납득되나.
+    · plan_kind=exam 이면 마감 직전에 난이도가 오르고 마감 당일 핵심 일정(예: "시험 응시")을
+      두는 것이 정상이다 — 이걸 문제로 보지 마라.
+    · plan_kind 가 vague_goal/lifestyle 이면 완만히 점증하고 막판 몰아넣기(back-loading)를 피해야 한다.
+- coherence: 목표와 무관한 task 가 있거나, 날짜를 기계적으로 균등 분배(흐름 없는 복붙)했는가.
+- rationale: rationale 이 주어졌다면, 그 설명이 실제 계획과 맞는가(말만 그럴듯한지).
+
+[심각도(severity)]
+- major: 사용자가 납득하기 어렵거나 계획을 다시 짜야 할 결함(과부하, 순서 역전, 기계적 균등 분배 등).
+- minor: 사소한 개선 여지.
+
+[출력 규칙]
+- 반드시 JSON 객체 하나만 출력한다. 마크다운, 코드펜스, 주석, 설명 문장을 출력하지 않는다.
+- 스키마:
+{
+  "ok": true,
+  "issues": [
+    {"day": "YYYY-MM-DD 또는 null", "category": "load|order|progression|coherence|rationale",
+     "severity": "minor|major", "detail": "무엇이 문제인가", "suggested_fix": "어떻게 고칠까"}
+  ]
+}
+- 문제가 없으면 ok=true 이고 issues 는 빈 배열이다.
+- major 이슈가 하나라도 있으면 ok=false 로 둔다.
+"""
+
+
+def plan_critic_user(
+    *,
+    parsed_goal: dict[str, Any],
+    plan_json: Any,
+    today: date,
+    overloaded_days: list[str],
+) -> str:
+    return (
+        f"today={today.isoformat()}\n"
+        f"목표(JSON): {parsed_goal}\n"
+        f"코드가 표시한 과부하 후보일: {overloaded_days}\n"
+        f"검증 대상 계획(JSON): {plan_json}"
+    )
 
 
 GOAL_TAG_SYSTEM = """
