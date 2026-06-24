@@ -1,0 +1,4 @@
+source_url,source_type,plan_kind,goal_text,activity,domains,cadence,time_of_day,horizon,trigger,real_breakdown
+https://daily.example.com/1,user_submission,routine,마트에서 장보기,쇼핑,생활,매일,오전,1,주중 필요,"1. 채소류 구매 2. 유제품 확인 3. 간식 선택"
+https://daily.example.com/2,user_submission,routine,오전 업무 정리,업무,일;업무,매주,오전,1,업무 시작,"1. 이메일 확인 2. 우선순위 결정 3. 회의 준비"
+https://daily.example.com/3,user_submission,routine,저녁 식사 준비,요리,생활,매일,저녁,1,퇴근 후,"1. 식재료 손질 2. 조리 시작 3. 식탁 준비"
