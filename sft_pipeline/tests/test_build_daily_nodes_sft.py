@@ -16,3 +16,4 @@ def test_build_samples_from_structured(tmp_path):
     samples = build_samples(structured, today=date(2026, 6, 24))
     assert len(samples) >= 4  # judge+goal_tag+generator+critic(3)
     assert all("messages" in s and "meta" in s for s in samples)
+    assert {"judge", "goal_tag", "generator", "critic"} <= {s["meta"]["node"] for s in samples}

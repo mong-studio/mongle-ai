@@ -140,6 +140,45 @@ def _qualitative(samples: list[dict], per_prov: int = 3) -> dict:
     }
 
 
+def daily_triviality_scan(samples: list[dict]) -> dict:
+    """daily-crawl generator 레코드의 필러 잡무 비율 측정(§4.6 anti-filler).
+
+    PLAN_PROVENANCES 와 무관하게 days[] 직접 스캔 — parse_plan 사용 금지
+    (daily generator 출력은 days[] 형식이라 PlanOutput 파싱 불가).
+    """
+    daily_gen = [
+        s for s in samples
+        if (s.get("meta") or {}).get("node") == "generator"
+        and (s.get("meta") or {}).get("provenance") == "daily-crawl"
+    ]
+    n = len(daily_gen)
+    if n == 0:
+        return _metric(None, "daily generator 레코드 중 제목 과반이 확인/점검/정리/준비 잡무인 비율(§4.6 anti-filler, days[] 직접 스캔 — PLAN_PROVENANCES 무관)", count=0)
+
+    filler_record_count = 0
+    for s in daily_gen:
+        try:
+            obj = json.loads(_assistant(s))
+        except Exception:  # noqa: BLE001
+            continue
+        titles = [
+            t.get("title", "")
+            for day in (obj.get("days") or [])
+            for t in (day.get("tasks") or [])
+        ]
+        if not titles:
+            continue
+        frac = sum(1 for t in titles if _TRIVIAL_RE.search(t)) / len(titles)
+        if frac > 0.5:
+            filler_record_count += 1
+
+    return _metric(
+        filler_record_count / n,
+        "daily generator 레코드 중 제목 과반이 확인/점검/정리/준비 잡무인 비율(§4.6 anti-filler, days[] 직접 스캔 — PLAN_PROVENANCES 무관)",
+        count=filler_record_count,
+    )
+
+
 def eval_dataset(samples: list[dict]) -> dict:
     n = len(samples)
     by_prov = dict(Counter(_provenance(s) for s in samples))
@@ -231,7 +270,7 @@ def eval_dataset(samples: list[dict]) -> dict:
             ),
             "gate3_triviality_rate": _metric(
                 _rate(triv_hits, len(parseable)),
-                "제목 과반이 '확인/점검/정리/준비' 류 잡무인 비율(§4.6 필러 안티패턴). 낮을수록 좋음.",
+                "제목 과반이 '확인/점검/정리/준비' 류 잡무인 비율(§4.6 필러 안티패턴). 낮을수록 좋음. (daily-crawl 미포함 — daily 는 daily_triviality_scan 으로 별도 측정)",
                 count=triv_hits,
             ),
             "auto_structural_pass_rate": _metric(

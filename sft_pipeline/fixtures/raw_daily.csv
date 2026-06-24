@@ -1,4 +1,4 @@
 source_url,source_type,plan_kind,goal_text,activity,domains,cadence,time_of_day,horizon,trigger,real_breakdown
-https://daily.example.com/1,user_submission,routine,마트에서 장보기,쇼핑,생활,매일,오전,1,주중 필요,"1. 채소류 구매 2. 유제품 확인 3. 간식 선택"
-https://daily.example.com/2,user_submission,routine,오전 업무 정리,업무,일;업무,매주,오전,1,업무 시작,"1. 이메일 확인 2. 우선순위 결정 3. 회의 준비"
-https://daily.example.com/3,user_submission,routine,저녁 식사 준비,요리,생활,매일,저녁,1,퇴근 후,"1. 식재료 손질 2. 조리 시작 3. 식탁 준비"
+https://blog.example.com/run,blog,루틴,꾸준히 달리기,런닝,운동,주 3회,아침,한 달,건강검진 경고,런닝 30분|주3|아침;스트레칭 10분|주3|아침
+https://blog.example.com/eng,blog,루틴,영어 회화 습관,영어,학습,주 2회,저녁,한 달,자기계발,영어 회화 20분|주2|저녁;섀도잉 15분|주2|저녁
+https://cafe.example.com/balance,community,라이프스타일,균형 잡힌 한 달,,운동;학습;휴식,주 3회,저녁,한 달,번아웃,홈트 20분|주3|저녁;독서 30분|주2|밤;명상 10분|매일|밤

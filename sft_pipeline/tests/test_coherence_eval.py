@@ -107,3 +107,41 @@ def test_triviality_metric_flags_filler_tasks():
         calendar_events=[PlanTask(title="기구 점검", due_date=date(2026, 6, 25))],
     )
     assert _triviality_fraction(plan) == 1.0
+
+
+def _daily_gen_sample(days_content: list[dict], filler: bool) -> dict:
+    """Build a fake daily generator sample (meta node=generator, provenance=daily-crawl)."""
+    import json
+
+    return {
+        "messages": [
+            {"role": "user", "content": "일상 계획 세워줘"},
+            {"role": "assistant", "content": json.dumps({"days": days_content}, ensure_ascii=False)},
+        ],
+        "meta": {"node": "generator", "provenance": "daily-crawl"},
+    }
+
+
+def test_daily_triviality_scan_distinguishes_filler_from_clean():
+    from sft_pipeline.build.lib.coherence_eval import daily_triviality_scan
+
+    # Filler sample: all titles contain trivial words
+    filler_days = [
+        {"date": "2026-06-24", "tasks": [{"title": "운동복 확인", "due_date": "2026-06-24", "difficulty": 1}]},
+        {"date": "2026-06-25", "tasks": [{"title": "기구 점검", "due_date": "2026-06-25", "difficulty": 1}]},
+        {"date": "2026-06-26", "tasks": [{"title": "간식 정리", "due_date": "2026-06-26", "difficulty": 1}]},
+    ]
+    filler_sample = _daily_gen_sample(filler_days, filler=True)
+
+    # Clean sample: real activities, no filler words
+    clean_days = [
+        {"date": "2026-06-24", "tasks": [{"title": "런닝 30분", "due_date": "2026-06-24", "difficulty": 1}]},
+        {"date": "2026-06-25", "tasks": [{"title": "스트레칭 10분", "due_date": "2026-06-25", "difficulty": 2}]},
+    ]
+    clean_sample = _daily_gen_sample(clean_days, filler=False)
+
+    result = daily_triviality_scan([filler_sample, clean_sample])
+    # filler_sample has >50% trivial titles → count=1; clean_sample has 0 → rate=0.5
+    assert result["count"] == 1
+    assert result["value"] == 0.5
+    assert isinstance(result["rationale"], str) and result["rationale"]

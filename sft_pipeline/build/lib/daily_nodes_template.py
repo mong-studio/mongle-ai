@@ -8,8 +8,11 @@ generator 타깃은 현 런타임 계약(절대 날짜 days[], ≤7일·하루�
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, timedelta
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 from agents.todo_creation.planner.slot_schemas import missing_required
 from sft_pipeline.build.lib.plan_critic_template import (
@@ -105,6 +108,14 @@ def build_daily_days(case: dict, today: date) -> list[dict[str, Any]]:
     7일/12개 cap 초과분은 drop(silent-drop 경고는 빌더 진입점에서).
     """
     items = parse_real_breakdown(case.get("real_breakdown", ""))[:_MAX_TASKS]
+    dropped = len(items) - _HORIZON_DAYS
+    if dropped > 0:
+        log.warning(
+            "build_daily_days: source_url=%r 에서 %d개 활동이 _HORIZON_DAYS(%d) 초과로 drop됨",
+            case.get("source_url", ""),
+            dropped,
+            _HORIZON_DAYS,
+        )
     capped = items[:_HORIZON_DAYS]
     total = len(capped)
     days: list[dict[str, Any]] = []

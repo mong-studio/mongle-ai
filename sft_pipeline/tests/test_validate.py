@@ -318,3 +318,8 @@ def test_daily_crawl_horizon_days():
     from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES, _horizon_days
     assert "daily-crawl" not in PLAN_PROVENANCES
     assert _horizon_days({"provenance": "daily-crawl"}) == 7
+
+
+def test_daily_critic_not_in_plan_provenances():
+    from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES
+    assert "daily-critic" not in PLAN_PROVENANCES
