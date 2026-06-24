@@ -13,6 +13,9 @@ from agents.todo_creation.state import ParsedGoal, PlanDay
 
 _MAX_SUMMARY_CHARS = 1500
 _DEFAULT_ROUTINE_HORIZON = 28
+# 재생성(critic backprompt) 은 1차와 달라져야 의미가 있다 → Qwen 기본 temp(0.7)로 샘플링
+# 다양성을 준다. 1차 생성은 낮은 기본 temp(어댑터 0.1)로 둔다(레버①).
+_REGEN_TEMPERATURE = 0.7
 
 
 async def plan_generator_node(
@@ -32,12 +35,19 @@ async def plan_generator_node(
         history=state.get("history", []),
     )
     parsed_goal = {**parsed_goal, "goal_tag": goal_tag}
-    summary_text, plan = await llm.generate_plan(parsed_goal=parsed_goal, today=today)
+    regen_temp = (
+        _REGEN_TEMPERATURE if state.get("critique_retries", 0) >= 1 else None
+    )
+    summary_text, plan = await llm.generate_plan(
+        parsed_goal=parsed_goal, today=today, temperature=regen_temp
+    )
     if len(summary_text) > _MAX_SUMMARY_CHARS:
-        summary_text, plan = await llm.generate_plan(parsed_goal=parsed_goal, today=today)
+        summary_text, plan = await llm.generate_plan(
+            parsed_goal=parsed_goal, today=today, temperature=regen_temp
+        )
     summary_text = _truncate_summary(summary_text)
     tagged_plan = _prepare_plan_days(plan, parsed_goal=parsed_goal, today=today)
-    tagged_plan = _clamp_to_deadline(tagged_plan, deadline=parsed_goal.get("deadline"))
+    tagged_plan = _enforce_deadline(tagged_plan, today=today, deadline=parsed_goal.get("deadline"))
 
     todos = []
     calendar_events = []
@@ -54,6 +64,8 @@ async def plan_generator_node(
         "todos": todos,
         "calendar_events": calendar_events,
         "personalization_patch": parsed_goal.get("personalization_patch"),
+        # generate_plan 이 실은 rationale(객관 근거)·goal_tag 를 state 로 전파해 critic 이 본다.
+        "parsed_goal": parsed_goal,
     }
 
 
@@ -112,16 +124,48 @@ def _truncate_summary(value: str) -> str:
     return clipped.strip()
 
 
-def _clamp_to_deadline(
-    plan: list[PlanDay], *, deadline: date | None
+def _enforce_deadline(
+    plan: list[PlanDay], *, today: date, deadline: date | None
 ) -> list[PlanDay]:
-    """deadline 이후 날짜의 PlanDay 를 제거한다 (P1: 마감 이후 군더더기 차단).
+    """deadline 기준으로 plan 의 날짜를 정리한다(코드가 날짜를 소유).
 
-    deadline 이 None 이면 원본을 그대로 돌려준다(기존 거동 보존).
+    - deadline 없음 → 원본 유지(짧은 horizon, 기존 거동 보존).
+    - 모델이 마감 전에 끝냄(truncation 버그) → today~deadline 전체로 재분배해 마지막날=deadline 보장.
+    - 모델이 마감까지/이후로 만듦 → 마감 이후만 잘라낸다(기존 P1 거동: 회고 등 군더더기 차단).
     """
     if deadline is None:
         return plan
+    dates = [day["date"] for day in plan if isinstance(day.get("date"), date)]
+    if dates and max(dates) < deadline:
+        return _distribute_to_deadline(plan, today=today, deadline=deadline)
     return [day for day in plan if day["date"] <= deadline]
+
+
+def _distribute_to_deadline(
+    plan: list[PlanDay], *, today: date, deadline: date
+) -> list[PlanDay]:
+    """마일스톤 PlanDay 들을 today~deadline 전체에 고르게 재배치한다(truncation 차단).
+
+    모델이 정한 날짜는 무시하고 '순서'만 쓴다. 첫날=today, 마지막날=deadline 을 보장한다.
+    """
+    days = [day for day in plan if day.get("tasks")]
+    if not days or deadline <= today:
+        return [day for day in plan if day["date"] <= deadline]
+
+    span = (deadline - today).days
+    # 캘린더 슬롯보다 많은 날을 만들 수 없다(겹침 방지). 초과 마일스톤은 버린다.
+    if len(days) - 1 > span:
+        days = days[: span + 1]
+    count = len(days)
+
+    redated: list[PlanDay] = []
+    for index, day in enumerate(days):
+        # count==1 → today(지금 시작). count>=2 → 첫날=today, 마지막날=deadline 으로 균등 배치.
+        offset = 0 if count == 1 else round(index * span / (count - 1))
+        current = today + timedelta(days=offset)
+        tasks = [task.model_copy(update={"due_date": current}) for task in day["tasks"]]
+        redated.append({**day, "date": current, "tasks": tasks})
+    return redated
 
 
 def _prepare_plan_days(

@@ -120,3 +120,16 @@ async def test_payload_includes_adapter() -> None:
         await _llm(adapter="planner").complete_raw(messages=MESSAGES)
     sent = client.post.call_args.kwargs["json"]
     assert sent["input"]["adapter"] == "planner"
+
+
+@pytest.mark.asyncio
+async def test_payload_includes_decoding_params_and_temp_override() -> None:
+    """RunPod(vLLM) 경로는 Qwen 공식 디코딩값을 모두 보내고, 호출별 temperature 를 덮는다."""
+    client = _mock_client(statuses=[{"status": "COMPLETED", "output": {"text": "ok"}}])
+    with patch(_PATCH, return_value=client):
+        await _llm().complete_raw(messages=MESSAGES, temperature=0.7)
+    sent = client.post.call_args.kwargs["json"]["input"]
+    assert sent["top_p"] == 0.8
+    assert sent["top_k"] == 20
+    assert sent["repetition_penalty"] == 1.05
+    assert sent["temperature"] == 0.7  # per-call override (재생성용)

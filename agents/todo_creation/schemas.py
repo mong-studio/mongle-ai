@@ -17,6 +17,9 @@ class TaskCandidate(BaseModel):
     title: Annotated[str, Field(min_length=1, max_length=20)]
     due_date: date
     tags: Annotated[list[str], Field(default_factory=list)]
+    # 객관적 부하·난이도 곡선 신호(1=쉬움, 3=어려움). critic 이 일일 Σdifficulty 로
+    # 과부하·페이싱을 판단한다. 누락 시 1(기존 데이터 호환).
+    difficulty: Annotated[int, Field(default=1, ge=1, le=3)]
 
 
 class CandidatesResult(BaseModel):

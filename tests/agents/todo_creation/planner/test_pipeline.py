@@ -30,6 +30,7 @@ class _FakeLLM:
     )
     follow_up_responses: list[str] = field(default_factory=list)
     plan_responses: list[tuple[str, list[PlanDay]]] = field(default_factory=list)
+    critique_responses: list[dict] = field(default_factory=list)
     seen_history: list[list[Turn]] = field(default_factory=list)
     seen_parsed_goals: list[ParsedGoal] = field(default_factory=list)
     goal_tag_response: str = "계획"
@@ -46,7 +47,7 @@ class _FakeLLM:
         return self.follow_up_responses.pop(0)
 
     async def generate_plan(
-        self, *, parsed_goal: ParsedGoal, today: date
+        self, *, parsed_goal: ParsedGoal, today: date, temperature: float | None = None
     ) -> tuple[str, list[PlanDay]]:
         self.seen_parsed_goals.append(parsed_goal)
         if self.plan_responses:
@@ -62,6 +63,14 @@ class _FakeLLM:
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
     ) -> list[PlanDay]:
         return plan
+
+    async def critique_plan(
+        self, *, parsed_goal: ParsedGoal, plan: list[PlanDay],
+        today: date, overloaded_days: list[str] | None = None,
+    ) -> dict:
+        if self.critique_responses:
+            return self.critique_responses.pop(0)
+        return {"ok": True, "issues": []}
 
     async def split_tasks(self, *, prompt: str, today: date):
         return SplitResult(intent="plan", tasks=[])
@@ -182,6 +191,32 @@ async def test_revision_after_generated_plan_uses_previous_plan() -> None:
     assert second.todos[0].tags == ["코테"]
     assert llm.seen_parsed_goals[-1]["revision_request"] == "실전 문제를 더 많이 넣어줘"
     assert llm.seen_parsed_goals[-1]["previous_plan"]
+
+
+async def test_critic_major_triggers_one_regeneration_within_a_turn() -> None:
+    """major verdict → 같은 턴에서 plan_generator 재실행(2회), round2 goal 에 critic
+    backprompt(revision_request+previous_plan), 그 다음엔 retries 소진으로 종료."""
+    round1 = TaskCandidate(title="과부하 하루", due_date=_TODAY, difficulty=3)
+    round2 = TaskCandidate(title="분산된 하루", due_date=_TODAY, difficulty=1)
+    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    major = {"ok": False, "issues": [{"severity": "major", "category": "load",
+             "detail": "하루 과부하", "suggested_fix": "이틀로 분산", "day": None}]}
+    llm = _FakeLLM(
+        sufficiency_responses=[(True, [], goal)],
+        plan_responses=[
+            ("첫 플랜", [{"date": _TODAY, "tasks": [round1]}]),
+            ("재생성 플랜", [{"date": _TODAY, "tasks": [round2]}]),
+        ],
+        critique_responses=[major],  # 1라운드만 major, 이후 기본 clean
+    )
+
+    result = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
+
+    assert isinstance(result, CandidatesResult)
+    assert result.todos[0].title == round2.title  # 재생성 결과가 배달됨
+    assert len(llm.seen_parsed_goals) == 2  # plan_generator 정확히 2회(1 재생성)
+    assert llm.seen_parsed_goals[1]["revision_request"]  # critic 이 만든 backprompt
+    assert llm.seen_parsed_goals[1]["previous_plan"]
 
 
 async def test_acceptance_after_generated_plan_returns_previous_candidates_without_llm() -> None:
