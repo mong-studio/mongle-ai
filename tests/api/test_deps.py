@@ -68,6 +68,8 @@ def test_build_todo_planner_ports_qwen():
         _cfg(qwen_base_url="http://qwen-host/v1", qwen_model="planning-adapter")
     )
     assert ports.llm is not None
+    assert ports.classifier is not None
+    assert ports.validator is ports.classifier
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +182,8 @@ def test_build_todo_planner_ports_qwen_builds():
         )
     )
     assert ports.llm is not None
+    assert ports.classifier is not None
+    assert ports.validator is ports.classifier
 
 
 def test_build_character_llm_uses_persona_model():
@@ -231,9 +235,11 @@ def test_todo_generate_ports_runpod_uses_base_adapter():
 
 
 def test_todo_planner_ports_runpod_uses_planner_adapter():
-    """runpod 모드: 멀티턴 planner 는 planner LoRA 를 그대로 쓴다."""
+    """runpod 모드: 생성은 planner, 분류·검증은 base 어댑터를 쓴다."""
     ports = build_todo_planner_ports(_runpod_cfg())
     assert ports.llm._adapter == "planner"
+    assert ports.classifier._adapter == "base"
+    assert ports.validator is ports.classifier
 
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,12 @@
 ## [Unreleased]
 
 ### Added
+- **Planner Runtime V2 격리 학습 키트**: 기존 planner LoRA·구형 `kind/phases` 데이터를 유지한 채,
+  현재 `summary_text/personalization_patch/days` 계약만 학습하는 결정론적 300건 데이터셋과
+  생성기, RunPod 전용 학습 스크립트, 20개 holdout 승격 평가기를 추가했다. 신규 출력은
+  `outputs/planner-runtime-v2-*`, 신규 HF repo, 복제한 RunPod 테스트 엔드포인트를 사용해
+  운영 어댑터를 덮어쓰지 않는다. 관련 파일과 실행 절차는
+  `sft_pipeline/experiments/planner_runtime_v2/`에 격리했다.
 - **피드 풀 파이프라인 (RunPod `feed` 모드)**: 피드 이미지가 "정면 캐릭터 스프라이트 한 장"만
   생성되던 것을, Hadimee `mongle-bg-lora/feed_pipeline` 5단계(캐릭터 img2img 포즈 변환 → rembg
   누끼 → 배경 text2img → 합성+그림자+rim마스크 → inpaint 경계 블렌딩)로 확장. 5단계는 GPU
@@ -53,6 +59,12 @@
   **사진 있는 img2img 경로(표준 30-step)는 불변.** ⚠️ GPU 워커 재배포 필요(로컬 GPU 미검증).
 
 ### Fixed
+- **멀티턴 플래너의 미지 목표 오분류·정처기 내용 혼입 수정**: 고정 유형에 없는 계획을
+  `project`로 수용하고 base 모델이 근거·신뢰도와 함께 선분류한다. 꼬리질문은 최대 2회이며,
+  날짜를 끝내 받지 못하면 7일 초안이라는 가정을 명시한다. 이전 턴과 수정 요청의 슬롯은
+  누적·재추출하고, planner LoRA 출력은 base 품질 judge가 관련성·한국어·문장 자연스러움을
+  검사한다. 상세 일정은 최대 30일·15개로 코드 배치하며 장기 목표의 이후 방향은 요약으로
+  제공한다. 사용자 노출 대화는 해요체와 응답당 `몽글` 1회로 정리한다.
 - **SFT LoRA 학습 `<EOS_TOKEN>` 반복 실패 해결**: `train_lora.py`가 `trl`을 `unsloth`보다 먼저 import해
   unsloth의 trl 몽키패치가 어긋나며 `eos_token`이 `<EOS_TOKEN>` placeholder로 새어 학습이 죽던 문제.
   **import 순서를 unsloth 우선으로 재배치**해 근본 해결(transformers 5.5.0 그대로, 다운그레이드 불필요).

@@ -29,16 +29,16 @@ async def test_calls_llm_and_interrupts_with_question() -> None:
         return_value="800점",
     ) as mock_interrupt:
         out = await follow_up_node(_state(), _config(llm))
-    assert out["follow_up_question"] == "목표 점수는?"
+    assert out["follow_up_question"] == "목표 점수는, 몽글?"
     assert out["history"][-2:] == [
-        {"role": "assistant", "content": "목표 점수는?"},
+        {"role": "assistant", "content": "목표 점수는, 몽글?"},
         {"role": "user", "content": "800점"},
     ]
     llm.generate_follow_up_question.assert_awaited_once_with(
         missing_aspects=["목표 점수"],
         history=[{"role": "user", "content": "내일 시험"}],
     )
-    mock_interrupt.assert_called_once_with("목표 점수는?")
+    mock_interrupt.assert_called_once_with("목표 점수는, 몽글?")
 
 
 @pytest.mark.asyncio

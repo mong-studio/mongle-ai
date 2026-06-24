@@ -28,8 +28,20 @@ class LLMPort(Protocol):
         user_profile_memory: dict[str, Any] | None = None,
     ) -> tuple[bool, list[str], ParsedGoal]: ...
 
+    async def classify_request(
+        self,
+        *,
+        history: list[Turn],
+        message: str,
+        has_existing_goal: bool,
+    ) -> dict[str, Any]: ...
+
     async def generate_follow_up_question(
         self, *, missing_aspects: list[str], history: list[Turn]
+    ) -> str: ...
+
+    async def generate_out_of_scope_reply(
+        self, *, message: str, history: list[Turn]
     ) -> str: ...
 
     async def generate_plan(
@@ -43,6 +55,15 @@ class LLMPort(Protocol):
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
     ) -> list[PlanDay]: ...
+
+    async def validate_plan(
+        self,
+        *,
+        plan: list[PlanDay],
+        summary_text: str,
+        parsed_goal: ParsedGoal,
+        today: date,
+    ) -> tuple[bool, list[str]]: ...
 
 
 class TodoRepositoryPort(Protocol):

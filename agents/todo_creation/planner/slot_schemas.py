@@ -32,10 +32,25 @@ SLOT_SCHEMAS: dict[str, PlanSchema] = {
             Slot("exam_date", "시험일 또는 남은 기간", 2),
             Slot("daily_hours", "하루 공부 가능 시간", 3),
             Slot("current_level", "현재 진도/수준", 4),
+            Slot("background", "전공자/비전공자 여부", 5),
         ),
         optional=(
-            Slot("weak_subjects", "약한 과목", 5),
-            Slot("goal", "목표 점수/결과", 6),
+            Slot("weak_subjects", "약한 과목", 6),
+            Slot("goal", "목표 점수/결과", 7),
+        ),
+    ),
+    "event": PlanSchema(
+        "event",
+        required=(
+            Slot("activity", "어떤 경기나 대회에 출전하는지", 1),
+            Slot("event_date", "경기일 또는 남은 기간", 2),
+            Slot("current_level", "현재 운동 수준과 관련 경험", 3),
+            Slot("weekly_cadence", "주 몇 회 훈련 가능한지", 4),
+        ),
+        optional=(
+            Slot("distance", "출전 종목과 거리", 5),
+            Slot("constraints", "부상이나 훈련 제약", 6),
+            Slot("goal", "완주 또는 기록 목표", 7),
         ),
     ),
     "routine": PlanSchema(
@@ -70,17 +85,28 @@ SLOT_SCHEMAS: dict[str, PlanSchema] = {
             Slot("priority_order", "우선순위", 5),
         ),
     ),
+    "project": PlanSchema(
+        "project",
+        required=(
+            Slot("goal", "구체적으로 무엇을 해내고 싶은지", 1),
+            Slot("success_criteria", "어떤 상태가 되면 목표를 달성한 것인지", 2),
+            Slot("horizon", "언제까지 준비하거나 실행할지", 3),
+            Slot("available_time", "계획에 쓸 수 있는 시간이나 빈도", 4),
+        ),
+        optional=(
+            Slot("current_state", "현재 준비 상태나 경험", 5),
+            Slot("constraints", "반드시 고려할 제약이나 고정 일정", 6),
+        ),
+    ),
 }
 
 
 def missing_required(plan_kind: str, filled_keys: set[str]) -> list[str]:
     """plan_kind 의 미충족 필수 슬롯 key 를 우선순위 순으로 돌려준다.
 
-    알 수 없는 plan_kind 는 빈 리스트(스키마 없음 = 추가 질문 없음).
+    알 수 없는 plan_kind 는 project 스키마로 처리한다.
     """
-    schema = SLOT_SCHEMAS.get(plan_kind)
-    if schema is None:
-        return []
+    schema = SLOT_SCHEMAS.get(plan_kind, SLOT_SCHEMAS["project"])
     ordered = sorted(schema.required, key=lambda s: s.priority)
     return [s.key for s in ordered if s.key not in filled_keys]
 
@@ -88,10 +114,8 @@ def missing_required(plan_kind: str, filled_keys: set[str]) -> list[str]:
 def slot_hints(plan_kind: str | None, keys: list[str]) -> list[str]:
     """미충족 슬롯 key 를 사람용 한국어 질문 힌트로 바꾼다.
 
-    스키마에 없는 key(예: exam 의 'deadline')나 미지의 plan_kind 는 원문 그대로 둔다.
+    스키마에 없는 key(예: exam 의 'deadline')는 원문 그대로 둔다.
     """
-    schema = SLOT_SCHEMAS.get(plan_kind or "")
-    if schema is None:
-        return list(keys)
+    schema = SLOT_SCHEMAS.get(plan_kind or "", SLOT_SCHEMAS["project"])
     by_key = {s.key: s.question_hint for s in (*schema.required, *schema.optional)}
     return [by_key.get(k, k) for k in keys]

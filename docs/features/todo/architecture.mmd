@@ -41,13 +41,25 @@ flowchart TB
         MVE[/"에러 응답"/]
         MPR{"phase_router
         SessionStore 조회"}
+        MCL["Base LLM Classifier
+        intent + plan_kind
+        confidence + evidence"]
         MPS["LLM Planner judge
-        is_sufficient + parsed_goal 갱신"]
-        MQ{"is_sufficient?"}
+        범용 plan_kind + 슬롯 누적
+        실제 충족 여부 판정"]
+        MQ{"충분하거나
+        질문 2회 완료?"}
         MFU["LLM Follow-up
-        꼬리 질문 생성"]
+        날짜 우선, 최대 2회
+        해요체 + 몽글 1회"]
         MPG["LLM Plan Generator
-        일자별 플랜 (≤1500자 + truncate fallback)"]
+        핵심 단계 생성"]
+        MAL["Code Allocator
+        최대 30일 · 15개
+        날짜 결정 배치"]
+        MQA["Base LLM Quality Judge
+        관련성·한국어·자연스러움
+        실패 시 1회 재생성"]
         MTG["LLM Tagger
         자유 형식 태그"]
         EA["LLM Edit Agent
@@ -82,11 +94,11 @@ flowchart TB
     MA --> MV
     MV -- 실패 --> MVE
     MV -- 통과 --> MPR
-    MPR -- gathering --> MPS
+    MPR -- gathering --> MCL --> MPS
     MPR -- reviewing --> EA
     MPS --> MQ
     MQ -- 부족 --> MFU --> ME
-    MQ -- 충분 --> MPG --> MTG --> ME
+    MQ -- 충분/2회 완료 --> MPG --> MAL --> MQA --> MTG --> ME
     EA -- regenerate_plan --> MPG
     EA -- confirm --> MC --> ME
     SC --> COMMIT
@@ -113,10 +125,13 @@ flowchart TB
      MV:::validation
      MVE:::error
      MPR:::process
+     MCL:::ai
      MPS:::ai
      MQ:::process
      MFU:::ai
      MPG:::ai
+     MAL:::process
+     MQA:::ai
      MTG:::ai
      EA:::ai
      ME:::ui

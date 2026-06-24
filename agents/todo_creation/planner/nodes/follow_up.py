@@ -14,7 +14,10 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
 from agents.todo_creation.config_utils import get_ports
+from agents.todo_creation.planner.conversation_style import render_chief_voice
 from agents.todo_creation.planner.slot_schemas import slot_hints
+
+_DATE_KEYS = {"deadline", "exam_date", "event_date", "horizon"}
 
 
 async def follow_up_node(
@@ -22,10 +25,18 @@ async def follow_up_node(
 ) -> dict[str, Any]:
     ports = get_ports(config)
     parsed_goal = state.get("parsed_goal") or {}
+    follow_up_count = int(state.get("follow_up_count") or 0)
+    missing = list(state.get("missing_aspects", []))
+    if follow_up_count == 0:
+        date_keys = [key for key in missing if key in _DATE_KEYS]
+        selected = date_keys[:1] or missing[:4]
+    else:
+        selected = missing[:4]
     question = await ports.llm.generate_follow_up_question(
-        missing_aspects=slot_hints(parsed_goal.get("plan_kind"), state.get("missing_aspects", [])),
+        missing_aspects=slot_hints(parsed_goal.get("plan_kind"), selected),
         history=state.get("history", []),
     )
+    question = render_chief_voice(question, question=True)
     user_answer = interrupt(question)
     history = state.get("history", [])
     appended = [
@@ -36,4 +47,5 @@ async def follow_up_node(
         "follow_up_question": question,
         "history": history + appended,
         "recent_turns": (state.get("recent_turns", []) + appended)[-6:],
+        "follow_up_count": follow_up_count + 1,
     }

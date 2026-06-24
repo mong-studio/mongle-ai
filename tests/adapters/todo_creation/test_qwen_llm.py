@@ -238,8 +238,9 @@ async def test_judge_sufficiency_parses_plan_intent() -> None:
         user_profile_memory={"preferences": ["저녁 선호"]},
     )
 
-    assert sufficient is True
-    assert missing == []
+    assert sufficient is False
+    assert missing == ["success_criteria"]
+    assert goal["plan_kind"] == "project"
     assert goal["deadline"] == date(2026, 5, 27)
     assert goal["goal_tag"] == "코딩테스트"
     assert goal["personalization_patch"]["preferences"] == ["실전 문제 선호"]
@@ -379,7 +380,7 @@ async def test_judge_sufficiency_routine_vague_cadence_follows_up() -> None:
 
 async def test_judge_sufficiency_malformed_plan_kind_does_not_crash() -> None:
     # 모델이 plan_kind 를 비정상(리스트 등 unhashable)으로 주어도 크래시 없이
-    # 미분류로 폴백하고 모델 결정을 따른다.
+    # project 로 폴백하고 부족한 공통 정보를 다시 확인한다.
     from adapters.todo_creation.qwen_llm import QwenLLM
 
     _FakeAsyncClient.responses = [
@@ -409,13 +410,13 @@ async def test_judge_sufficiency_malformed_plan_kind_does_not_crash() -> None:
         history=[], message="헬스", today=date(2026, 5, 24)
     )
 
-    assert sufficient is True
-    assert missing == []
-    assert "plan_kind" not in goal  # 비정상 값은 폴백되어 제거
+    assert sufficient is False
+    assert missing == ["success_criteria", "horizon", "available_time"]
+    assert goal["plan_kind"] == "project"
 
 
 async def test_judge_sufficiency_exam_preserves_model_decision() -> None:
-    # exam 은 스키마 override 하지 않고 모델의 is_sufficient/missing 을 유지(기존 거동·deadline 휴리스틱 보존).
+    # exam 은 시험마다 필수 정보가 다르므로 어댑터에서는 모델의 missing 을 보존한다.
     from adapters.todo_creation.qwen_llm import QwenLLM
 
     _FakeAsyncClient.responses = [
@@ -465,7 +466,97 @@ async def test_generate_follow_up_question_parses_json() -> None:
     assert question == "언제까지 준비해야 하나요?"
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "이장님" in serialized
-    assert "한 번에 하나" in serialized
+    assert "2~4개까지" in serialized
+
+
+async def test_classify_request_parses_open_set_result() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "intent": "planning",
+                        "plan_kind": "project",
+                        "confidence": 0.91,
+                        "evidence": ["우승하고 싶어"],
+                        "unknown_entity": "흑백요리사",
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+
+    result = await llm.classify_request(
+        history=[],
+        message="흑백요리사 우승하고 싶어",
+        has_existing_goal=False,
+    )
+
+    assert result["plan_kind"] == "project"
+    assert result["unknown_entity"] == "흑백요리사"
+    assert result["confidence"] == 0.91
+
+
+async def test_validate_plan_parses_quality_issues() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "valid": False,
+                        "issues": ["경기 목표에 시험 내용이 섞임"],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    plan = [
+        {
+            "date": date(2026, 5, 24),
+            "tasks": [
+                TaskCandidate(
+                    title="필기 기출 풀이",
+                    due_date=date(2026, 5, 24),
+                )
+            ],
+        }
+    ]
+
+    valid, issues = await llm.validate_plan(
+        plan=plan,
+        summary_text="철인 삼종 준비",
+        parsed_goal={"plan_kind": "event", "goal_text": "철인 삼종 출전"},
+        today=date(2026, 5, 24),
+    )
+
+    assert valid is False
+    assert issues == ["경기 목표에 시험 내용이 섞임"]
+
+
+async def test_generate_out_of_scope_reply_parses_json() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload('{"reply":"그럴 때도 있죠. 챙길 일이 생기면 일정으로 같이 정리해볼게요."}')
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    reply = await llm.generate_out_of_scope_reply(message="아 배고파", history=[])
+
+    assert reply.startswith("그럴 때도")
+    serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
+    assert "플랜 생성과 직접 관련 없을 때" in serialized
+    assert "아 배고파" in serialized
 
 
 async def test_generate_plan_parses_days_and_personalization_patch() -> None:
@@ -507,7 +598,7 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert days[0]["tasks"][0].title == "개념 복습"
     assert parsed_goal["personalization_patch"] == {"planning_style": ["짧은 TODO"]}
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
-    assert "전체 tasks 는 12개 이하" in serialized
+    assert "전체 tasks 는 15개 이하" in serialized
 
 
 async def test_generate_goal_tag_parses_structured_tag() -> None:

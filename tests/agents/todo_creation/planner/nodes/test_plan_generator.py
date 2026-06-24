@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+import pytest
+
+from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay
@@ -51,10 +54,11 @@ class _FakeLLM:
 @dataclass
 class _Ports:
     llm: _FakeLLM
+    validator: object | None = None
 
 
-def _config(llm: _FakeLLM) -> dict:
-    return {"configurable": {"ports": _Ports(llm=llm)}}
+def _config(llm: _FakeLLM, *, validator=None) -> dict:
+    return {"configurable": {"ports": _Ports(llm=llm, validator=validator)}}
 
 
 def _state(parsed_goal: ParsedGoal | None = None) -> dict:
@@ -70,7 +74,7 @@ async def test_splits_today_tasks_into_todos() -> None:
 
     assert result["todos"][0].title == task.title
     assert result["calendar_events"] == []
-    assert result["summary_text"] == "오늘 코테 준비"
+    assert result["summary_text"] == "오늘 코테 준비, 몽글."
     assert result["todos"][0].tags == ["목표"]
 
 
@@ -224,3 +228,70 @@ async def test_p1_no_task_strictly_after_deadline() -> None:
     assert all(t.due_date <= deadline for t in all_tasks)
     assert any(t.title == "시험 응시" and t.due_date == deadline for t in all_tasks)
     assert all(t.title != "회고" for t in all_tasks)
+
+
+async def test_long_event_plan_stops_at_thirty_day_window() -> None:
+    deadline = date(2026, 8, 8)
+    plan: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index),
+            "tasks": [
+                TaskCandidate(
+                    title=f"훈련 {index + 1}",
+                    due_date=_TODAY + timedelta(days=index),
+                )
+            ],
+        }
+        for index in range(7)
+    ]
+    llm = _FakeLLM(plan_response=("철인 삼종 준비", plan))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_tag": "철인삼종",
+                "deadline": deadline,
+            }
+        ),
+        _config(llm),
+    )
+
+    dates = [day["date"] for day in result["plan"]]
+    assert dates[0] == _TODAY
+    assert dates[-1] == _TODAY + timedelta(days=29)
+    assert dates == sorted(dates)
+    assert all(_TODAY <= planned_date <= _TODAY + timedelta(days=29) for planned_date in dates)
+    assert "상세 일정은" in result["summary_text"]
+
+
+async def test_semantic_validator_blocks_contaminated_plan_after_retry() -> None:
+    deadline = date(2026, 8, 8)
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [
+                TaskCandidate(title="필기 기출 문제 풀이", due_date=_TODAY)
+            ],
+        }
+    ]
+    llm = _FakeLLM(plan_response=("시험 준비", contaminated))
+
+    class _Validator:
+        async def validate_plan(self, **_):
+            return False, ["사용자 목표와 무관한 시험 내용"]
+
+    with pytest.raises(LLMOutputError, match="quality validation"):
+        await plan_generator_node(
+            _state(
+                {
+                    "plan_kind": "event",
+                    "goal_text": "철인 삼종 경기 출전",
+                    "goal_tag": "철인삼종",
+                    "deadline": deadline,
+                    "slots": {"activity": "철인 삼종 경기"},
+                }
+            ),
+            _config(llm, validator=_Validator()),
+        )
+    assert llm.generate_calls == 2

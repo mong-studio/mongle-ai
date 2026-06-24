@@ -22,7 +22,9 @@ class Turn(TypedDict):
 
 class ParsedGoal(TypedDict, total=False):
     intent: Literal["plan", "out_of_scope"]
-    plan_kind: Literal["exam", "routine", "vague_goal", "lifestyle"]
+    plan_kind: Literal[
+        "exam", "event", "routine", "vague_goal", "lifestyle", "project"
+    ]
     slots: dict[str, Any]
     goal_text: str
     goal_tag: str
@@ -32,6 +34,10 @@ class ParsedGoal(TypedDict, total=False):
     previous_plan: list[PlanDay]
     user_profile_memory: dict[str, Any]
     personalization_patch: dict[str, Any]
+    classification_confidence: float
+    classification_evidence: list[str]
+    unknown_entity: str | None
+    assumptions: list[str]
 
 
 class PlanDay(TypedDict):
@@ -60,6 +66,7 @@ class GenerateState(TypedDict, total=False):
     sufficiency: bool | None
     missing_aspects: list[str]
     follow_up_question: str | None
+    follow_up_count: int
     plan: list[PlanDay] | None
     summary_text: str | None
 

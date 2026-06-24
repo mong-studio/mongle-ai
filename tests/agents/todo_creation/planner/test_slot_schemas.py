@@ -15,7 +15,14 @@ def test_slot_hints_unknown_key_or_kind_passthrough() -> None:
 
 
 def test_all_plan_kinds_present() -> None:
-    assert set(SLOT_SCHEMAS) == {"exam", "routine", "vague_goal", "lifestyle"}
+    assert set(SLOT_SCHEMAS) == {
+        "exam",
+        "event",
+        "routine",
+        "vague_goal",
+        "lifestyle",
+        "project",
+    }
 
 
 def test_missing_required_returns_unfilled_required_slots() -> None:
@@ -27,8 +34,13 @@ def test_missing_required_empty_when_all_filled() -> None:
     assert missing_required("routine", {"activity", "cadence"}) == []
 
 
-def test_missing_required_unknown_kind_is_empty() -> None:
-    assert missing_required("nonexistent", set()) == []
+def test_missing_required_unknown_kind_uses_project_schema() -> None:
+    assert missing_required("nonexistent", set()) == [
+        "goal",
+        "success_criteria",
+        "horizon",
+        "available_time",
+    ]
 
 
 def test_required_slots_ordered_by_priority() -> None:

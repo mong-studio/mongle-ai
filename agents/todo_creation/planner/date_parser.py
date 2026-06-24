@@ -18,6 +18,9 @@ def parse_explicit_deadline(text: str, *, today: date) -> date | None:
     """한국어 날짜 표현 중 플래너 deadline 으로 쓸 수 있는 표현만 해석한다."""
 
     normalized = re.sub(r"\s+", "", text)
+    absolute = _parse_absolute_date(normalized, today=today)
+    if absolute is not None:
+        return absolute
     relative = _parse_relative_day(normalized, today=today)
     if relative is not None:
         return relative
@@ -25,6 +28,41 @@ def parse_explicit_deadline(text: str, *, today: date) -> date | None:
     if weekday is not None:
         return weekday
     return None
+
+
+def _parse_absolute_date(text: str, *, today: date) -> date | None:
+    iso_match = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    if iso_match:
+        return _safe_date(
+            int(iso_match.group(1)),
+            int(iso_match.group(2)),
+            int(iso_match.group(3)),
+        )
+
+    full_match = re.search(r"(\d{4})년(\d{1,2})월(\d{1,2})일", text)
+    if full_match:
+        return _safe_date(
+            int(full_match.group(1)),
+            int(full_match.group(2)),
+            int(full_match.group(3)),
+        )
+
+    month_day_match = re.search(r"(\d{1,2})월(\d{1,2})일", text)
+    if not month_day_match:
+        return None
+    month = int(month_day_match.group(1))
+    day = int(month_day_match.group(2))
+    candidate = _safe_date(today.year, month, day)
+    if candidate is not None and candidate < today:
+        candidate = _safe_date(today.year + 1, month, day)
+    return candidate
+
+
+def _safe_date(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
 
 
 def has_explicit_deadline(text: str, *, today: date) -> bool:
