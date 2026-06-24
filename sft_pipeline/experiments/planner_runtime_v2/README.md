@@ -96,6 +96,14 @@ bash sft_pipeline/experiments/planner_runtime_v2/train_runpod.sh
 학습 성공 메시지만으로 배포하지 않는다. 위 자동 평가와 실제 챗봇 노트북 테스트를
 모두 통과해야 한다.
 
+학습은 끝났지만 평가 단계만 실패했다면 재학습하지 말고 기존 adapter로 평가만 다시 실행한다.
+
+```bash
+python3 -m sft_pipeline.experiments.planner_runtime_v2.evaluate \
+  --adapter outputs/planner-runtime-v2-run1/adapter \
+  --out outputs/planner-runtime-v2-run1/eval_report.json
+```
+
 ## 5. 신규 HF 저장소에 업로드
 
 기존 저장소를 덮어쓰지 않는다.

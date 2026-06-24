@@ -91,17 +91,23 @@ def _generate(model, tokenizer, messages: list[dict], max_new_tokens: int) -> st
     import torch
 
     inputs = tokenizer.apply_chat_template(
-        messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-    ).to(model.device)
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt",
+        return_dict=True,
+    )
+    inputs = {name: tensor.to(model.device) for name, tensor in inputs.items()}
+    prompt_length = inputs["input_ids"].shape[1]
     with torch.no_grad():
         output = model.generate(
-            input_ids=inputs,
+            **inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
-    return tokenizer.decode(output[0][inputs.shape[1] :], skip_special_tokens=True)
+    return tokenizer.decode(output[0][prompt_length:], skip_special_tokens=True)
 
 
 def _has_english_leak(text: str) -> bool:
