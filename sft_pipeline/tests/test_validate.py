@@ -314,7 +314,7 @@ def test_user_turn_language_also_checked(tmp_path):
     assert any("non-korean script" in e and "kana" in e for e in report["errors"])
 
 
-def test_daily_crawl_is_plan_provenance():
+def test_daily_crawl_horizon_days():
     from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES, _horizon_days
-    assert "daily-crawl" in PLAN_PROVENANCES
+    assert "daily-crawl" not in PLAN_PROVENANCES
     assert _horizon_days({"provenance": "daily-crawl"}) == 7

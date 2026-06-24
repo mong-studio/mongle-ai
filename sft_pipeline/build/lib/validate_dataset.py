@@ -47,7 +47,7 @@ DAILY_HORIZON_DAYS = 7
 # 마지막 assistant 출력이 "구조화 플랜 JSON"이어야 하는 출처들.
 # 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
 # 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
-PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth", "daily-crawl"}
+PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
 
 # === 언어 게이트: 한국어 서비스 데이터에 섞이면 안 되는 외국어 문자 ===
 # 한 글자만 있어도 오류인 "금지 스크립트". 합성 모델(Qwen 등)이 흘리는

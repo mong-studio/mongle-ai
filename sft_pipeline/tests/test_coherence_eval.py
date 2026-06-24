@@ -98,15 +98,12 @@ def test_qualitative_rubric_present():
 
 
 def test_triviality_metric_flags_filler_tasks():
-    import json
     from sft_pipeline.build.lib.coherence_eval import _triviality_fraction
-    from sft_pipeline.build.lib.plan_schemas import parse_plan
-    plan = parse_plan(json.dumps({
-        "summary_text": "xxxxx", "rationale": "r",
-        "personalization_patch": {"preferences": [], "constraints": [], "planning_style": []},
-        "days": [{"date": "2026-06-24", "tasks": [
-            {"title": "운동복 확인", "due_date": "2026-06-24", "difficulty": 1},
-            {"title": "기구 점검", "due_date": "2026-06-24", "difficulty": 1},
-        ]}],
-    }))
+    from sft_pipeline.build.lib.plan_schemas import PlanOutput, PlanTask
+    from datetime import date
+    plan = PlanOutput(
+        summary_text="x",
+        todos=[PlanTask(title="운동복 확인", due_date=date(2026, 6, 24))],
+        calendar_events=[PlanTask(title="기구 점검", due_date=date(2026, 6, 25))],
+    )
     assert _triviality_fraction(plan) == 1.0
