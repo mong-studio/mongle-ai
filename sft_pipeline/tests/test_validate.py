@@ -312,3 +312,9 @@ def test_user_turn_language_also_checked(tmp_path):
     bad["messages"][0]["content"] = "ありがとう 고마워"
     report = validate_samples(_write(tmp_path, [bad]))
     assert any("non-korean script" in e and "kana" in e for e in report["errors"])
+
+
+def test_daily_crawl_is_plan_provenance():
+    from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES, _horizon_days
+    assert "daily-crawl" in PLAN_PROVENANCES
+    assert _horizon_days({"provenance": "daily-crawl"}) == 7

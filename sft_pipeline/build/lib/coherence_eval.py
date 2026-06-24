@@ -25,6 +25,17 @@ from sft_pipeline.build.lib.validate_dataset import PLAN_PROVENANCES, _horizon_d
 # (evaluating-plan-coherence M1, validate 의 단조분해 정책과 동일 취지)
 _MECHANICAL_RE = re.compile(r"\d+\s*(단원|일차|장|주차|강)")
 
+# triviality(잡무): "확인/점검/정리/준비" 류 필러 행동(§4.6 2차 라이브 피드백).
+_TRIVIAL_RE = re.compile(r"(확인|점검|정리|준비)")
+
+
+def _triviality_fraction(plan) -> float:
+    titles = _titles(plan)
+    if not titles:
+        return 0.0
+    hits = sum(1 for t in titles if _TRIVIAL_RE.search(t))
+    return hits / len(titles)
+
 
 def _provenance(sample: dict) -> str:
     return (sample.get("meta") or {}).get("provenance", "?")
@@ -150,6 +161,7 @@ def eval_dataset(samples: list[dict]) -> dict:
     s1_dup = 0
     s2_viol = 0
     m1_mech = 0
+    triv_hits = 0
     structural_pass = 0
     for s, plan in parseable:
         meta = s.get("meta") or {}
@@ -169,6 +181,7 @@ def eval_dataset(samples: list[dict]) -> dict:
         s1_dup += int(dup)
         s2_viol += int(s2)
         m1_mech += int(mech)
+        triv_hits += int(_triviality_fraction(plan) > 0.5)
         if not dup and not s2 and not mech:
             structural_pass += 1
 
@@ -215,6 +228,11 @@ def eval_dataset(samples: list[dict]) -> dict:
                 _rate(m1_mech, len(parseable)),
                 "제목 과반이 'N단원/N일차' 식 기계적 열거인 비율(Gate3 M1 자동 근사). 낮을수록 좋음.",
                 count=m1_mech,
+            ),
+            "gate3_triviality_rate": _metric(
+                _rate(triv_hits, len(parseable)),
+                "제목 과반이 '확인/점검/정리/준비' 류 잡무인 비율(§4.6 필러 안티패턴). 낮을수록 좋음.",
+                count=triv_hits,
             ),
             "auto_structural_pass_rate": _metric(
                 _rate(structural_pass, len(parseable)),

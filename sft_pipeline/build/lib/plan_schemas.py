@@ -52,7 +52,7 @@ def parse_plan(content: str) -> PlanOutput:
     """assistant 출력 문자열 → PlanOutput. 실패 시 ValueError."""
     try:
         data = json.loads(_extract_json(content), strict=False)
-        return PlanOutput.model_validate(data)
+        return PlanOutput.model_validate(_normalize_plan_dict(data))
     except (json.JSONDecodeError, ValidationError) as exc:
         raise ValueError(f"[파싱] 플랜 출력 파싱 실패: {exc}") from exc
 
@@ -87,11 +87,22 @@ def _normalize_plan_dict(data: dict) -> dict:
     - todos/calendar_events 키 누락·비리스트 → []
     - 항목의 due_date 누락 시 흔한 별칭(date/due 등)을 due_date 로 매핑
     - tags 누락 → []
+    - days[].tasks[] 형식(런타임 daily 스키마) → calendar_events 로 평탄화
+      (todos/calendar_events 키가 모두 없을 때만 적용)
     의미 위반(날짜범위·C5·단조분해)은 건드리지 않는다 — check_plan_consistency 의 몫.
     """
     if not isinstance(data, dict):
         return data
     out = dict(data)
+    # days[].tasks[] → calendar_events 평탄화 (todos/calendar_events 키가 둘 다 없을 때)
+    if "todos" not in out and "calendar_events" not in out and isinstance(out.get("days"), list):
+        flat: list = []
+        for day in out["days"]:
+            if isinstance(day, dict):
+                for task in day.get("tasks", []):
+                    if isinstance(task, dict):
+                        flat.append(dict(task))
+        out["calendar_events"] = flat
     for key in ("todos", "calendar_events"):
         items = out.get(key)
         if not isinstance(items, list):
