@@ -9,6 +9,15 @@ from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
 from agents.todo_creation.planner.conversation_style import render_chief_voice
 from agents.todo_creation.schemas import out_of_scope_message_for
 
+_UNSUPPORTED_CAPABILITY_TERMS = (
+    "찾아드",
+    "검색해드",
+    "추천해드",
+    "예약해드",
+    "주문해드",
+    "연결해드",
+)
+
 
 async def out_of_scope_node(
     state: dict[str, Any], config: RunnableConfig
@@ -33,6 +42,9 @@ async def _generate_reply(
     if generator is None:
         return out_of_scope_message_for(message)
     try:
-        return await generator(message=message, history=state.get("history", []))
+        reply = await generator(message=message, history=state.get("history", []))
+        if any(term in reply for term in _UNSUPPORTED_CAPABILITY_TERMS):
+            return out_of_scope_message_for(message)
+        return reply
     except (LLMFailedError, LLMOutputError, TimeoutError):
         return out_of_scope_message_for(message)

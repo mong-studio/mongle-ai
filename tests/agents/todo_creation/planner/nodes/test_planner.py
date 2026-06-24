@@ -67,7 +67,7 @@ async def test_sufficient_goes_to_plan_generator() -> None:
         "goal_tag": "정처기필기",
         "slots": {
             "exam_part": "필기",
-            "exam_date": "내일",
+            "exam_date": "2026-05-26",
             "daily_hours": "2시간",
             "current_level": "기출 1회독",
             "background": "비전공자",
@@ -205,6 +205,48 @@ async def test_triathlon_absolute_date_fills_event_date_only() -> None:
 
 
 @pytest.mark.asyncio
+async def test_marathon_without_date_rejects_model_made_up_event_date() -> None:
+    """사용자가 말하지 않은 경기일을 모델이 만들어도 상태에서 제거한다."""
+
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            True,
+            [],
+            {
+                "intent": "plan",
+                "plan_kind": "event",
+                "goal_text": "마라톤 완주",
+                "deadline": date(2026, 9, 10),
+                "slots": {
+                    "activity": "마라톤",
+                    "event_date": "2026-09-10",
+                    "current_level": "초보",
+                    "weekly_cadence": "주 3회",
+                },
+            },
+        )
+    )
+    state = {
+        "history": [
+            {
+                "role": "user",
+                "content": "마라톤 완주하고 싶은데 어떻게 연습하는 게 좋을까?",
+            }
+        ],
+        "message": "마라톤 완주하고 싶은데 어떻게 연습하는 게 좋을까?",
+        "today": date(2026, 6, 24),
+    }
+
+    cmd = await planner_node(state, _config(llm))
+
+    assert cmd.goto == "follow_up"
+    assert "event_date" in cmd.update["missing_aspects"]
+    assert cmd.update["parsed_goal"]["deadline"] is None
+    assert "event_date" not in cmd.update["parsed_goal"]["slots"]
+
+
+@pytest.mark.asyncio
 async def test_unknown_goal_misclassified_as_exam_becomes_project_and_asks() -> None:
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
@@ -232,7 +274,6 @@ async def test_unknown_goal_misclassified_as_exam_becomes_project_and_asks() -> 
     assert cmd.update["parsed_goal"]["plan_kind"] == "project"
     assert cmd.update["parsed_goal"]["slots"] == {}
     assert cmd.update["missing_aspects"] == [
-        "success_criteria",
         "horizon",
         "available_time",
     ]
@@ -605,6 +646,7 @@ async def test_base_classifier_keeps_unknown_show_goal_out_of_exam() -> None:
     assert cmd.update["parsed_goal"]["plan_kind"] == "project"
     assert cmd.update["parsed_goal"]["unknown_entity"] == "흑백요리사"
     assert "exam_part" not in cmd.update["missing_aspects"]
+    assert cmd.update["missing_aspects"] == ["horizon", "available_time"]
 
 
 @pytest.mark.asyncio
@@ -681,7 +723,9 @@ async def test_followup_answer_keeps_existing_goal_even_if_classified_conversati
 
 
 @pytest.mark.asyncio
-async def test_after_two_followups_generates_seven_day_assumption() -> None:
+async def test_after_two_followups_keeps_deadline_unknown() -> None:
+    """두 번 질문한 뒤에도 목표일이 없으면 가짜 deadline을 만들지 않는다."""
+
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -717,7 +761,7 @@ async def test_after_two_followups_generates_seven_day_assumption() -> None:
     cmd = await planner_node(state, _config(llm))
 
     assert cmd.goto == "plan_generator"
-    assert cmd.update["parsed_goal"]["deadline"] == date(2026, 6, 30)
+    assert cmd.update["parsed_goal"]["deadline"] is None
     assert any(
-        "7일" in item for item in cmd.update["parsed_goal"]["assumptions"]
+        "첫 30일" in item for item in cmd.update["parsed_goal"]["assumptions"]
     )

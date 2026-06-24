@@ -37,7 +37,6 @@ def test_missing_required_empty_when_all_filled() -> None:
 def test_missing_required_unknown_kind_uses_project_schema() -> None:
     assert missing_required("nonexistent", set()) == [
         "goal",
-        "success_criteria",
         "horizon",
         "available_time",
     ]

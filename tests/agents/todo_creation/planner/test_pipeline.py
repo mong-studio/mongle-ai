@@ -132,6 +132,17 @@ async def test_resume_after_follow_up_returns_candidates_result() -> None:
         # generate_follow_up_question is called once to produce the interrupt
         # value, then once more when the node re-runs before interrupt() returns.
         follow_up_responses=["언제까지 완료하실 건가요?", "언제까지 완료하실 건가요?"],
+        plan_responses=[
+            (
+                "시험일까지 핵심 내용을 정리해요.",
+                [
+                    {
+                        "date": _TODAY,
+                        "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY)],
+                    }
+                ],
+            )
+        ],
     )
 
     first = await run(
@@ -154,6 +165,17 @@ async def test_sufficient_immediately_returns_candidates_result() -> None:
     goal: ParsedGoal = {"goal_text": "정보처리기사 필기 준비", "goal_tag": "정처기필기"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
+        plan_responses=[
+            (
+                "시험일까지 핵심 내용을 정리해요.",
+                [
+                    {
+                        "date": _TODAY,
+                        "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY)],
+                    }
+                ],
+            )
+        ],
     )
     message = "3일 뒤 정보처리기사 필기 시험. 하루 2시간 가능하고 기출 1회독한 비전공자야"
     result = await run(_input(message=message), ports=_ports(llm), now=_NOW)

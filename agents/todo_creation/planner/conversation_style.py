@@ -11,7 +11,6 @@ def render_chief_voice(text: str, *, question: bool = False) -> str:
     cleaned = _MONGLE_RE.sub("", str(text or "")).strip()
     if not cleaned:
         cleaned = "함께 정리해볼게요"
-    cleaned = cleaned.rstrip(" .!?~")
+    cleaned = cleaned.rstrip(" ,.!?~")
     ending = "?" if question else "."
     return f"{cleaned}, 몽글{ending}"
-

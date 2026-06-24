@@ -52,14 +52,15 @@ flowchart TB
         MFU["LLM Follow-up
         날짜 우선, 최대 2회
         해요체 + 몽글 1회"]
-        MPG["LLM Plan Generator
-        핵심 단계 생성"]
+        MPG["Capability Router + Plan Generator
+        검증 시험=planner LoRA
+        일반 목표=base LLM"]
         MAL["Code Allocator
-        최대 30일 · 15개
-        날짜 결정 배치"]
-        MQA["Base LLM Quality Judge
-        관련성·한국어·자연스러움
-        실패 시 1회 재생성"]
+        첫 30일 상세 · 최대 15개
+        이후 기간은 채팅 요약"]
+        MQA["Hard Guard + Base Quality Judge
+        날짜·오염·영어는 코드 차단
+        의미 품질은 1회 재생성"]
         MTG["LLM Tagger
         자유 형식 태그"]
         EA["LLM Edit Agent

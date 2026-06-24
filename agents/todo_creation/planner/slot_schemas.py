@@ -89,11 +89,11 @@ SLOT_SCHEMAS: dict[str, PlanSchema] = {
         "project",
         required=(
             Slot("goal", "구체적으로 무엇을 해내고 싶은지", 1),
-            Slot("success_criteria", "어떤 상태가 되면 목표를 달성한 것인지", 2),
-            Slot("horizon", "언제까지 준비하거나 실행할지", 3),
-            Slot("available_time", "계획에 쓸 수 있는 시간이나 빈도", 4),
+            Slot("horizon", "언제까지 준비하거나 실행할지", 2),
+            Slot("available_time", "계획에 쓸 수 있는 시간이나 빈도", 3),
         ),
         optional=(
+            Slot("success_criteria", "어떤 상태가 되면 목표를 달성한 것인지", 4),
             Slot("current_state", "현재 준비 상태나 경험", 5),
             Slot("constraints", "반드시 고려할 제약이나 고정 일정", 6),
         ),

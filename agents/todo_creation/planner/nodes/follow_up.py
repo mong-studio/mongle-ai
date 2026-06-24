@@ -18,21 +18,38 @@ from agents.todo_creation.planner.conversation_style import render_chief_voice
 from agents.todo_creation.planner.slot_schemas import slot_hints
 
 _DATE_KEYS = {"deadline", "exam_date", "event_date", "horizon"}
+_MAX_QUESTION_ASPECTS = 2
+
+
+def _select_missing_aspects(missing: list[str], *, follow_up_count: int) -> list[str]:
+    """한 번에 답하기 쉬운 핵심 조건만 고른다."""
+
+    if follow_up_count > 0:
+        return missing[:_MAX_QUESTION_ASPECTS]
+
+    date_keys = [key for key in missing if key in _DATE_KEYS]
+    if not date_keys:
+        return missing[:_MAX_QUESTION_ASPECTS]
+
+    selected = date_keys[:1]
+    selected.extend(
+        key
+        for key in missing
+        if key not in _DATE_KEYS and key not in selected
+    )
+    return selected[:_MAX_QUESTION_ASPECTS]
 
 
 async def follow_up_node(
     state: dict[str, Any], config: RunnableConfig
 ) -> dict[str, Any]:
     ports = get_ports(config)
+    question_llm = getattr(ports, "classifier", None) or ports.llm
     parsed_goal = state.get("parsed_goal") or {}
     follow_up_count = int(state.get("follow_up_count") or 0)
     missing = list(state.get("missing_aspects", []))
-    if follow_up_count == 0:
-        date_keys = [key for key in missing if key in _DATE_KEYS]
-        selected = date_keys[:1] or missing[:4]
-    else:
-        selected = missing[:4]
-    question = await ports.llm.generate_follow_up_question(
+    selected = _select_missing_aspects(missing, follow_up_count=follow_up_count)
+    question = await question_llm.generate_follow_up_question(
         missing_aspects=slot_hints(parsed_goal.get("plan_kind"), selected),
         history=state.get("history", []),
     )

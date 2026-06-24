@@ -64,6 +64,34 @@ def _payload(content: str) -> dict:
     return {"choices": [{"message": {"content": content}}]}
 
 
+def test_json_parser_accepts_unescaped_newline_inside_string() -> None:
+    """모델이 문자열 줄바꿈을 이스케이프하지 않아도 JSON을 복구한다."""
+
+    from adapters.todo_creation.qwen_llm import _parse_json_object
+
+    parsed = _parse_json_object('{"summary_text":"첫 줄\n둘째 줄","days":[]}')
+
+    assert parsed["summary_text"] == "첫 줄\n둘째 줄"
+
+
+def test_json_parser_salvages_object_when_trailing_field_is_truncated() -> None:
+    """뒤쪽 optional 필드가 잘리면 완성된 앞 필드만 보존한다."""
+
+    from adapters.todo_creation.qwen_llm import _parse_json_object
+
+    raw = (
+        '{"summary_text":"요약",'
+        '"days":[{"date":"2026-05-27","tasks":[]}],'
+        '"personalization_patch":{"plann'
+    )
+
+    parsed = _parse_json_object(raw)
+
+    assert parsed["summary_text"] == "요약"
+    assert parsed["days"][0]["date"] == "2026-05-27"
+    assert "personalization_patch" not in parsed
+
+
 # 입력 검증/파싱: 유효한 원문 JSON 은 TaskCandidate 목록으로 변환된다.
 async def test_split_tasks_parses_valid_json() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
@@ -238,8 +266,8 @@ async def test_judge_sufficiency_parses_plan_intent() -> None:
         user_profile_memory={"preferences": ["저녁 선호"]},
     )
 
-    assert sufficient is False
-    assert missing == ["success_criteria"]
+    assert sufficient is True
+    assert missing == []
     assert goal["plan_kind"] == "project"
     assert goal["deadline"] == date(2026, 5, 27)
     assert goal["goal_tag"] == "코딩테스트"
@@ -411,7 +439,7 @@ async def test_judge_sufficiency_malformed_plan_kind_does_not_crash() -> None:
     )
 
     assert sufficient is False
-    assert missing == ["success_criteria", "horizon", "available_time"]
+    assert missing == ["horizon", "available_time"]
     assert goal["plan_kind"] == "project"
 
 
@@ -466,7 +494,7 @@ async def test_generate_follow_up_question_parses_json() -> None:
     assert question == "언제까지 준비해야 하나요?"
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "이장님" in serialized
-    assert "2~4개까지" in serialized
+    assert "최대 2가지" in serialized
 
 
 async def test_classify_request_parses_open_set_result() -> None:
@@ -601,6 +629,43 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert "전체 tasks 는 15개 이하" in serialized
 
 
+async def test_generate_plan_retries_when_required_days_key_is_missing() -> None:
+    """summary 만 복구된 불완전 플랜은 성공 처리하지 않고 재요청한다."""
+
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(_payload('{"summary_text":"요약","personalization_patch":{"plann')),
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "복구 플랜",
+                        "days": [
+                            {
+                                "date": "2026-05-24",
+                                "tasks": [
+                                    {"title": "기초 체력 30분", "due_date": "2026-05-24"}
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        ),
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    summary, days = await llm.generate_plan(
+        parsed_goal={"goal_text": "철인 삼종"}, today=date(2026, 5, 24)
+    )
+
+    assert summary == "복구 플랜"
+    assert days[0]["tasks"][0].title == "기초 체력 30분"
+    assert len(_FakeAsyncClient.calls) == 2
+
+
 async def test_generate_goal_tag_parses_structured_tag() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
 
@@ -614,7 +679,7 @@ async def test_generate_goal_tag_parses_structured_tag() -> None:
         history=[],
     )
 
-    assert tag == "회계자격증필기"
+    assert tag == "회계자격증필"
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "전체 대화 목표" in serialized
     assert "task 별 태그" in serialized

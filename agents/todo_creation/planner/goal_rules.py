@@ -177,7 +177,11 @@ def required_competition_event_missing(
         slots = {}
     text = collect_user_text(state)
     compact_text = _compact(text)
-    filled = {k for k, value in slots.items() if value not in (None, "", [], {})}
+    filled = {
+        k
+        for k, value in slots.items()
+        if k != "event_date" and value not in (None, "", [], {})
+    }
 
     if is_competition_event_context(state, goal):
         filled.add("activity")
@@ -202,7 +206,11 @@ def required_supported_exam_missing(
 
     text = collect_user_text(state)
     compact_text = _compact(text)
-    filled = {k for k, v in slots.items() if v not in (None, "", [], {})}
+    filled = {
+        k
+        for k, value in slots.items()
+        if k != "exam_date" and value not in (None, "", [], {})
+    }
 
     if any(term in compact_text for term in _EXAM_PART_TERMS):
         filled.add("exam_part")
@@ -287,14 +295,36 @@ def build_recovery_goal(state: PlannerGraphState) -> ParsedGoal:
 def merge_deadline_from_state(
     state: PlannerGraphState, parsed_goal: ParsedGoal
 ) -> None:
-    """사용자 입력에 명시 날짜가 있으면 parsed_goal.deadline 을 보정한다."""
+    """사용자 대화에서 확인된 날짜만 goal과 날짜 슬롯에 반영한다."""
 
     today = state.get("today")
     if today is None:
         return
-    deadline = parse_explicit_deadline(collect_user_text(state), today=today)
+    user_text = collect_user_text(state)
+    deadline = parse_explicit_deadline(user_text, today=today)
     if deadline is not None:
         parsed_goal["deadline"] = deadline
+        slots = parsed_goal.get("slots")
+        if isinstance(slots, dict):
+            date_key = (
+                "event_date"
+                if parsed_goal.get("plan_kind") == "event"
+                else "exam_date" if parsed_goal.get("plan_kind") == "exam" else None
+            )
+            if date_key is not None:
+                slots[date_key] = deadline.isoformat()
+        return
+
+    if _has_explicit_deadline(user_text, state=state):
+        # "8월 말", "이번 달"처럼 코드가 아직 정확한 일자로 계산하지 못하는
+        # 표현은 모델이 해석한 값을 보존하되, 날짜 표현 자체가 없으면 신뢰하지 않는다.
+        return
+
+    parsed_goal["deadline"] = None
+    slots = parsed_goal.get("slots")
+    if isinstance(slots, dict):
+        slots.pop("event_date", None)
+        slots.pop("exam_date", None)
 
 
 def delegates_planning(message: str) -> bool:

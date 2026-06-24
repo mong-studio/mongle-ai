@@ -46,3 +46,18 @@ async def test_falls_back_when_llm_reply_fails() -> None:
     out = await out_of_scope_node({"message": "아 배고파"}, _config(llm))
 
     assert "몸부터 챙기는" in out["out_of_scope_message"]
+
+
+@pytest.mark.asyncio
+async def test_falls_back_when_llm_claims_unsupported_search() -> None:
+    """맛집 검색처럼 지원하지 않는 기능을 약속하면 안전 안내로 대체한다."""
+
+    llm = AsyncMock()
+    llm.generate_out_of_scope_reply = AsyncMock(
+        return_value="마을 음식점에서 맛있는 걸 찾아드릴게요."
+    )
+
+    out = await out_of_scope_node({"message": "배고프다"}, _config(llm))
+
+    assert "몸부터 챙기는" in out["out_of_scope_message"]
+    assert "음식점" not in out["out_of_scope_message"]

@@ -60,6 +60,29 @@ def test_task_candidate_rejects_title_over_20_chars() -> None:
         TaskCandidate(title="x" * 21, due_date=date(2026, 5, 24))
 
 
+def test_task_candidate_accepts_six_character_tag() -> None:
+    """확정된 태그 최대 길이인 6자는 정상 후보로 허용한다."""
+
+    task = TaskCandidate(
+        title="할 일",
+        due_date=date(2026, 5, 24),
+        tags=["가나다라마바"],
+    )
+
+    assert task.tags == ["가나다라마바"]
+
+
+def test_task_candidate_rejects_tag_over_six_characters() -> None:
+    """7자 이상 태그는 저장 단계 전에 스키마에서 거부한다."""
+
+    with pytest.raises(PydanticValidationError):
+        TaskCandidate(
+            title="할 일",
+            due_date=date(2026, 5, 24),
+            tags=["가나다라마바사"],
+        )
+
+
 # ---- CandidatesResult ----
 
 def test_candidates_result_allows_empty_lists() -> None:

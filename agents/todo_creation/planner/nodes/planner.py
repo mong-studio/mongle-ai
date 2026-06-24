@@ -10,7 +10,6 @@ JSON 파싱 실패 등 LLMOutputError 는 그대로 raise.
 from __future__ import annotations
 
 import inspect
-from datetime import timedelta
 from typing import Any, cast
 
 from langchain_core.runnables import RunnableConfig
@@ -170,18 +169,8 @@ async def planner_node(
                 if resolved_goal.get("daily_capacity_minutes"):
                     filled.add("available_time")
             schema_missing = missing_required(plan_kind, filled)
-            missing = (
-                list(
-                    dict.fromkeys(
-                        [
-                            *[item for item in missing if item not in filled],
-                            *schema_missing,
-                        ]
-                    )
-                )
-                if plan_kind == "project"
-                else schema_missing
-            )
+            # 모델이 다른 유형의 슬롯을 섞어도 현재 plan_kind 스키마만 따른다.
+            missing = schema_missing
             sufficient = not missing
 
     follow_up_count = int(state.get("follow_up_count") or 0)
@@ -287,8 +276,7 @@ def _apply_missing_assumptions(
 ) -> None:
     assumptions = list(goal.get("assumptions") or [])
     if not goal.get("deadline") and today is not None:
-        goal["deadline"] = today + timedelta(days=6)
-        assumptions.append("목표 날짜가 없어 오늘부터 7일을 임시 기간으로 사용")
+        assumptions.append("목표 날짜는 정하지 않고 첫 30일 실행안만 구성")
     for item in missing:
         assumptions.append(f"{item} 정보는 확인되지 않아 일반적인 수준으로 가정")
     goal["assumptions"] = list(dict.fromkeys(assumptions))

@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+MAX_TAG_LENGTH = 6
+
 
 class TodoInput(BaseModel):
     user_id: Annotated[str, Field(min_length=1)]
@@ -16,7 +18,10 @@ class TodoInput(BaseModel):
 class TaskCandidate(BaseModel):
     title: Annotated[str, Field(min_length=1, max_length=20)]
     due_date: date
-    tags: Annotated[list[str], Field(default_factory=list)]
+    tags: Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=MAX_TAG_LENGTH)]],
+        Field(default_factory=list),
+    ]
 
 
 class CandidatesResult(BaseModel):

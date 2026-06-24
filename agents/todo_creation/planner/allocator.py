@@ -72,5 +72,5 @@ def expand_routine(
         if deadline is not None and day > deadline:
             break
         if day.weekday() in weekdays:
-            events.append(TaskCandidate(title=title, due_date=day, tags=["routine"]))
+            events.append(TaskCandidate(title=title, due_date=day, tags=["루틴"]))
     return events
