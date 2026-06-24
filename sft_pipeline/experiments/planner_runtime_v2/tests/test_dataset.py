@@ -3,7 +3,10 @@ from pathlib import Path
 
 from sft_pipeline.build.lib.validate_dataset import validate_samples
 from sft_pipeline.experiments.planner_runtime_v2.build_dataset import build_samples
-from sft_pipeline.experiments.planner_runtime_v2.evaluate import _has_english_leak
+from sft_pipeline.experiments.planner_runtime_v2.evaluate import (
+    _content_text,
+    _has_english_leak,
+)
 from sft_pipeline.io_utils import write_jsonl
 
 
@@ -39,3 +42,8 @@ def test_committed_runtime_v2_dataset_matches_generator():
 def test_language_gate_allows_exam_acronyms_only():
     assert not _has_english_leak("SQLD와 JLPT 시험 준비")
     assert _has_english_leak("prepare interview schedule")
+
+
+def test_language_gate_ignores_json_keys_but_checks_values():
+    assert not _has_english_leak(_content_text('{"summary_text":"준비해요"}'))
+    assert _has_english_leak(_content_text('{"summary_text":"prepare schedule"}'))

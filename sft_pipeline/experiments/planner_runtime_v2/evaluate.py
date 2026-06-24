@@ -18,6 +18,7 @@ from sft_pipeline.build.lib.plan_schemas import (
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 EXAM_LEAK = ("필기", "실기", "기출", "약점 과목", "자격증")
 ENGLISH_WORD = re.compile(r"[A-Za-z]{4,}")
+JSON_KEY = re.compile(r'"[^"\n]+"\s*:')
 ALLOWED_ACRONYMS = ("SQLD", "ADSP", "JLPT", "HSK", "CBT")
 
 
@@ -117,6 +118,11 @@ def _has_english_leak(text: str) -> bool:
     return bool(ENGLISH_WORD.search(normalized))
 
 
+def _content_text(reply: str) -> str:
+    """JSON 스키마의 영문 key를 빼고 사용자에게 노출되는 값만 언어 검사한다."""
+    return JSON_KEY.sub("", reply)
+
+
 def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
     model, tokenizer = _load(adapter, base_model)
     today = date(2026, 12, 1)
@@ -139,6 +145,12 @@ def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
             "language_ok": False,
             "errors": [],
         }
+        # 파싱 실패를 내용 오염 실패로 중복 계산하지 않는다. 언어와 시험 내용 혼입은
+        # 구조화 파싱과 독립적으로 원문 응답에서 검사한다.
+        row["contamination_ok"] = case.kind == "exam" or not any(
+            token in reply for token in EXAM_LEAK
+        )
+        row["language_ok"] = not _has_english_leak(_content_text(reply))
         try:
             plan = parse_runtime_plan(reply)
             row["parse_ok"] = True
@@ -150,14 +162,6 @@ def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
             row["deadline_ok"] = (
                 last_date == expected if case.deadline_days <= 29 else last_date <= today + timedelta(days=29)
             )
-            combined = " ".join(
-                [plan.summary_text]
-                + [task.title for day in plan.days for task in day.tasks]
-            )
-            row["contamination_ok"] = case.kind == "exam" or not any(
-                token in combined for token in EXAM_LEAK
-            )
-            row["language_ok"] = not _has_english_leak(combined)
         except Exception as exc:  # noqa: BLE001
             row["errors"].append(str(exc))
         results.append(row)
@@ -193,6 +197,23 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report["metrics"], ensure_ascii=False, indent=2))
+    for row in report["results"]:
+        failed = [
+            key
+            for key in (
+                "parse_ok",
+                "consistency_ok",
+                "deadline_ok",
+                "contamination_ok",
+                "language_ok",
+            )
+            if not row[key]
+        ]
+        if failed:
+            print(
+                f"[eval][fail] {row['name']}: {', '.join(failed)} "
+                f"errors={row['errors']}"
+            )
     metrics = report["metrics"]
     passed = (
         metrics["parse_rate"] >= args.min_parse
