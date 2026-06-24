@@ -4,9 +4,11 @@ from pathlib import Path
 from sft_pipeline.build.lib.validate_dataset import validate_samples
 from sft_pipeline.experiments.planner_runtime_v2.build_dataset import build_samples
 from sft_pipeline.experiments.planner_runtime_v2.evaluate import (
+    _apply_runtime_allocator,
     _content_text,
     _has_english_leak,
 )
+from sft_pipeline.build.lib.plan_schemas import RuntimePlanOutput
 from sft_pipeline.io_utils import write_jsonl
 
 
@@ -47,3 +49,28 @@ def test_language_gate_allows_exam_acronyms_only():
 def test_language_gate_ignores_json_keys_but_checks_values():
     assert not _has_english_leak(_content_text('{"summary_text":"준비해요"}'))
     assert _has_english_leak(_content_text('{"summary_text":"prepare schedule"}'))
+
+
+def test_runtime_allocator_clamps_long_plan_to_thirty_days():
+    from datetime import date
+
+    today = date(2026, 12, 1)
+    plan = RuntimePlanOutput.model_validate(
+        {
+            "summary_text": "장기 목표 첫 구간",
+            "days": [
+                {
+                    "date": "2027-01-15",
+                    "tasks": [
+                        {"title": "첫 구간 점검", "due_date": "2027-01-15"}
+                    ],
+                }
+            ],
+        }
+    )
+    final = _apply_runtime_allocator(
+        plan,
+        goal={"goal_text": "장기 목표", "deadline": "2027-01-15"},
+        today=today,
+    )
+    assert final.days[-1].date == date(2026, 12, 30)

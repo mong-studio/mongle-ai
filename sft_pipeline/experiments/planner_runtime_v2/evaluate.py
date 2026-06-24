@@ -10,7 +10,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from adapters.todo_creation._prompts import PLAN_GENERATOR_SYSTEM, plan_generator_user
+from adapters.todo_creation.qwen_llm import _JSON_REINFORCE
+from agents.todo_creation.planner.nodes.plan_generator import _prepare_generated_plan
+from agents.todo_creation.schemas import TaskCandidate
 from sft_pipeline.build.lib.plan_schemas import (
+    RuntimePlanOutput,
     check_runtime_plan_consistency,
     parse_runtime_plan,
 )
@@ -123,6 +127,53 @@ def _content_text(reply: str) -> str:
     return JSON_KEY.sub("", reply)
 
 
+def _apply_runtime_allocator(
+    plan: RuntimePlanOutput, *, goal: dict, today: date
+) -> RuntimePlanOutput:
+    """서비스와 같은 code allocator를 적용해 최종 사용자 플랜을 만든다."""
+    runtime_days = [
+        {
+            "date": day.date,
+            "tasks": [
+                TaskCandidate(
+                    title=task.title,
+                    due_date=task.due_date,
+                    tags=task.tags,
+                )
+                for task in day.tasks
+            ],
+        }
+        for day in plan.days
+    ]
+    allocator_goal = {
+        **goal,
+        "deadline": date.fromisoformat(goal["deadline"])
+        if goal.get("deadline")
+        else None,
+    }
+    summary, scheduled = _prepare_generated_plan(
+        plan.summary_text,
+        runtime_days,
+        parsed_goal=allocator_goal,
+        today=today,
+    )
+    return RuntimePlanOutput.model_validate(
+        {
+            "summary_text": summary,
+            "personalization_patch": plan.personalization_patch,
+            "days": [
+                {
+                    "date": day["date"],
+                    "tasks": [
+                        task.model_dump(mode="json") for task in day["tasks"]
+                    ],
+                }
+                for day in scheduled
+            ],
+        }
+    )
+
+
 def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
     model, tokenizer = _load(adapter, base_model)
     today = date(2026, 12, 1)
@@ -133,11 +184,31 @@ def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
             {"role": "system", "content": PLAN_GENERATOR_SYSTEM},
             {"role": "user", "content": plan_generator_user(parsed_goal=goal, today=today)},
         ]
-        reply = _generate(model, tokenizer, messages, max_new_tokens)
+        current_messages = list(messages)
+        replies: list[str] = []
+        plan = None
+        parse_error: Exception | None = None
+        for attempt in range(2):
+            reply = _generate(model, tokenizer, current_messages, max_new_tokens)
+            replies.append(reply)
+            try:
+                plan = parse_runtime_plan(reply)
+                parse_error = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                parse_error = exc
+                current_messages = [
+                    *current_messages,
+                    {"role": "assistant", "content": reply},
+                    {"role": "user", "content": _JSON_REINFORCE},
+                ]
+        reply = replies[-1]
         row = {
             "name": case.name,
             "kind": case.kind,
             "reply": reply,
+            "attempts": len(replies),
+            "first_pass_parse_ok": len(replies) == 1,
             "parse_ok": False,
             "consistency_ok": False,
             "deadline_ok": False,
@@ -152,12 +223,15 @@ def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
         )
         row["language_ok"] = not _has_english_leak(_content_text(reply))
         try:
-            plan = parse_runtime_plan(reply)
+            if plan is None:
+                assert parse_error is not None
+                raise parse_error
             row["parse_ok"] = True
-            consistency = check_runtime_plan_consistency(plan, today=today)
+            final_plan = _apply_runtime_allocator(plan, goal=goal, today=today)
+            consistency = check_runtime_plan_consistency(final_plan, today=today)
             row["consistency_ok"] = not consistency
             row["errors"].extend(consistency)
-            last_date = max(day.date for day in plan.days)
+            last_date = max(day.date for day in final_plan.days)
             expected = today + timedelta(days=case.deadline_days)
             row["deadline_ok"] = (
                 last_date == expected if case.deadline_days <= 29 else last_date <= today + timedelta(days=29)
@@ -173,6 +247,7 @@ def evaluate(adapter: str, base_model: str, max_new_tokens: int) -> dict:
         "adapter": adapter,
         "n": len(results),
         "metrics": {
+            "first_pass_parse_rate": rate("first_pass_parse_ok"),
             "parse_rate": rate("parse_ok"),
             "consistency_rate": rate("consistency_ok"),
             "deadline_rate": rate("deadline_ok"),

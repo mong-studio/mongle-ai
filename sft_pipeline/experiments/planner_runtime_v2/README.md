@@ -72,7 +72,7 @@ bash sft_pipeline/experiments/planner_runtime_v2/train_runpod.sh \
 2. 데이터 스키마·날짜·중복·언어 검사
 3. 결정론적 90:10 train/valid 분리
 4. Qwen2.5-7B QLoRA 1 epoch 학습
-5. 미학습 20개 요청으로 parse, 날짜, 시험 오염, 한국어 출력 평가
+5. 미학습 20개 요청에 운영과 같은 JSON 1회 재시도·code allocator를 적용해 평가
 6. 승격 기준 미달이면 exit code 1 반환
 
 재실행할 때 같은 디렉터리를 덮어쓰지 않는다.
