@@ -93,7 +93,9 @@ class QwenLoraPipeline:
         from vllm.sampling_params import GuidedDecodingParams
 
         if guided_json is not None:
-            guided_decoding = GuidedDecodingParams(json=guided_json, backend="outlines")
+            # structured-output backend 는 LLM 초기화 설정(auto)에 맡긴다.
+            # 최신 vLLM 은 요청별 backend 선택을 거부한다.
+            guided_decoding = GuidedDecodingParams(json=guided_json)
         elif json_mode:
             guided_decoding = GuidedDecodingParams(json_object=True)
         else:
