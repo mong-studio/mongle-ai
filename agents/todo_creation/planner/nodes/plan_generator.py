@@ -35,7 +35,6 @@ _EXAM_CONTAMINATION_TERMS = (
         for alias in domain.aliases
     ),
 )
-_LATIN_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.#-]*")
 _GENERIC_TITLE_FILLERS = ("훈련", "연습", "준비", "시작", "계획", "세우기", "체크")
 
 log = logging.getLogger(__name__)
@@ -531,31 +530,10 @@ def _deterministic_issues(
         return ["일정이 허용 날짜 범위를 벗어남"]
     if deadline and tasks[-1].due_date != latest_allowed:
         return ["마지막 일정 날짜가 상세 플랜 종료일과 다름"]
-    latin_tokens = _ungrounded_latin_tokens(
-        plan_text,
-        parsed_goal=parsed_goal,
-    )
-    if latin_tokens:
-        return ["사용자 근거 없는 영어 표현이 포함됨: " + ", ".join(latin_tokens)]
+    # ponytail: Latin blocking 제거 — "Python", "GitHub" 같은 정상 기술 용어를 false positive 로
+    # 잡아 deterministic fallback 으로 빠지는 문제. 외국어 품질은 semantic validator 에 위임.
+    # 생성 단계 차단은 plan_guided_schema(outlines) 가 담당한다.
     return []
-
-
-def _ungrounded_latin_tokens(text: str, *, parsed_goal: ParsedGoal) -> list[str]:
-    grounded_text = " ".join(
-        [
-            str(parsed_goal.get("goal_text") or ""),
-            str(parsed_goal.get("goal_tag") or ""),
-            str(parsed_goal.get("slots") or ""),
-        ]
-    )
-    grounded = {token.casefold() for token in _LATIN_TOKEN_RE.findall(grounded_text)}
-    ungrounded = {
-        token
-        for token in _LATIN_TOKEN_RE.findall(text)
-        if token.casefold() not in grounded
-        and not (token.isupper() and len(token) <= 8)
-    }
-    return sorted(ungrounded, key=str.casefold)
 
 
 def _is_overly_generic_title(title: str, parsed_goal: ParsedGoal) -> bool:

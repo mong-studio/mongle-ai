@@ -239,17 +239,69 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     return parsed
 
 
+# near-greedy(temp 0.1)는 파싱 실패 시 재시도해도 같은 망가진 JSON 을 반복한다.
+# 재시도는 high-temp 로 샘플링 다양성을 줘 결정론적 실패를 탈출한다.
+_RETRY_TEMPERATURE = 0.7
+
+# 한국어-only 제목 패턴: 한글 음절 + 숫자 + 공백 + 한국어 흔한 구두점만 허용.
+# 외국 문자를 토큰 단계에서 차단 → 모델이 한글 표현으로 우회.
+# 대문자(IT, SQL, GitHub 등 통용 약어)는 허용, 소문자 단독 라틴어만 차단.
+_KOREAN_TITLE_PATTERN = r"^[가-힣A-Z0-9 ()·,.~/%\-]+$"
+_ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+
+
+def plan_guided_schema() -> dict[str, Any]:
+    """generate_plan 의 vLLM guided_json(outlines) 스키마 — task.title 을 한국어-only 로 제약."""
+    task = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "pattern": _KOREAN_TITLE_PATTERN},
+            "due_date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
+        },
+        "required": ["title", "due_date"],
+    }
+    day = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
+            "tasks": {"type": "array", "items": task},
+        },
+        "required": ["date", "tasks"],
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "summary_text": {"type": "string"},
+            "days": {"type": "array", "items": day},
+            "personalization_patch": {"type": "object"},
+        },
+        "required": ["summary_text", "days"],
+    }
+
+
 async def _complete_json_with_retry(
     llm: "QwenLLM",
     *,
     messages: list[dict[str, str]],
     label: str,
     required_keys: tuple[str, ...] = (),
+    temperature: float | None = None,
+    guided_json: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     last_err: LLMOutputError | None = None
     current = messages
+    retry_temp = (
+        _RETRY_TEMPERATURE
+        if temperature is None
+        else max(temperature, _RETRY_TEMPERATURE)
+    )
     for attempt in range(2):
-        raw = await llm.complete_raw(messages=current, label=label)
+        raw = await llm.complete_raw(
+            messages=current,
+            label=label,
+            temperature=temperature if attempt == 0 else retry_temp,
+            guided_json=guided_json,
+        )
         try:
             parsed = _parse_json_object(raw)
             missing = [key for key in required_keys if key not in parsed]
@@ -302,18 +354,32 @@ class QwenLLM:
     temperature: float = 0.1
     max_tokens: int = 2400
     timeout_seconds: float = 90.0
+    top_p: float = 0.8
+    top_k: int = 20
+    repetition_penalty: float = 1.05
 
     async def complete_raw(
-        self, *, messages: list[dict[str, str]], label: str = "qwen"
+        self,
+        *,
+        messages: list[dict[str, str]],
+        label: str = "qwen",
+        temperature: float | None = None,
+        guided_json: dict[str, Any] | None = None,
     ) -> str:
         endpoint = self.base_url.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": self.temperature,
+            "temperature": self.temperature if temperature is None else temperature,
             "max_tokens": self.max_tokens,
-            "response_format": {"type": "json_object"},
+            "top_p": self.top_p,
         }
+        if guided_json is not None:
+            # vLLM OpenAI 서버 확장 필드. 외국 문자 차단엔 pattern 지원이 확실한 outlines 백엔드.
+            payload["guided_json"] = guided_json
+            payload["guided_decoding_backend"] = "outlines"
+        else:
+            payload["response_format"] = {"type": "json_object"}
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
@@ -576,7 +642,12 @@ class QwenLLM:
             },
         ]
         parsed = await _complete_json_with_retry(
-            self, messages=messages, label="plan", required_keys=("days",)
+            self,
+            messages=messages,
+            label="plan",
+            required_keys=("days",),
+            # 외국 문자 차단: task.title 을 한국어-only 로 강제(outlines guided_json).
+            guided_json=plan_guided_schema(),
         )
         summary = str(parsed.get("summary_text") or "").strip()
         if "personalization_patch" in parsed:
