@@ -29,13 +29,11 @@ from adapters.todo_creation._domain_wiki import load_wiki
 from adapters.todo_creation._prompts import (
     FOLLOW_UP_SYSTEM,
     GOAL_TAG_SYSTEM,
-    PLAN_CRITIC_SYSTEM,
     PLAN_GENERATOR_SYSTEM,
     PLANNER_JUDGE_SYSTEM,
     TASK_SPLITTER_SYSTEM,
     follow_up_user,
     goal_tag_user,
-    plan_critic_user,
     plan_generator_user,
     planner_judge_user,
     task_splitter_user,
@@ -58,6 +56,8 @@ _JSON_REINFORCE = (
     "직전 응답은 파싱할 수 없다. 설명 없이 요청한 스키마의 JSON 객체 하나만 다시 출력하라. "
     "코드 펜스, 주석, 마크다운, 추가 문장을 절대 포함하지 마라."
 )
+
+
 
 
 # ponytail: base 모델이 가끔 구조 토큰 사이에 잉여 따옴표(]"} 처럼)를 뱉어 JSON 이 깨진다.
@@ -124,6 +124,8 @@ def _parse_split_object(raw: str) -> dict[str, Any]:
     raise LLMOutputError(f"non-JSON response: {stripped[:200]}")
 
 
+
+
 def build_task_splitter_messages(*, prompt: str) -> list[dict[str, str]]:
     return [
         {"role": "system", "content": TASK_SPLITTER_SYSTEM},
@@ -162,6 +164,8 @@ def parse_task_response(raw: str, today: date) -> SplitResult:
     return SplitResult(intent="plan", tasks=out)
 
 
+
+
 def _json_default(value: Any) -> str:
     if isinstance(value, date):
         return value.isoformat()
@@ -185,33 +189,13 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     return parsed
 
 
-# near-greedy(temp 0.1)는 파싱 실패 시 재시도해도 같은 망가진 JSON 을 반복한다.
-# 재시도는 high-temp 로 샘플링 다양성을 줘 결정론적 실패를 탈출한다(critic 재생성과 동일 레버).
-_RETRY_TEMPERATURE = 0.7
-
-
 async def _complete_json_with_retry(
-    llm: "QwenLLM",
-    *,
-    messages: list[dict[str, str]],
-    label: str,
-    temperature: float | None = None,
-    guided_json: dict[str, Any] | None = None,
+    llm: "QwenLLM", *, messages: list[dict[str, str]], label: str
 ) -> dict[str, Any]:
     last_err: LLMOutputError | None = None
     current = messages
-    retry_temp = (
-        _RETRY_TEMPERATURE
-        if temperature is None
-        else max(temperature, _RETRY_TEMPERATURE)
-    )
     for attempt in range(2):
-        raw = await llm.complete_raw(
-            messages=current,
-            label=label,
-            temperature=temperature if attempt == 0 else retry_temp,
-            guided_json=guided_json,
-        )
+        raw = await llm.complete_raw(messages=current, label=label)
         try:
             return _parse_json_object(raw)
         except LLMOutputError as err:
@@ -241,7 +225,6 @@ def _parse_plan_days(raw_days: Any) -> list[PlanDay]:
                     title=item["title"],
                     due_date=date.fromisoformat(str(item["due_date"])),
                     tags=item.get("tags") or [],
-                    difficulty=int(item.get("difficulty") or 1),
                 )
                 for item in day.get("tasks", [])
             ]
@@ -249,85 +232,6 @@ def _parse_plan_days(raw_days: Any) -> list[PlanDay]:
             raise LLMOutputError(f"invalid plan day {day!r}: {err}") from err
         days.append({"date": day_date, "tasks": tasks})
     return days
-
-
-# 한국어-only 제목 패턴: 한글 음절 + 숫자 + 공백 + 한국어 흔한 구두점만 허용.
-# 한자('备')·라틴('prech') 등 외국 문자를 토큰 단계에서 차단 → 모델이 한글 표현으로 우회.
-# (repair 는 사용자 입력을 복사하는 TODO 에만 통함. 플래너 제목은 생성물이라 복원 원본이 없음.)
-_KOREAN_TITLE_PATTERN = r"^[가-힣0-9 ()·,.~/%\-]+$"
-_ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
-
-
-def plan_guided_schema() -> dict[str, Any]:
-    """generate_plan 의 vLLM guided_json(outlines) 스키마.
-
-    구조를 강제(JSON 유효성 덤)하고 task.title 을 한국어-only 로 제약한다.
-    summary_text/rationale 는 날짜·괄호가 정상 등장하므로 제약하지 않는다(과제약 방지).
-    """
-    task = {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "pattern": _KOREAN_TITLE_PATTERN},
-            "due_date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
-            "difficulty": {"type": "integer"},
-        },
-        "required": ["title", "due_date", "difficulty"],
-    }
-    day = {
-        "type": "object",
-        "properties": {
-            "date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
-            "tasks": {"type": "array", "items": task},
-        },
-        "required": ["date", "tasks"],
-    }
-    return {
-        "type": "object",
-        "properties": {
-            "summary_text": {"type": "string"},
-            "rationale": {"type": "string"},
-            "personalization_patch": {"type": "object"},
-            "days": {"type": "array", "items": day},
-        },
-        "required": ["summary_text", "days"],
-    }
-
-
-_VERDICT_CATEGORIES = frozenset(
-    {"load", "order", "progression", "coherence", "rationale"}
-)
-
-
-def _normalize_verdict(raw: dict[str, Any]) -> dict[str, Any]:
-    """critic verdict 를 안전한 형태로 정규화한다.
-
-    결손·오타 필드를 기본값으로 채우고, major 이슈가 하나라도 있으면 모델의 ok 값과
-    무관하게 ok 를 False 로 강등한다(방어적).
-    """
-    raw_issues = raw.get("issues")
-    issues: list[dict[str, Any]] = []
-    if isinstance(raw_issues, list):
-        for item in raw_issues:
-            if not isinstance(item, dict):
-                continue
-            category = item.get("category")
-            day = item.get("day")
-            issues.append(
-                {
-                    "day": day if isinstance(day, str) else None,
-                    "category": category
-                    if category in _VERDICT_CATEGORIES
-                    else "coherence",
-                    "severity": "major" if item.get("severity") == "major" else "minor",
-                    "detail": str(item.get("detail") or ""),
-                    "suggested_fix": str(item.get("suggested_fix") or ""),
-                }
-            )
-    has_major = any(issue["severity"] == "major" for issue in issues)
-    # ok 진리값 정규화: 문자열 "false" 같은 퇴화 출력을 truthy 로 오인하지 않는다.
-    raw_ok = raw.get("ok", True)
-    model_ok = raw_ok is True or str(raw_ok).strip().lower() == "true"
-    return {"ok": model_ok and not has_major, "issues": issues}
 
 
 @dataclass
@@ -340,33 +244,17 @@ class QwenLLM:
     temperature: float = 0.1
     max_tokens: int = 1024
     timeout_seconds: float = 90.0
-    # worker 가 SamplingParams 로 전달받는다(미설정 시 near-greedy 퇴화 방지).
-    top_p: float = 0.8
-    top_k: int = 20
-    repetition_penalty: float = 1.05
 
     async def complete_raw(
-        self,
-        *,
-        messages: list[dict[str, str]],
-        label: str = "qwen",
-        temperature: float | None = None,
-        guided_json: dict[str, Any] | None = None,
+        self, *, messages: list[dict[str, str]], label: str = "qwen"
     ) -> str:
         endpoint = self.base_url.rstrip("/") + "/chat/completions"
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": self.temperature if temperature is None else temperature,
+            "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            # top_p 만 표준 OpenAI 필드라 범용 HTTP 경로에 보낸다. top_k/repetition_penalty
-            # 는 비표준이라 순수 OpenAI 서버에서 400 → RunPod(vLLM) 경로에서만 전송한다.
-            "top_p": self.top_p,
         }
-        if guided_json is not None:
-            # vLLM OpenAI 서버 확장 필드. 외국 문자 차단엔 pattern 지원이 확실한 outlines 백엔드.
-            payload["guided_json"] = guided_json
-            payload["guided_decoding_backend"] = "outlines"
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
@@ -517,11 +405,7 @@ class QwenLLM:
         return question[:300]
 
     async def generate_plan(
-        self,
-        *,
-        parsed_goal: ParsedGoal,
-        today: date,
-        temperature: float | None = None,
+        self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
         system = PLAN_GENERATOR_SYSTEM
         goal_tag = str(parsed_goal.get("goal_tag") or "")
@@ -541,59 +425,11 @@ class QwenLLM:
                 ),
             },
         ]
-        parsed = await _complete_json_with_retry(
-            self,
-            messages=messages,
-            label="plan",
-            temperature=temperature,
-            # 외국 문자 차단: task.title 을 한국어-only 로 강제(outlines guided_json).
-            guided_json=plan_guided_schema(),
-        )
+        parsed = await _complete_json_with_retry(self, messages=messages, label="plan")
         summary = str(parsed.get("summary_text") or "").strip()
         if "personalization_patch" in parsed:
-            parsed_goal["personalization_patch"] = (
-                parsed.get("personalization_patch") or {}
-            )
-        # rationale(객관 근거)를 parsed_goal 에 실어 critic 이 검증하게 한다(plan_critic_user
-        # 가 parsed_goal 을 통째 직렬화하므로 시그니처 변경 없이 흐른다).
-        rationale = str(parsed.get("rationale") or "").strip()
-        if rationale:
-            parsed_goal["rationale"] = rationale[:200]
+            parsed_goal["personalization_patch"] = parsed.get("personalization_patch") or {}
         return summary, _parse_plan_days(parsed.get("days"))
-
-    async def critique_plan(
-        self,
-        *,
-        parsed_goal: ParsedGoal,
-        plan: list[PlanDay],
-        today: date,
-        overloaded_days: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """생성된 계획의 soft 품질(논리·부하·순서·페이싱)을 비평한다.
-
-        하드 제약(마감 등)은 코드가 이미 처리했으므로 보지 않는다. verdict 가 끝까지
-        파싱되지 않으면 ok=True 로 통과시킨다(fail-open — 이미 하드 제약을 통과한
-        계획의 배달을 critic 파싱 실패로 막지 않는다).
-        """
-        messages = [
-            {"role": "system", "content": PLAN_CRITIC_SYSTEM},
-            {
-                "role": "user",
-                "content": plan_critic_user(
-                    parsed_goal=_as_jsonable(parsed_goal),
-                    plan_json=_as_jsonable(plan),
-                    today=today,
-                    overloaded_days=overloaded_days or [],
-                ),
-            },
-        ]
-        try:
-            parsed = await _complete_json_with_retry(
-                self, messages=messages, label="critique"
-            )
-        except LLMOutputError:
-            return {"ok": True, "issues": []}
-        return _normalize_verdict(parsed)
 
     async def generate_goal_tag(
         self, *, parsed_goal: ParsedGoal, history: list[Turn]

@@ -22,7 +22,6 @@ from agents.feed_generation.pipeline import Ports as FeedPorts
 from agents.reply_generation.protocols import Ports as ReplyPorts
 from agents.quest_generation.pipeline import Ports as QuestPorts
 from agents.todo_creation.commit.pipeline import CommitPorts
-from adapters.todo_creation.tavily_schedule import TavilyExamScheduleLookup
 from agents.todo_creation.planner.pipeline import PlannerPorts
 from agents.todo_creation.todo.pipeline import GeneratePorts
 
@@ -191,16 +190,7 @@ def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
-    # 시험일 해석 툴(§3.6): TAVILY_API_KEY 있을 때만 주입, 없으면 되묻기 거동.
-    lookup = (
-        TavilyExamScheduleLookup(api_key=cfg.tavily_api_key)
-        if cfg.tavily_api_key
-        else None
-    )
-    return PlannerPorts(
-        llm=_build_todo_llm(cfg, adapter="planner"),
-        exam_schedule_lookup=lookup,
-    )
+    return PlannerPorts(llm=_build_todo_llm(cfg, adapter="planner"))
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:

@@ -33,21 +33,8 @@ class LLMPort(Protocol):
     ) -> str: ...
 
     async def generate_plan(
-        self,
-        *,
-        parsed_goal: ParsedGoal,
-        today: date,
-        temperature: float | None = None,
+        self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]: ...
-
-    async def critique_plan(
-        self,
-        *,
-        parsed_goal: ParsedGoal,
-        plan: list[PlanDay],
-        today: date,
-        overloaded_days: list[str] | None = None,
-    ) -> dict[str, Any]: ...
 
     async def generate_goal_tag(
         self, *, parsed_goal: ParsedGoal, history: list[Turn]

@@ -31,10 +31,6 @@ class PlannerGraphState(TypedDict, total=False):
     plan: list[PlanDay] | None
     summary_text: str | None
 
-    # critic 루프 (LLM-Modulo): 재생성 횟수 바운드 + 라우팅 플래그
-    critique_retries: int
-    needs_revision: bool
-
     # output
     todos: list[TaskCandidate] | None
     calendar_events: list[TaskCandidate] | None

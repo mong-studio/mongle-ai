@@ -25,7 +25,7 @@ class _FakeMultiLLM:
     async def generate_follow_up_question(self, *, missing_aspects, history):
         return "언제까지 끝내고 싶으세요?"
 
-    async def generate_plan(self, *, parsed_goal, today, temperature=None):
+    async def generate_plan(self, *, parsed_goal, today):
         return "", []
 
     async def tag_plan(self, *, plan, parsed_goal):

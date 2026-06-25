@@ -187,35 +187,11 @@ LLM-Modulo 의 "외부 sound 검증기" 역할이며, 학습·런타임이 **동
 재교정은 대개 코드 재실행(매핑+clamp, LLM 0회), LLM 재호출은 양 재조정이 필요할 때만 1회.
 그래프 토폴로지 변화 최소(`plan_generator` self-loop 또는 검증 노드 1개).
 
-### 3.6 slot-extractor 툴 훅 — Tavily 시험일 해석 (개정 2026-06-24, 구현 대상)
+### 3.6 slot-extractor 툴 훅 (설계만, v1 미구현)
 
-L1 의 "툴 쓰는 추출" 다리를 **코드-결정** 훅으로 구체화한다. (모델-결정 tool-call 은 궤적 SFT 를
-유발하므로 영구 비채택 — 이 원칙 유지. Tavily 호출은 **코드가** 조건 충족 시 부르며 모델이
-결정하지 않는다.) 첫 구체 툴 = **Tavily 시험일 해석**.
-
-**문제:** exam 목표인데 시험일(`deadline`/`exam_date`)이 없으면 지금은 사용자에게 되묻는다
-(`needs_deadline_follow_up`). 그러나 시험일은 **공식 사이트에 있는 사실**이라 되물 필요 없이
-가져오면 된다. 또 시험일은 매년 바뀌어 SFT 에 넣으면 stale → **런타임 조회가 정답**(SFT=구조,
-Tavily=사실; 메모리 `planner-live-nonexam-failures`·event-day 작업과 연결).
-
-**훅 지점:** `planner_node` 가 `needs_deadline_follow_up` 로 follow_up 보내기 **직전**. plan_kind=exam
-& 공식 도메인 아는 시험 & deadline 없음 → Tavily 해석 시도 → 성공 시 슬롯 채우고 follow_up 생략,
-실패·불확실 시 **기존 follow_up 폴백(fail-open)**. 비-시험 이벤트(공식 소스 없음)는 해당 없음.
-
-**호출(비용 튜닝 — basic=1크레딧, advanced 2배라 불채택):**
-```python
-client.search(query=f"{exam} {year} 시험일정 시험일",
-    search_depth="basic",            # advanced 불필요(아래 도메인 핀+폴백이 안전망)
-    include_domains=OFFICIAL[exam],   # 공식만(무료, 정밀도↑) 예: q-net.or.kr / toeic.co.kr
-    start_date=today.isoformat(),     # 지난 회차 배제(무료)
-    include_answer="basic",           # 날짜 파싱 편의(크레딧 무료)
-    country="south korea", max_results=3)
-```
-파싱 날짜는 **미래·타당성 검증 후에만** 채택. `exam_type→공식도메인` 맵은 코드 상수.
-
-**컴포넌트:** `ExamScheduleLookupPort`(프로토콜) + `TavilyExamScheduleLookup`(어댑터, `tavily-python`)
-+ Fake(테스트). `PlannerPorts` 에 **옵셔널 주입**(없으면 기존 거동·하위호환). 라이브 호출은
-`TAVILY_API_KEY` 있을 때만, 캐시 `(exam_type, year)`. 테스트는 Fake 로 라이브 호출 0.
+L1 의 "툴 쓰는 추출" 다리는 **인터페이스 훅으로만** 둔다: `plan_kind`·미충족 슬롯에 따라
+**그래프가** 외부 조회를 부를 자리. v1 에는 연결할 구체 툴이 없다(enrichment 는 D7 로 삭제,
+캘린더 가용시간 조회는 미래). 모델-결정 tool-call 은 궤적 SFT 를 유발하므로 영구 비채택.
 
 ### 3.7 활동 라이브러리 — lifestyle 내용 품질 (D10, RAP/CBR)
 
@@ -298,67 +274,6 @@ task 목록 + 상대 배치**(`[{title, rel_day|order}]`)다. **절대 날짜 �
   - **allocator 출력 검증**: deadline 이후 task 없음(P1), routine 확장이 선언 요일·horizon 내,
     deadline 이벤트가 deadline 날짜에 존재(exam).
   - `check_plan_consistency`(날짜/C5/품질 + §3.5 신규 deadline 규칙) 재사용.
-
-### 4.6 [개정 2026-06-24] 데이터 소스 재정의 — crawl-grounded + LLM-추출
-
-> **§4.4 의 소스 결정(수제 시드 + `content_library.yaml`)을 supersede한다.** 계기는 라이브 검증.
-
-**라이브 발견(메모리 `planner-live-nonexam-failures`):** 실제 RunPod planner 로 일상 1건
-(`scripts/live_planner_smoke.py`) 검증 결과 비-시험 결함 2종 — (1) **슬롯 환각**(안 말한
-슬롯을 지어내 되묻기 건너뜀), (2) **lifestyle→시험 붕괴**(critic 미탐지). 원인: planner LoRA
-가 시험만 SFT, 비-시험 데이터 부재.
-
-**원칙 전환:** "정말 일상에서 쓰이는" 데이터는 **출처가 진짜 사람**일 때만 충족된다. 수제
-시드/라이브러리 조합은 내가 상상한 일상이라 AI 냄새가 학습된다. 시험이 신뢰도 있었던 이유
-(진짜 후기 크롤→특징 추출→결정론 타깃)를 일상에도 적용한다.
-
-**LLM(GPT-4o) 역할 = 추출·정제만.** 비정형 한국어 크롤에서 features 를 뽑고 노이즈(협찬·광고)를
-거른다. **구조 JSON(slots·plan·verdict) 최종 타깃은 코드 결정론**(LLM은 features 만 공급) — 시험
-파이프라인이 teacher LLM 을 구조 타깃에 안 쓴 규율과 동일. 순수 LLM 합성(맨바닥 생성)은 금지.
-
-**소스 3종 (역할 분리):**
-
-| 소스 | 역할 | 추출물 |
-|---|---|---|
-| 블로그/후기 크롤(robots 허용) | 계획 구조 | 실제 활동·빈도·시간대·기간·순서·계기·효과 |
-| Q&A/커뮤니티 질문(선별) | 입력 분포 | 사람이 실제로 얼마나 적게 말하는지·생략 패턴 |
-| 공개 데이터셋(AI Hub 등, 라이선스 명확) | 보강 | 갭 plan_kind·정제 발화 |
-
-**추출 필드(`structure/daily_fields.py`, 슬롯 스키마와 정합):**
-`plan_kind, goal_text, activity/domains, cadence, time_of_day, horizon, trigger,
-real_breakdown(실제 분배·순서), source_url, source_type`. 일상 택소노미는
-`structure/daily_taxonomy.py`(신규, `exam_types.py` 대응).
-
-**노드 타깃 재정의(§4.2~4.4 의 *내용 생성*만 교체, 멀티턴·rel_day 구조는 유지):**
-- **judge(안티-환각)**: 진짜 Q&A 저정보 ↔ 블로그 고정보를 같은 도메인에 묶어, **추출된(=말한)
-  슬롯만** 타깃. sufficiency 는 런타임처럼 `missing_required` 코드 결정. 모호→되묻기 학습.
-- **generator(목표-정합)**: lifestyle/vague_goal 타깃을 `content_library.yaml` 조합이 아니라
-  **크롤에서 추출한 `real_breakdown`** 기반 결정론 빌더로. routine=`expand_routine` 유지.
-- **critic(coherence)**: positive(추출 계획) + **off-goal 주입 네거티브**(예: lifestyle 에 시험 task)
-  → coherence major. 기존 load/mechanical 과 합침.
-
-**파이프라인:** `일상 소스 → fetch(robots) → GPT-4o 추출/정제 → structured_daily.csv → 노드 타깃`.
-시험과 동일 형태(소스·필드만 일상). `rephrase.py` 의 OpenAI 클라이언트 확장.
-
-**정합성·신뢰도:** robots 준수, GPT-4o 협찬/광고 필터 + 추출 신뢰도 점수, `validate_dataset`·
-`coherence_eval` 재사용(비-시험 provenance), **시험과 혼합 학습**(회귀 방지).
-
-**단계:** ① 크롤+추출(가장 무거움, 품질 게이트 먼저) → ② 노드 빌더+template-sync → ③ 혼합·학습
-(GPU) → ④ `coherence_eval`+`live_planner_smoke.ipynb` 전/후 측정 → 배포.
-
-**리스크:** 일상은 시험보다 소스 산만·노이즈 多 → 출처 선별·추출 품질이 성패. 크롤 부족 시에만
-진짜 예시 근거 증강(소량·라벨링), 순수 합성 단독 금지. Q&A/카페 ToS 보수적 준수.
-
-**품질 안티패턴 (2026-06-24 라이브 피드백, 메모리 `planner-live-nonexam-failures` 2차):**
-목표-정합 계획이라도 **내용이 가짜 잡무**면 실패다. 라이브 lifestyle 계획에서 관찰:
-- ❌ **필러 "준비/점검/정리" 잡무**: "운동복·신발 확인", "기구·장비 점검", "간식·음료 정리" —
-  헬스/런닝 가는 사람은 이런 걸 루틴으로 안 적는다. 살아본 적 없는 모델이 채운 가짜 행동.
-- ✅ **substantive 실제 행동**: "주3회 헬스(상/하체)", "런닝 30분", "기출 2회분" 같은 실체.
-- 처방: generator 타깃은 추출된 `real_breakdown` **그대로**(필러 합성 금지) — 진짜 후기엔 "운동복
-  확인" 류가 없어 자연 제거됨(crawl-grounded 의 핵심 이득). critic 에 **triviality(잡무) 체크**
-  추가(coherence 확장): 준비/점검/정리만 있고 실체 없는 task 비율이 높으면 major.
-- 부수: "공부 누락"은 결함1(슬롯 환각)의 연쇄(안 물어봐서 사용자 의도 못 받음) → judge 안티-환각이 선결.
-- CJK 깨짐("미리备")은 `todo-title-corruption-repair` repair 를 planner 출력 경로에도 적용(별도 작업).
 
 ---
 
