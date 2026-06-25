@@ -220,14 +220,17 @@ def _validate_plan(sample: dict, idx: int) -> list[str]:
     # ② 마지막 AI 답변을 플랜(PlanOutput)으로 해석한다. JSON 이 아니거나
     #    스키마(정해진 모양)에 안 맞으면 여기서 에러
     provenance = meta.get("provenance")
+    # days 스키마(런타임 plan_generator) 판별: node 마커가 정확한 신호다.
+    # 옛 exam-crawl/exam-synth(PlanOutput)는 node 가 없어 legacy 경로로 남는다.
+    is_runtime = meta.get("node") == "plan_generator" or provenance == "planner-runtime"
     try:
-        if provenance == "planner-runtime":
+        if is_runtime:
             plan = parse_runtime_plan(str(sample["messages"][-1]["content"]))
         else:
             plan = parse_plan(str(sample["messages"][-1]["content"]))
     except ValueError as exc:
         return [f"line {idx}: invalid plan output ({exc})"]
-    if provenance == "planner-runtime":
+    if is_runtime:
         return [
             f"line {idx}: plan {e}"
             for e in check_runtime_plan_consistency(plan, today=today)
