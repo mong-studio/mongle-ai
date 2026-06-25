@@ -39,6 +39,25 @@ def _parse_weekdays(cadence: str) -> set[int]:
 
 _DAILY_WORDS = ("매일", "날마다", "데일리", "매일매일")
 
+_FREQ_RE = re.compile(r"(\d+)\s*(?:회|번)")
+
+
+def recover_cadence(text: str) -> str | None:
+    """모델이 빈도를 'weekly' 같은 영어 period 로 뭉개 떨어뜨릴 때 원문에서 복구한다.
+
+    예: "매주 3회 물 마실거야" → "주 3회", "일주일에 2번" → "주 2회".
+    슬롯에 "3회" 가 들어있었는데 모델이 카운트를 잃어버리는 결함의 결정적 안전망.
+    요일("월수금") 추출은 '일주일'·'요일'·'평일' 등이 요일 글자를 품어 오탐이 많으므로
+    숫자 빈도(N회/번)만 신뢰한다 — 못 찾으면 None 으로 follow_up 되묻기에 맡긴다.
+    """
+    if not text:
+        return None
+    match = _FREQ_RE.search(text)
+    if match:
+        count = max(1, min(7, int(match.group(1))))
+        return f"주 {count}회"
+    return None
+
 
 def cadence_is_specific(cadence: str) -> bool:
     """cadence 에 빈도(주 N회)·명시 요일·'매일' 이 있으면 구체적이다.

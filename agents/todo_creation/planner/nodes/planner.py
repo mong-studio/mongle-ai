@@ -16,6 +16,10 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 
 from agents.todo_creation.config_utils import get_ports
+from agents.todo_creation.planner.allocator import (
+    cadence_is_specific,
+    recover_cadence,
+)
 from agents.todo_creation.planner.goal_rules import (
     build_recovery_goal,
     delegates_planning,
@@ -138,6 +142,14 @@ async def planner_node(
         if plan_kind not in ("exam", "event", "routine", "vague_goal", "lifestyle", "project"):
             plan_kind = "project"
         resolved_goal["plan_kind"] = plan_kind
+        # 모델이 "매주 3회" 의 빈도를 "weekly" 로 뭉개 떨어뜨리면 expand_routine 이
+        # 주 1회로 펴버린다. 슬롯이 모호하면 원문에서 cadence 를 결정적으로 복구한다.
+        if plan_kind == "routine":
+            slots = resolved_goal.get("slots") or {}
+            if not cadence_is_specific(str(slots.get("cadence") or "")):
+                recovered = recover_cadence(str(state.get("message") or ""))
+                if recovered:
+                    resolved_goal["slots"] = {**slots, "cadence": recovered}
         if is_revision:
             resolved_goal["revision_request"] = state.get("revision_request")
             resolved_goal["previous_plan"] = state.get("plan") or []
@@ -168,6 +180,14 @@ async def planner_node(
                     filled.add("horizon")
                 if resolved_goal.get("daily_capacity_minutes"):
                     filled.add("available_time")
+            # routine: cadence 가 채워졌어도 '매주'처럼 빈도가 없으면 모호 → 되묻는다
+            # (judge_sufficiency 의 동일 가드가 이 재계산으로 덮이지 않도록 보장).
+            if (
+                plan_kind == "routine"
+                and "cadence" in filled
+                and not cadence_is_specific(str(slots.get("cadence") or ""))
+            ):
+                filled.discard("cadence")
             schema_missing = missing_required(plan_kind, filled)
             # 모델이 다른 유형의 슬롯을 섞어도 현재 plan_kind 스키마만 따른다.
             missing = schema_missing
