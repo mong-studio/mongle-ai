@@ -47,6 +47,7 @@ class RunPodQwenLLM(QwenLLM):
                 "messages": messages,
                 "temperature": self.temperature,
                 "max_tokens": self.max_tokens,
+                "json_mode": True,
             }
         }
         try:

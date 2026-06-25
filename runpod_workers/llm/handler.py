@@ -25,12 +25,14 @@ def handler(job: dict) -> dict:
 
     temperature = float(job_input.get("temperature", 0.1))
     max_tokens = int(job_input.get("max_tokens", 800))
+    json_mode = bool(job_input.get("json_mode", False))
 
     text = get_pipeline().generate(
         adapter=adapter,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
+        json_mode=json_mode,
     )
     return {"text": text}
 
