@@ -13,7 +13,7 @@ from tests.api.conftest import AUTH, make_config
 
 
 class _FakeLLM:
-    async def generate_persona(self, *, persona, keywords):
+    async def generate_persona(self, *, name, persona, keywords):
         return LLMPersonaResult(
             personality="용감", speech_style="반말", background="숲", appearance="둥근 갈색 몸",
             appearance_en="round brown body, big eyes",
