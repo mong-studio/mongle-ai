@@ -6,9 +6,19 @@ from datetime import date
 import httpx
 import pytest
 
-from adapters.todo_creation.qwen_llm import QwenLLM
+from adapters.todo_creation.qwen_llm import QwenLLM, is_korean_reply
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
 from agents.todo_creation.schemas import SplitResult, TaskCandidate
+
+
+def test_is_korean_reply_rejects_foreign_accepts_korean() -> None:
+    # 중국어·일본어·전부 영어는 거부, 한국어(영어 혼용 포함)는 허용
+    assert is_korean_reply("具体的的體育項目是什麼呢?") is False
+    assert is_korean_reply("PARTICULAR ACTIVITY LIKE RUNNING") is False
+    assert is_korean_reply("マラソン 준비") is False
+    assert is_korean_reply("어떤 운동을 하실 건가요?") is True
+    assert is_korean_reply("GitHub로 코드 관리하실 거예요?") is True
+    assert is_korean_reply("") is True
 
 
 # 검증 대상 기능: Qwen OpenAI 호환 응답 껍데기에서 원문 content 를 꺼낸다.

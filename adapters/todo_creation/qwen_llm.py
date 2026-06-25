@@ -249,6 +249,34 @@ _RETRY_TEMPERATURE = 0.7
 _KOREAN_TITLE_PATTERN = r"^[가-힣A-Z0-9 ()·,.~/%\-]+$"
 _ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
+# 외국어 응답 재시도용 리인포스 + 폴백.
+_KOREAN_REINFORCE = (
+    "직전 응답에 한국어가 아닌 문자가 포함됐다. 같은 의미를 자연스러운 한국어로만 다시 쓴다. "
+    "영어·중국어·일본어 단어나 문장을 절대 쓰지 마라. 요청한 스키마의 JSON 객체 하나만 출력하라."
+)
+_FOLLOW_UP_FALLBACK = "조금만 더 구체적으로 알려주실 수 있을까요?"
+
+# 채팅 자유 문장(follow_up 질문 · out_of_scope 답변)의 언어 사후 검사용.
+# 토큰을 제약하지 않고 완성된 출력을 보고 한국어가 아니면 거부→재생성한다.
+# guided_json/outlines 식 글자 강제는 모델이 우회(대문자 영어)하거나 gibberish 를 내 실패했다
+# (poc/outlines-cjk-block 참고). 사후 검사 + 재생성이 부작용 없이 안전하다.
+_CJK_CHARS = re.compile(r"[぀-ヿ㐀-䶿一-鿿豈-﫿]")
+_HANGUL_CHARS = re.compile(r"[가-힣]")
+
+
+def is_korean_reply(text: str) -> bool:
+    """자유 문장이 한국어로 쓰였는지 헐겁게 판정한다.
+
+    - 중국어·일본어 문자가 하나라도 있으면 False.
+    - 한글이 전혀 없으면 False(예: 전부 영어).
+    - 한글 + 영어 혼용(앱·종목 이름 등)은 True 로 허용해 과차단을 피한다.
+    """
+    if not text:
+        return True
+    if _CJK_CHARS.search(text):
+        return False
+    return bool(_HANGUL_CHARS.search(text))
+
 
 def plan_guided_schema() -> dict[str, Any]:
     """generate_plan 의 vLLM guided_json 스키마 — task.title 을 한국어-only 로 제약."""
@@ -287,6 +315,7 @@ async def _complete_json_with_retry(
     required_keys: tuple[str, ...] = (),
     temperature: float | None = None,
     guided_json: dict[str, Any] | None = None,
+    korean_field: str | None = None,
 ) -> dict[str, Any]:
     last_err: LLMOutputError | None = None
     current = messages
@@ -307,14 +336,24 @@ async def _complete_json_with_retry(
             missing = [key for key in required_keys if key not in parsed]
             if missing:
                 raise LLMOutputError("missing required JSON keys: " + ", ".join(missing))
+            # 외국어 누출은 실패로 간주해 high-temp 재생성으로 탈출시킨다.
+            if korean_field is not None:
+                value = str(parsed.get(korean_field) or "")
+                if value and not is_korean_reply(value):
+                    raise LLMOutputError(
+                        f"non-Korean output in '{korean_field}': {value[:80]}"
+                    )
             return parsed
         except LLMOutputError as err:
             last_err = err
             log.warning("qwen %s parse fail (attempt %d): %s", label, attempt + 1, err)
+            reinforce = (
+                _KOREAN_REINFORCE if "non-Korean" in str(err) else _JSON_REINFORCE
+            )
             current = [
                 *current,
                 {"role": "assistant", "content": raw},
-                {"role": "user", "content": _JSON_REINFORCE},
+                {"role": "user", "content": reinforce},
             ]
     assert last_err is not None
     raise last_err
@@ -587,12 +626,16 @@ class QwenLLM:
                 ),
             },
         ]
-        parsed = await _complete_json_with_retry(
-            self, messages=messages, label="follow_up"
-        )
+        try:
+            parsed = await _complete_json_with_retry(
+                self, messages=messages, label="follow_up", korean_field="question"
+            )
+        except LLMOutputError:
+            # 재시도 후에도 외국어/파싱 실패면 한국어 폴백으로 대화를 잇는다.
+            return _FOLLOW_UP_FALLBACK
         question = str(parsed.get("question") or "").strip()
-        if not question:
-            raise LLMOutputError("empty follow-up question")
+        if not question or not is_korean_reply(question):
+            return _FOLLOW_UP_FALLBACK
         return question[:300]
 
     async def generate_out_of_scope_reply(
@@ -611,12 +654,13 @@ class QwenLLM:
                 ),
             },
         ]
+        # 외국어면 재시도, 그래도 실패 시 LLMOutputError → 노드가 한국어 폴백으로 대체한다.
         parsed = await _complete_json_with_retry(
-            self, messages=messages, label="out_of_scope_reply"
+            self, messages=messages, label="out_of_scope_reply", korean_field="reply"
         )
         reply = str(parsed.get("reply") or "").strip()
-        if not reply:
-            raise LLMOutputError("empty out-of-scope reply")
+        if not reply or not is_korean_reply(reply):
+            raise LLMOutputError("empty or non-Korean out-of-scope reply")
         return reply[:180]
 
     async def generate_plan(
