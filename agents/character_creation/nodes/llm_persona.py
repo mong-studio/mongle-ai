@@ -10,6 +10,7 @@ async def llm_persona_node(state: CharacterGraphState, config: dict[str, Any]) -
     ports = config["configurable"]["ports"]
     start = time.perf_counter()
     result = await ports.llm.generate_persona(
+        name=state["input"].name,
         persona=state["input"].persona,
         keywords=state["input"].personality_keywords,
     )

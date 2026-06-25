@@ -13,6 +13,7 @@ class LLMPort(Protocol):
     async def generate_persona(
         self,
         *,
+        name: str,
         persona: str,
         keywords: list[PersonalityKeyword],
     ) -> LLMPersonaResult: ...
