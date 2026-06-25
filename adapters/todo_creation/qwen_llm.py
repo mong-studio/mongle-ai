@@ -312,6 +312,7 @@ class QwenLLM:
             "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "response_format": {"type": "json_object"},
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
