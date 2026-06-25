@@ -1,5 +1,5 @@
 from langgraph.graph import END, START, StateGraph
-from langgraph.pregel import RetryPolicy
+from langgraph.types import RetryPolicy
 
 from agents.feed_generation.exceptions import (
     CaptionGenerationError,

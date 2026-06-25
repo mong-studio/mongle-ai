@@ -54,7 +54,8 @@ class QwenLLM:
     model: str = DEFAULT_QWEN_MODEL
     base_url: str = "http://localhost:8000/v1"
     api_key: str = "EMPTY"
-    temperature: float = 0.95  # 창작 다양성: 같은 페르소나도 매번 다른 퀘스트
+    temperature: float = 0.8  # 창작 다양성과 일관성의 균형(0.95는 비문·무의미 출력 유발)
+    top_p: float = 0.9  # nucleus 컷: 확률 낮은 깨진 토큰 조합을 차단
     max_tokens: int = 300
     timeout_seconds: float = 30.0
 
@@ -64,6 +65,7 @@ class QwenLLM:
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
+            "top_p": self.top_p,
             "max_tokens": self.max_tokens,
         }
         try:

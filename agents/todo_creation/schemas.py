@@ -106,7 +106,8 @@ PlannerResult = Annotated[
 ]
 
 
-# === Single-turn types ===
+# 투두 전용 메시지
+OUT_OF_SCOPE_MESSAGE = "일정과 관련된 입력이 아닙니다."
 
 OUT_OF_SCOPE_MESSAGE = (
     "나는 일정 이장님이라 그건 지금 바로 일정으로 나눌 내용은 아닌 것 같아. "

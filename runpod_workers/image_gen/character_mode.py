@@ -92,22 +92,45 @@ class CharacterMode:
         white_bg.paste(removed, mask=removed.split()[3])
         return white_bg.convert("RGB")
 
-    def _remove_background_by_color(self, image: Image.Image, threshold: int = 245) -> Image.Image:
-        rgb = np.array(image.convert("RGB"))
-        near_white = (
-            (rgb[:, :, 0] >= threshold) & (rgb[:, :, 1] >= threshold) & (rgb[:, :, 2] >= threshold)
-        ).astype(np.uint8)
-        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    def _remove_background_by_color(self, image: Image.Image, tolerance: int = 30) -> Image.Image:
+        # rembg(신경망)는 흰 배경 위에 흰 캐릭터가 있으면 캐릭터 내부의 흰
+        # 영역(배, 눈 등)도 배경으로 오인해 같이 지워버린다 — 외곽선이 있어도
+        # rembg는 색/엣지를 보는 게 아니라 의미상 판단이라 못 막아준다.
+        # 대신 가장자리 전체를 동시에 출발점으로 삼아, 이웃 픽셀끼리 색이
+        # 비슷하면 계속 번져나가는 방식(region-growing)으로 배경을 찾는다.
+        # 외곽선(Canny 엣지)은 못 넘는 벽으로 막아서 캐릭터 내부로 안 새게 한다.
+        rgb = np.array(image.convert("RGB")).astype(np.int16)
+        h, w = rgb.shape[:2]
+        gray = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY)
         edges = cv2.Canny(gray, 30, 100)
-        walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
-        passable = (near_white & (walls == 0)).astype(np.uint8)
-        num_labels, labels = cv2.connectedComponents(passable, connectivity=4)
-        border_labels = set(labels[0, :]) | set(labels[-1, :])
-        border_labels |= set(labels[:, 0]) | set(labels[:, -1])
-        border_labels.discard(0)
-        bg_mask = np.isin(labels, list(border_labels))
-        alpha = np.where(bg_mask, 0, 255).astype(np.uint8)
-        return Image.fromarray(np.dstack([rgb, alpha]), mode="RGBA")
+        walls = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2) > 0
+
+        visited = np.zeros((h, w), dtype=bool)
+        queue: list[tuple[int, int]] = []
+        for x in range(w):
+            for y in (0, h - 1):
+                if not walls[y, x] and not visited[y, x]:
+                    visited[y, x] = True
+                    queue.append((y, x))
+        for y in range(h):
+            for x in (0, w - 1):
+                if not walls[y, x] and not visited[y, x]:
+                    visited[y, x] = True
+                    queue.append((y, x))
+
+        head = 0
+        while head < len(queue):
+            y, x = queue[head]
+            head += 1
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and not walls[ny, nx]:
+                    if np.abs(rgb[ny, nx] - rgb[y, x]).sum() <= tolerance:
+                        visited[ny, nx] = True
+                        queue.append((ny, nx))
+
+        alpha = np.where(visited, 0, 255).astype(np.uint8)
+        return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), mode="RGBA")
 
     def _bg_ok(self, image: Image.Image) -> bool:
         arr = np.array(image.convert("RGB"))
@@ -171,9 +194,8 @@ class CharacterMode:
                 cross_attention_kwargs={"scale": _LORA_SCALE},
             ).images[0]
 
-        # 양자화로 색을 32색 평면으로 정리한 뒤, 색상 기반으로 배경을 제거한다.
-        # (신경망 기반 rembg는 흰 배경+흰 캐릭터를 구분하지 못해 캐릭터 내부
-        # 흰 영역까지 같이 지워버리는 문제가 있어 색상+연결성 판정으로 대체.)
+        # 양자화로 색을 32색 평면으로 정리한 뒤, region-growing 방식으로 배경을
+        # 제거한다 (rembg는 흰 배경+흰 캐릭터를 구분 못해 사용하지 않음).
         quantized_rgb = self._quantize(result)
         final = self._remove_background_by_color(quantized_rgb)
         return self._to_bytes(final)
