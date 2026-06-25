@@ -249,9 +249,22 @@ _RETRY_TEMPERATURE = 0.7
 _KOREAN_TITLE_PATTERN = r"^[가-힣A-Z0-9 ()·,.~/%\-]+$"
 _ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
+# 채팅 문장용 한국어-only 패턴: 제목 패턴에 문장 부호(!?…줄바꿈)만 추가.
+# 중국어·일본어 한자/가나는 화이트리스트에 없어 토큰 단계에서 차단된다.
+_KOREAN_SENTENCE_PATTERN = r"^[가-힣A-Z0-9 ()·,.!?~/%\-…\n]+$"
+
+
+def _korean_text_schema(field: str) -> dict[str, Any]:
+    """follow_up/out_of_scope 처럼 자유 문장 1개 필드를 한국어-only 로 제약."""
+    return {
+        "type": "object",
+        "properties": {field: {"type": "string", "pattern": _KOREAN_SENTENCE_PATTERN}},
+        "required": [field],
+    }
+
 
 def plan_guided_schema() -> dict[str, Any]:
-    """generate_plan 의 vLLM guided_json(outlines) 스키마 — task.title 을 한국어-only 로 제약."""
+    """generate_plan 의 vLLM guided_json 스키마 — task.title 을 한국어-only 로 제약."""
     task = {
         "type": "object",
         "properties": {
@@ -375,9 +388,8 @@ class QwenLLM:
             "top_p": self.top_p,
         }
         if guided_json is not None:
-            # vLLM OpenAI 서버 확장 필드. 외국 문자 차단엔 pattern 지원이 확실한 outlines 백엔드.
+            # backend 선택은 서버의 structured-output 설정(auto)에 맡긴다.
             payload["guided_json"] = guided_json
-            payload["guided_decoding_backend"] = "outlines"
         else:
             payload["response_format"] = {"type": "json_object"}
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -589,7 +601,10 @@ class QwenLLM:
             },
         ]
         parsed = await _complete_json_with_retry(
-            self, messages=messages, label="follow_up"
+            self,
+            messages=messages,
+            label="follow_up",
+            guided_json=_korean_text_schema("question"),
         )
         question = str(parsed.get("question") or "").strip()
         if not question:
@@ -613,7 +628,10 @@ class QwenLLM:
             },
         ]
         parsed = await _complete_json_with_retry(
-            self, messages=messages, label="out_of_scope_reply"
+            self,
+            messages=messages,
+            label="out_of_scope_reply",
+            guided_json=_korean_text_schema("reply"),
         )
         reply = str(parsed.get("reply") or "").strip()
         if not reply:
@@ -646,7 +664,7 @@ class QwenLLM:
             messages=messages,
             label="plan",
             required_keys=("days",),
-            # 외국 문자 차단: task.title 을 한국어-only 로 강제(outlines guided_json).
+            # 외국 문자 차단: task.title 을 한국어-only 로 강제(guided_json).
             guided_json=plan_guided_schema(),
         )
         summary = str(parsed.get("summary_text") or "").strip()

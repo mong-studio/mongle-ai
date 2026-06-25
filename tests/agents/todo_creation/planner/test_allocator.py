@@ -1,6 +1,20 @@
 from datetime import date, timedelta
 
-from agents.todo_creation.planner.allocator import cadence_is_specific, expand_routine
+from agents.todo_creation.planner.allocator import (
+    cadence_is_specific,
+    expand_routine,
+    recover_cadence,
+)
+
+
+def test_recover_cadence_from_message() -> None:
+    # 모델이 "매주 3회"를 "weekly"로 뭉개도 원문 빈도에서 "주 3회" 복구
+    assert recover_cadence("매주 3회 물 마실거야") == "주 3회"
+    assert recover_cadence("일주일에 2번") == "주 2회"
+    # 빈도가 없으면 None → follow_up 되묻기에 맡긴다
+    assert recover_cadence("weekly") is None
+    assert recover_cadence("매주") is None
+    assert recover_cadence("") is None
 
 
 def test_cadence_is_specific_true_for_count_weekday_daily() -> None:
