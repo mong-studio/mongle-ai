@@ -10,7 +10,6 @@ from agents.todo_creation.planner.conversation_style import render_chief_voice
 from agents.todo_creation.schemas import out_of_scope_message_for
 
 
-
 async def out_of_scope_node(
     state: dict[str, Any], config: RunnableConfig
 ) -> dict[str, Any]:
@@ -35,8 +34,6 @@ async def _generate_reply(
         return out_of_scope_message_for(message)
     try:
         reply = await generator(message=message, history=state.get("history", []))
-        if any(term in reply for term in _UNSUPPORTED_CAPABILITY_TERMS):
-            return out_of_scope_message_for(message)
         return reply
     except (LLMFailedError, LLMOutputError, TimeoutError):
         return out_of_scope_message_for(message)
