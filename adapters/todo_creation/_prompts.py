@@ -225,6 +225,24 @@ def out_of_scope_reply_user(*, message: str, history: list[dict[str, str]]) -> s
     return f"최근 대화(JSON): {history}\n현재 사용자 입력:\n{message}"
 
 
+HISTORY_SUMMARY_SYSTEM = """
+너는 대화 기록을 압축하는 요약기다.
+사용자의 목표·확정된 조건·선호·아직 미정인 정보 위주로 핵심만 남긴다.
+반드시 JSON 객체 하나만 출력한다.
+스키마: {"summary": "400자 이하 한국어 요약"}
+
+[규칙]
+- 사실만 적고 새 내용을 지어내지 않는다.
+- 인사말·잡담은 버리고 계획에 필요한 정보만 남긴다.
+- 이미 요약된 내용([이전 대화 요약])이 섞여 있으면 함께 통합한다.
+- 마크다운, 코드펜스, 설명 문장을 출력하지 않는다.
+"""
+
+
+def history_summary_user(*, turns: list[dict[str, str]]) -> str:
+    return f"요약할 대화(JSON):\n{turns}"
+
+
 PLAN_GENERATOR_SYSTEM = """
 너는 사용자의 목표를 날짜별 TODO/캘린더 후보로 만드는 한국어 플래너다.
 

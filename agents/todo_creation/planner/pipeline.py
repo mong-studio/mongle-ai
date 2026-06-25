@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -43,6 +44,25 @@ class PlannerPorts:
 
 _GRAPH = build_planner_graph()
 
+# ponytail: MemorySaver 는 thread 를 영영 안 지워서 프로세스가 오래 살수록 대화당
+# 1개씩 누수된다. in-process LRU 로 상한을 둔다(호스트 단위, 영속 아님). evict 된
+# thread 는 재시작처럼 새 상태로 degrade — 진행 중 대화 유실은 기존 단일워커 동작과 동일.
+# 한도가 throughput 에 모자라면 영속 체크포인터(sqlite/postgres)로 올린다.
+_MAX_LIVE_THREADS = 500
+_live_threads: OrderedDict[str, None] = OrderedDict()
+
+
+def _touch_thread(thread_id: str) -> None:
+    """thread 를 LRU 최신으로 올리고, 한도를 넘으면 가장 오래된 것을 evict 한다."""
+    _live_threads.pop(thread_id, None)
+    _live_threads[thread_id] = None
+    while len(_live_threads) > _MAX_LIVE_THREADS:
+        old_id, _ = _live_threads.popitem(last=False)
+        try:
+            _GRAPH.checkpointer.delete_thread(old_id)
+        except Exception:  # noqa: BLE001 - eviction 은 best-effort
+            pass
+
 
 async def run(
     input: PlannerInput,
@@ -51,6 +71,7 @@ async def run(
     now: datetime,
 ) -> PlannerResult:
     thread_id = input.thread_id or str(uuid4())
+    _touch_thread(thread_id)
     config = {"configurable": {"ports": ports, "thread_id": thread_id}}
 
     graph_input: Any
@@ -166,6 +187,7 @@ def get_debug_state(*, thread_id: str, ports: PlannerPorts) -> dict[str, Any]:
         "next": tuple(snapshot.next or ()),
         "history_turns": len(values.get("history") or []),
         "recent_turns": values.get("recent_turns") or [],
+        "memory_summary": values.get("memory_summary"),
         "user_profile_memory": values.get("user_profile_memory") or {},
         "personalization_patch": values.get("personalization_patch") or {},
         "parsed_goal": parsed_goal,

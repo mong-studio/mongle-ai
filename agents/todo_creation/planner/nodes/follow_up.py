@@ -15,6 +15,7 @@ from langgraph.types import interrupt
 
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.conversation_style import render_chief_voice
+from agents.todo_creation.planner.memory import fold_history
 from agents.todo_creation.planner.slot_schemas import slot_hints
 
 _DATE_KEYS = {"deadline", "exam_date", "event_date", "horizon"}
@@ -60,9 +61,13 @@ async def follow_up_node(
         {"role": "assistant", "content": question},
         {"role": "user", "content": user_answer},
     ]
+    new_history, memory_summary = await fold_history(
+        history + appended, state.get("memory_summary"), llm=question_llm
+    )
     return {
         "follow_up_question": question,
-        "history": history + appended,
+        "history": new_history,
+        "memory_summary": memory_summary,
         "recent_turns": (state.get("recent_turns", []) + appended)[-6:],
         "follow_up_count": follow_up_count + 1,
     }

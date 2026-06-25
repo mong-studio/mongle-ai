@@ -29,6 +29,7 @@ from adapters.todo_creation._domain_wiki import load_wiki
 from adapters.todo_creation._prompts import (
     FOLLOW_UP_SYSTEM,
     GOAL_TAG_SYSTEM,
+    HISTORY_SUMMARY_SYSTEM,
     OUT_OF_SCOPE_REPLY_SYSTEM,
     PLAN_GENERATOR_SYSTEM,
     PLAN_VALIDATOR_SYSTEM,
@@ -37,6 +38,7 @@ from adapters.todo_creation._prompts import (
     TASK_SPLITTER_SYSTEM,
     follow_up_user,
     goal_tag_user,
+    history_summary_user,
     out_of_scope_reply_user,
     plan_generator_user,
     plan_validator_user,
@@ -619,6 +621,19 @@ class QwenLLM:
         if not reply:
             raise LLMOutputError("empty out-of-scope reply")
         return reply[:180]
+
+    async def summarize_history(self, *, turns: list[Turn]) -> str:
+        messages = [
+            {"role": "system", "content": HISTORY_SUMMARY_SYSTEM},
+            {
+                "role": "user",
+                "content": history_summary_user(turns=_as_jsonable(turns)),
+            },
+        ]
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="summarize_history"
+        )
+        return str(parsed.get("summary") or "").strip()[:1000]
 
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date

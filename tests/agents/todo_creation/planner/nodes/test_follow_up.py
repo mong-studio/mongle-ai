@@ -63,7 +63,8 @@ async def test_removes_existing_mongle_without_double_comma() -> None:
 
 
 @pytest.mark.asyncio
-async def test_history_preserves_prior_turns() -> None:
+async def test_history_folds_when_long() -> None:
+    # 기존 3 + Q&A 2 = 5턴 > trigger → 오래된 턴이 요약 1줄로 접히고 memory_summary 채워짐.
     prior = [
         {"role": "user", "content": "내일 시험"},
         {"role": "assistant", "content": "어떤 시험?"},
@@ -71,14 +72,16 @@ async def test_history_preserves_prior_turns() -> None:
     ]
     llm = AsyncMock()
     llm.generate_follow_up_question = AsyncMock(return_value="목표 점수?")
+    llm.summarize_history = AsyncMock(return_value="영어 말하기 시험 준비 중")
     with patch(
         "agents.todo_creation.planner.nodes.follow_up.interrupt",
         return_value="800점",
     ):
         out = await follow_up_node(_state(history=prior), _config(llm))
-    # 기존 3 + assistant question + user answer = 5
-    assert len(out["history"]) == 5
-    assert out["history"][:3] == prior
+    # 요약 1턴 + 최근 2턴
+    assert len(out["history"]) == 3
+    assert out["history"][0]["content"].startswith("[이전 대화 요약] ")
+    assert out["memory_summary"] == {"text": "영어 말하기 시험 준비 중"}
 
 
 @pytest.mark.asyncio
