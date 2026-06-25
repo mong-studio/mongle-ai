@@ -68,6 +68,10 @@ class QwenLoraPipeline:
         temperature: float = 0.1,
         max_tokens: int = 800,
         json_mode: bool = False,
+        top_p: float = 1.0,
+        top_k: int = -1,
+        repetition_penalty: float = 1.0,
+        guided_json: dict | None = None,
     ) -> str:
         # adapter="base"(또는 빈 값)는 LoRA 없이 base 모델로 추론한다.
         # (단일 TODO 분해기는 계획 확장 성향의 planner LoRA 대신 base 를 쓴다.)
@@ -86,13 +90,23 @@ class QwenLoraPipeline:
         # vLLM 기본 stop 은 eos(<|endoftext|>)뿐이라, 모델이 턴 종료로 내는 <|im_end|>
         # 에서 안 멈추고 system 의 few-shot(입력:/출력:) 패턴을 이어받아 가짜 턴을
         # 계속 생성(runaway)한다. <|im_end|> 토큰 id 를 stop 에 추가해 턴 끝에서 정지시킨다.
-        from vllm.sampling_params import StructuredOutputsParams
+        from vllm.sampling_params import GuidedDecodingParams
+
+        if guided_json is not None:
+            guided_decoding = GuidedDecodingParams(json=guided_json, backend="outlines")
+        elif json_mode:
+            guided_decoding = GuidedDecodingParams(json_object=True)
+        else:
+            guided_decoding = None
 
         params = SamplingParams(
             temperature=temperature,
             max_tokens=max_tokens,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
             stop_token_ids=[self._tokenizer.convert_tokens_to_ids("<|im_end|>")],
-            **({"structured_outputs": StructuredOutputsParams(json_object=True)} if json_mode else {}),
+            **({"guided_decoding": guided_decoding} if guided_decoding is not None else {}),
         )
         outputs = self._llm.generate([prompt], params, lora_request=lora_request)
         return outputs[0].outputs[0].text

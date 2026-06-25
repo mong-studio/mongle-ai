@@ -26,6 +26,10 @@ def handler(job: dict) -> dict:
     temperature = float(job_input.get("temperature", 0.1))
     max_tokens = int(job_input.get("max_tokens", 800))
     json_mode = bool(job_input.get("json_mode", False))
+    top_p = float(job_input.get("top_p", 1.0))
+    top_k = int(job_input.get("top_k", -1))
+    repetition_penalty = float(job_input.get("repetition_penalty", 1.0))
+    guided_json = job_input.get("guided_json") or None
 
     text = get_pipeline().generate(
         adapter=adapter,
@@ -33,6 +37,10 @@ def handler(job: dict) -> dict:
         temperature=temperature,
         max_tokens=max_tokens,
         json_mode=json_mode,
+        top_p=top_p,
+        top_k=top_k,
+        repetition_penalty=repetition_penalty,
+        guided_json=guided_json,
     )
     return {"text": text}
 

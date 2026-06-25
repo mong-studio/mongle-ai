@@ -449,8 +449,13 @@ async def test_invalid_plan_json_without_base_uses_safe_plan() -> None:
     assert llm.generate_calls == 1
 
 
-async def test_ungrounded_english_falls_back_to_korean_plan() -> None:
-    """사용자 목표에 근거 없는 영어 일정은 한국어 안전 플랜으로 복구한다."""
+async def test_english_title_passes_through_without_blocking() -> None:
+    """영어 제목은 post-generation 단계에서 blocking 하지 않는다.
+
+    외국어 차단은 생성 단계(plan_guided_schema/outlines)가 담당하고,
+    post-generation 검사는 semantic validator 에 위임한다.
+    false positive(Python, GitHub 등)로 인한 deterministic fallback 방지.
+    """
 
     llm = _FakeLLM(
         plan_response=(
@@ -476,8 +481,8 @@ async def test_ungrounded_english_falls_back_to_korean_plan() -> None:
     )
 
     titles = [task.title for day in result["plan"] for task in day["tasks"]]
-    assert "기초 체력 30분" in titles
-    assert all("Running" not in title for title in titles)
+    # 영어 제목이 blocking 없이 그대로 반환된다.
+    assert "Running practice" in titles
 
 
 async def test_deterministic_contamination_falls_back_after_retry() -> None:
