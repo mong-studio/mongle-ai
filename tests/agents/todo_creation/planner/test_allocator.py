@@ -33,6 +33,23 @@ def test_explicit_weekdays_parsed() -> None:
     assert len(out) == 3
 
 
+def test_routine_items_are_assigned_in_weekday_order() -> None:
+    today = date(2026, 6, 1)
+    out = expand_routine(
+        "운동",
+        "월수금",
+        today=today,
+        horizon_days=7,
+        routine_items=["상체", "하체", "전신"],
+    )
+
+    assert [(c.due_date.weekday(), c.title) for c in out] == [
+        (0, "상체"),
+        (2, "하체"),
+        (4, "전신"),
+    ]
+
+
 def test_clamps_to_deadline() -> None:
     today = date(2026, 6, 1)
     deadline = date(2026, 6, 14)

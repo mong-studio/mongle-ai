@@ -10,6 +10,7 @@ JSON 파싱 실패 등 LLMOutputError 는 그대로 raise.
 from __future__ import annotations
 
 import inspect
+import re
 from typing import Any, cast
 
 from langchain_core.runnables import RunnableConfig
@@ -34,6 +35,9 @@ from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.planner.slot_schemas import missing_required
 from agents.todo_creation.state import ParsedGoal, Turn
 
+_WEEKDAY_SEQUENCE = re.compile(r"[월화수목금토일]{2,7}")
+_WEEKLY_COUNT = re.compile(r"주\s*([1-7])\s*(?:회|번)")
+
 
 async def planner_node(
     state: PlannerGraphState, config: RunnableConfig
@@ -42,12 +46,14 @@ async def planner_node(
     llm = ports.llm
     existing_goal = state.get("parsed_goal")
     is_revision = bool(state.get("revision_request") and state.get("plan"))
-    classification = await _classify_request(
-        getattr(ports, "classifier", None),
-        history=state.get("history", []),
-        message=state.get("message", ""),
-        has_existing_goal=existing_goal is not None,
-    )
+    classification = None
+    if not _is_routine_candidate(state, existing_goal=existing_goal):
+        classification = await _classify_request(
+            getattr(ports, "classifier", None),
+            history=state.get("history", []),
+            message=state.get("message", ""),
+            has_existing_goal=existing_goal is not None,
+        )
     if (
         classification
         and classification["intent"] == "conversation"
@@ -138,6 +144,14 @@ async def planner_node(
         if plan_kind not in ("exam", "event", "routine", "vague_goal", "lifestyle", "project"):
             plan_kind = "project"
         resolved_goal["plan_kind"] = plan_kind
+        if plan_kind == "routine":
+            slots = resolved_goal.get("slots")
+            if not isinstance(slots, dict):
+                slots = {}
+                resolved_goal["slots"] = slots
+            cadence = _extract_routine_cadence(str(state.get("message") or ""))
+            if cadence:
+                slots["cadence"] = cadence
         if is_revision:
             resolved_goal["revision_request"] = state.get("revision_request")
             resolved_goal["previous_plan"] = state.get("plan") or []
@@ -301,6 +315,32 @@ async def _judge_sufficiency(
     ):
         kwargs["user_profile_memory"] = user_profile_memory
     return await llm.judge_sufficiency(**kwargs)
+
+
+def _is_routine_candidate(
+    state: PlannerGraphState, *, existing_goal: ParsedGoal | None
+) -> bool:
+    """명확한 반복 주기는 classifier를 생략하고 judge 한 번으로 처리한다."""
+    if existing_goal and existing_goal.get("plan_kind") == "routine":
+        return True
+    message = str(state.get("message") or "")
+    return bool(_extract_routine_cadence(message))
+
+
+def _extract_routine_cadence(text: str) -> str:
+    match = _WEEKLY_COUNT.search(text)
+    if match:
+        return f"주 {match.group(1)}회"
+    compact = re.sub(r"[\s,·/&]+", "", text)
+    if "매일" in compact or "날마다" in compact:
+        return "매일"
+    match = _WEEKDAY_SEQUENCE.search(compact)
+    if match:
+        return "".join(dict.fromkeys(match.group()))
+    single = re.search(r"([월화수목금토일])요일", compact)
+    if single:
+        return single.group(1)
+    return ""
 
 
 def _plan_command(

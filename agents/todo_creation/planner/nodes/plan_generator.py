@@ -198,6 +198,12 @@ def _routine_plan(parsed_goal: ParsedGoal, *, today: date) -> dict[str, Any]:
     slots = parsed_goal.get("slots") or {}
     activity = str(slots.get("activity") or parsed_goal.get("goal_text") or "루틴")
     cadence = str(slots.get("cadence") or "")
+    raw_routine_items = slots.get("routine_items")
+    routine_items = (
+        [str(item) for item in raw_routine_items]
+        if isinstance(raw_routine_items, list)
+        else None
+    )
     horizon = _routine_horizon(slots.get("horizon"))
     goal_tag = _normalize_goal_tag(parsed_goal.get("goal_tag"))
     deadline = parsed_goal.get("deadline")
@@ -205,7 +211,12 @@ def _routine_plan(parsed_goal: ParsedGoal, *, today: date) -> dict[str, Any]:
     events = [
         event.model_copy(update={"tags": [goal_tag]})
         for event in expand_routine(
-            activity, cadence, today=today, horizon_days=horizon, deadline=deadline
+            activity,
+            cadence,
+            today=today,
+            horizon_days=horizon,
+            deadline=deadline,
+            routine_items=routine_items,
         )
     ][:_MAX_TASKS]
     todos = [e for e in events if e.due_date == today]
