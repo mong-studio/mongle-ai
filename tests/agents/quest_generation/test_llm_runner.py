@@ -13,9 +13,10 @@ from tests.agents.quest_generation.fakes import FakeLLM
 def _char() -> Character:
     return Character(
         character_id=uuid4(),
-        name="X",
-        personality="p",
-        speech_style="s",
+        # 한국어 전용 검증 가드가 생겨, FakeLLM 출력("{name}의 혼잣말입니다")이 한국어가 되도록 한글 이름 사용.
+        name="별이",
+        personality="활발한",
+        speech_style="반말",
         appearance_keywords=[],
     )
 

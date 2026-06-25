@@ -14,8 +14,12 @@ from agents.reply_generation.protocols import Ports
 from agents.reply_generation.schemas import GeneratedReply, ReplyGenerationInput
 
 _MAX_LEN = 50
-_NON_KO = re.compile(r"[一-鿿぀-ヿ]")  # 중국어/일본어 차단
 _HANGUL = re.compile(r"[가-힣]")
+# 허용(한글·숫자·공백·문장부호·이모지) 외 문자는 외국어로 본다. 기존 denylist 는 중/일만 막아
+# 베트남어·영어 등이 통과했다(예: 'giải').
+_FOREIGN = re.compile(
+    r"[^가-힣ㄱ-ㅎㅏ-ㅣ0-9\s.,!?~…·\-'\"“”‘’()\[\]%\U0001F000-\U0001FAFF☀-➿️‍]"
+)
 
 
 def _build_prompt(inp: ReplyGenerationInput) -> str:
@@ -37,7 +41,7 @@ def _validate(text: str) -> str:
         raise ReplyValidationError(code="EMPTY", message="빈 답글")
     if len(text) > _MAX_LEN:
         raise ReplyValidationError(code="TOO_LONG", message=f"답글이 {_MAX_LEN}자를 초과")
-    if _NON_KO.search(text) or not _HANGUL.search(text):
+    if not _HANGUL.search(text) or _FOREIGN.search(text):
         raise ReplyValidationError(code="NOT_KOREAN", message="한국어가 아닌 답글")
     return text
 

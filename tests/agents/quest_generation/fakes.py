@@ -27,4 +27,5 @@ class FakeLLM:
             raise LLMFailedError("simulated LLM failure")
         if self.text_for is not None:
             return self.text_for(character)
-        return f"{character.name}의 혼잣말입니다."
+        # 한국어 전용 검증 가드를 통과하도록 기본 퀘스트는 순한국어(라틴 이름을 끼우지 않음).
+        return "오늘의 혼잣말입니다."

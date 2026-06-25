@@ -6,13 +6,17 @@ from agents.quest_generation.exceptions import LLMFailedError
 from agents.quest_generation.protocols import LLMPort
 from agents.quest_generation.schemas import Character
 
-_NON_KO = re.compile(r"[一-鿿぀-ヿ]")  # 중국어/일본어(한자·가나) 차단
 _HANGUL = re.compile(r"[가-힣]")
+# 허용(한글·숫자·공백·일반 문장부호) 외 문자가 하나라도 있으면 외국어로 본다.
+# 기존 denylist([一-鿿぀-ヿ])는 중국어·일본어만 막아 베트남어('giải')·영어 등이 통과했다.
+_FOREIGN = re.compile(
+    r"[^가-힣ㄱ-ㅎㅏ-ㅣ0-9\s.,!?~…·\-'\"“”‘’()\[\]%\U0001F000-\U0001FAFF☀-➿️‍]"
+)
 
 
 def _validate_korean(text: str) -> None:
-    """퀘스트가 한국어인지 검증. 아니면 LLMFailedError 로 재시도를 유도한다."""
-    if _NON_KO.search(text) or not _HANGUL.search(text):
+    """퀘스트가 한국어인지 검증. 한글이 없거나 허용 외 문자(모든 외국어)가 있으면 재시도를 유도한다."""
+    if not _HANGUL.search(text) or _FOREIGN.search(text):
         raise LLMFailedError(f"non-Korean quest_text: {text!r}")
 
 

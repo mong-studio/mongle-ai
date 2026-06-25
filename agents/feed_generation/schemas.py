@@ -4,6 +4,11 @@ from typing import Annotated
 from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
+# 캡션 허용: 한글·숫자·공백·문장부호·해시태그(#)·이모지. 그 외(한자·가나·라틴·베트남어 등)는 외국어.
+_CAPTION_FOREIGN = re.compile(
+    r"[^가-힣ㄱ-ㅎㅏ-ㅣ0-9\s.,!?~…·\-'\"“”‘’()\[\]%#@\U0001F000-\U0001FAFF☀-➿️‍]"
+)
+
 
 class QuestRef(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -44,7 +49,11 @@ class GeneratedFeed(BaseModel):
 
     @field_validator("caption")
     @classmethod
-    def _must_contain_korean(cls, v: str) -> str:
+    def _must_be_korean(cls, v: str) -> str:
+        # 기존엔 '한글 포함'만 검사해 한국어+중국어 혼합 캡션이 통과했다(예: "광谱的灯光下…").
+        # 한글이 있어야 하고, 허용 외 외국어 문자가 하나도 없어야 한다.
         if not re.search(r"[가-힣]", v):
             raise ValueError("caption must contain Korean")
+        if _CAPTION_FOREIGN.search(v):
+            raise ValueError("caption must be Korean only (foreign script not allowed)")
         return v
