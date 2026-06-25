@@ -1,5 +1,16 @@
 # SFT pipeline (managed separately, not part of API server)
 sft_pipeline/
+!sft_pipeline/
+sft_pipeline/*
+sft_pipeline/data/*
+!sft_pipeline/data/seeds/
+sft_pipeline/data/seeds/*
+!sft_pipeline/data/seeds/planner_runtime_gold.jsonl
+!sft_pipeline/experiments/
+sft_pipeline/experiments/*
+!sft_pipeline/experiments/__init__.py
+!sft_pipeline/experiments/planner_runtime_v2/
+!sft_pipeline/experiments/planner_runtime_v2/**
 
 # Model outputs (large binary files)
 outputs/

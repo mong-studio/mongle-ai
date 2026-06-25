@@ -22,7 +22,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from sft_pipeline.build.lib.plan_schemas import check_plan_consistency, parse_plan
+from sft_pipeline.build.lib.plan_schemas import (
+    check_plan_consistency,
+    check_runtime_plan_consistency,
+    parse_plan,
+    parse_runtime_plan,
+)
 
 # 모든 샘플(JSONL 한 줄 = 학습 데이터 한 개)이 반드시 가져야 하는 키
 # "messages"(대화 내용)와 "meta"(부가 정보) 둘 다 있어야 함
@@ -47,7 +52,12 @@ DAILY_HORIZON_DAYS = 7
 # 마지막 assistant 출력이 "구조화 플랜 JSON"이어야 하는 출처들.
 # 이 출처만 2층(플랜 정합성) 검사를 받는다. distractor 처럼 의도적으로 평문 대화인
 # 출처는 2층을 건너뛰고 1층(형식 위생)만 검사한다.
-PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
+PLAN_PROVENANCES = {
+    "exam-crawl",
+    "daily-latte",
+    "exam-synth",
+    "planner-runtime",
+}
 
 # === 언어 게이트: 한국어 서비스 데이터에 섞이면 안 되는 외국어 문자 ===
 # 한 글자만 있어도 오류인 "금지 스크립트". 합성 모델(Qwen 등)이 흘리는
@@ -209,10 +219,19 @@ def _validate_plan(sample: dict, idx: int) -> list[str]:
         return [f"line {idx}: meta.today invalid date {today_raw!r}"]
     # ② 마지막 AI 답변을 플랜(PlanOutput)으로 해석한다. JSON 이 아니거나
     #    스키마(정해진 모양)에 안 맞으면 여기서 에러
+    provenance = meta.get("provenance")
     try:
-        plan = parse_plan(str(sample["messages"][-1]["content"]))
+        if provenance == "planner-runtime":
+            plan = parse_runtime_plan(str(sample["messages"][-1]["content"]))
+        else:
+            plan = parse_plan(str(sample["messages"][-1]["content"]))
     except ValueError as exc:
         return [f"line {idx}: invalid plan output ({exc})"]
+    if provenance == "planner-runtime":
+        return [
+            f"line {idx}: plan {e}"
+            for e in check_runtime_plan_consistency(plan, today=today)
+        ]
     # ③ 허용 날짜 범위를 구한 뒤, 플랜 내용의 논리 검사를 돌린다
     #    발견된 문제마다 "몇 번째 줄의 플랜 문제"라고 앞에 줄 번호를 붙여 돌려줌
     horizon = _horizon_days(meta)

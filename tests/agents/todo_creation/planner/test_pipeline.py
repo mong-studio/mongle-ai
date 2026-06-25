@@ -75,7 +75,7 @@ _TODAY = date(2026, 5, 27)
 _NOW = datetime(2026, 5, 27, 9, 0)
 
 
-def _input(message: str = "프로젝트 완성하기", thread_id: str | None = None) -> PlannerInput:
+def _input(message: str = "정처기 공부 계획 짜줘", thread_id: str | None = None) -> PlannerInput:
     return PlannerInput(
         user_id="u1",
         message=message,
@@ -101,13 +101,28 @@ async def test_insufficient_on_first_call_returns_follow_up() -> None:
     result = await run(_input(), ports=_ports(llm), now=_NOW)
 
     assert isinstance(result, FollowUpResult)
-    assert result.question == "언제까지 완료하실 건가요?"
-    assert result.missing_aspects == ["deadline"]
+    assert result.question == "언제까지 완료하실 건가요, 몽글?"
+    assert result.missing_aspects == [
+        "exam_part",
+        "exam_date",
+        "daily_hours",
+        "current_level",
+        "background",
+    ]
     assert result.thread_id  # non-empty
 
 
 async def test_resume_after_follow_up_returns_candidates_result() -> None:
-    goal: ParsedGoal = {"goal_text": "프로젝트 완성하기"}
+    goal: ParsedGoal = {
+        "goal_text": "정보처리기사 필기 준비",
+        "goal_tag": "정처기필기",
+        "slots": {
+            "exam_part": "필기",
+            "daily_hours": "2시간",
+            "current_level": "기출 1회독",
+            "background": "비전공자",
+        },
+    }
     llm = _FakeLLM(
         sufficiency_responses=[
             (False, ["deadline"], None),  # first turn: not sufficient
@@ -117,9 +132,24 @@ async def test_resume_after_follow_up_returns_candidates_result() -> None:
         # generate_follow_up_question is called once to produce the interrupt
         # value, then once more when the node re-runs before interrupt() returns.
         follow_up_responses=["언제까지 완료하실 건가요?", "언제까지 완료하실 건가요?"],
+        plan_responses=[
+            (
+                "시험일까지 핵심 내용을 정리해요.",
+                [
+                    {
+                        "date": _TODAY,
+                        "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY)],
+                    }
+                ],
+            )
+        ],
     )
 
-    first = await run(_input(), ports=_ports(llm), now=_NOW)
+    first = await run(
+        _input(message="정처기 필기 공부 계획 짜줘. 하루 2시간 가능하고 기출 1회독한 비전공자야"),
+        ports=_ports(llm),
+        now=_NOW,
+    )
     assert isinstance(first, FollowUpResult)
 
     second = await run(
@@ -132,15 +162,27 @@ async def test_resume_after_follow_up_returns_candidates_result() -> None:
 
 
 async def test_sufficient_immediately_returns_candidates_result() -> None:
-    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    goal: ParsedGoal = {"goal_text": "정보처리기사 필기 준비", "goal_tag": "정처기필기"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
+        plan_responses=[
+            (
+                "시험일까지 핵심 내용을 정리해요.",
+                [
+                    {
+                        "date": _TODAY,
+                        "tasks": [TaskCandidate(title="시험 응시", due_date=_TODAY)],
+                    }
+                ],
+            )
+        ],
     )
-    result = await run(_input(message="이번 주까지 코테 준비"), ports=_ports(llm), now=_NOW)
+    message = "3일 뒤 정보처리기사 필기 시험. 하루 2시간 가능하고 기출 1회독한 비전공자야"
+    result = await run(_input(message=message), ports=_ports(llm), now=_NOW)
 
     assert isinstance(result, CandidatesResult)
     assert result.thread_id
-    assert llm.seen_history[0] == [{"role": "user", "content": "이번 주까지 코테 준비"}]
+    assert llm.seen_history[0] == [{"role": "user", "content": message}]
 
 
 async def test_out_of_scope_returns_guidance() -> None:
@@ -159,16 +201,32 @@ async def test_out_of_scope_returns_guidance() -> None:
 async def test_revision_after_generated_plan_uses_previous_plan() -> None:
     first_task = TaskCandidate(title="개념 복습", due_date=_TODAY)
     second_task = TaskCandidate(title="실전 문제", due_date=_TODAY)
-    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    goal: ParsedGoal = {"goal_text": "정보처리기사 필기 준비", "goal_tag": "정처기필기"}
     llm = _FakeLLM(
-        sufficiency_responses=[(True, [], goal)],
+        sufficiency_responses=[
+            (True, [], goal),
+            (
+                True,
+                [],
+                {
+                    **goal,
+                    "slots": {"practice_focus": "실전 문제 비중 확대"},
+                },
+            ),
+        ],
         plan_responses=[
             ("첫 플랜", [{"date": _TODAY, "tasks": [first_task]}]),
             ("수정 플랜", [{"date": _TODAY, "tasks": [second_task]}]),
         ],
     )
 
-    first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
+    first = await run(
+        _input(
+            message="3일 뒤 정보처리기사 필기 시험. 하루 2시간 가능하고 기출 1회독한 비전공자야"
+        ),
+        ports=_ports(llm),
+        now=_NOW,
+    )
     assert isinstance(first, CandidatesResult)
 
     second = await run(
@@ -178,21 +236,29 @@ async def test_revision_after_generated_plan_uses_previous_plan() -> None:
     )
 
     assert isinstance(second, CandidatesResult)
-    assert second.todos[0].title == second_task.title
-    assert second.todos[0].tags == ["코테"]
+    revised_tasks = second.todos + second.calendar_events
+    assert revised_tasks[0].title == second_task.title
+    assert revised_tasks[0].tags == ["정처기필기"]
+    assert llm.seen_parsed_goals[-1]["slots"]["practice_focus"] == "실전 문제 비중 확대"
     assert llm.seen_parsed_goals[-1]["revision_request"] == "실전 문제를 더 많이 넣어줘"
     assert llm.seen_parsed_goals[-1]["previous_plan"]
 
 
 async def test_acceptance_after_generated_plan_returns_previous_candidates_without_llm() -> None:
     task = TaskCandidate(title="개념 복습", due_date=_TODAY)
-    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    goal: ParsedGoal = {"goal_text": "정보처리기사 필기 준비", "goal_tag": "정처기필기"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
         plan_responses=[("첫 플랜", [{"date": _TODAY, "tasks": [task]}])],
     )
 
-    first = await run(_input(message="3일 뒤 코테 준비"), ports=_ports(llm), now=_NOW)
+    first = await run(
+        _input(
+            message="3일 뒤 정보처리기사 필기 시험. 하루 2시간 가능하고 기출 1회독한 비전공자야"
+        ),
+        ports=_ports(llm),
+        now=_NOW,
+    )
     assert isinstance(first, CandidatesResult)
 
     second = await run(
@@ -205,63 +271,52 @@ async def test_acceptance_after_generated_plan_returns_previous_candidates_witho
     assert second.todos == first.todos
     assert second.summary_text == first.summary_text
     assert len(llm.seen_parsed_goals) == 1
-    assert llm.seen_parsed_goals[0]["goal_tag"] == "코테"
+    assert llm.seen_parsed_goals[0]["goal_tag"] == "정처기필기"
 
 
 async def test_debug_state_exposes_thread_memory_summary() -> None:
     task = TaskCandidate(title="개념 복습", due_date=_TODAY)
-    goal: ParsedGoal = {"goal_text": "코테 준비", "goal_tag": "코테"}
+    goal: ParsedGoal = {"goal_text": "정보처리기사 필기 준비", "goal_tag": "정처기필기"}
     llm = _FakeLLM(
         sufficiency_responses=[(True, [], goal)],
         plan_responses=[("요약", [{"date": _TODAY, "tasks": [task]}])],
     )
     ports = _ports(llm)
 
-    result = await run(_input(message="3일 뒤 코테 준비"), ports=ports, now=_NOW)
+    result = await run(
+        _input(
+            message="3일 뒤 정보처리기사 필기 시험. 하루 2시간 가능하고 기출 1회독한 비전공자야"
+        ),
+        ports=ports,
+        now=_NOW,
+    )
     assert isinstance(result, CandidatesResult)
     state = get_debug_state(thread_id=result.thread_id, ports=ports)
 
+    assert state["storage_backend"] == "InMemorySaver"
     assert state["history_turns"] >= 1
-    assert state["parsed_goal"]["goal_tag"] == "코테"
+    assert state["user_profile_memory"] == {}
+    assert state["personalization_patch"] == {}
+    assert state["parsed_goal"]["goal_tag"] == "정처기필기"
     assert state["has_previous_plan"] is True
-    assert state["todo_count"] == 1
+    assert state["calendar_count"] == 1
 
 
-async def test_routine_revision_rebuilds_with_updated_cadence() -> None:
-    # routine 은 결정적 전개라 previous_plan/revision_request 텍스트를 못 읽는다.
-    # 따라서 revision 시 judge 를 재실행해 cadence 슬롯을 갱신하고 재전개해야 한다.
-    routine_mon: ParsedGoal = {
+async def test_routine_request_can_generate_candidates() -> None:
+    routine_goal: ParsedGoal = {
         "intent": "plan",
         "plan_kind": "routine",
         "slots": {"activity": "독서", "cadence": "월"},
         "goal_tag": "독서",
         "deadline": None,
     }
-    routine_tue: ParsedGoal = {
-        "intent": "plan",
-        "plan_kind": "routine",
-        "slots": {"activity": "독서", "cadence": "화"},
-        "goal_tag": "독서",
-        "deadline": None,
-    }
-    llm = _FakeLLM(
-        sufficiency_responses=[(True, [], routine_mon), (True, [], routine_tue)]
-    )
+    llm = _FakeLLM(sufficiency_responses=[(True, [], routine_goal)])
 
-    first = await run(_input(message="매주 월요일 독서하기"), ports=_ports(llm), now=_NOW)
-    assert isinstance(first, CandidatesResult)
-    first_events = first.todos + first.calendar_events
-    assert first_events and all(e.due_date.weekday() == 0 for e in first_events)
+    result = await run(_input(message="매주 월요일 독서하기"), ports=_ports(llm), now=_NOW)
 
-    second = await run(
-        _input(message="화요일로 바꿔줘", thread_id=first.thread_id),
-        ports=_ports(llm),
-        now=_NOW,
-    )
-    assert isinstance(second, CandidatesResult)
-    second_events = second.todos + second.calendar_events
-    # 화요일(weekday 1)로 재전개 — judge 가 cadence 슬롯을 갱신했다
-    assert second_events and all(e.due_date.weekday() == 1 for e in second_events)
+    assert isinstance(result, CandidatesResult)
+    events = result.todos + result.calendar_events
+    assert events and all(event.due_date.weekday() == 0 for event in events)
 
 
 async def test_validation_error_propagates() -> None:

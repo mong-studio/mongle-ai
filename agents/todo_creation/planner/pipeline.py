@@ -37,6 +37,8 @@ _ACCEPT_MESSAGES = {
 @dataclass
 class PlannerPorts:
     llm: LLMPort
+    classifier: LLMPort | None = None
+    validator: LLMPort | None = None
 
 
 _GRAPH = build_planner_graph()
@@ -128,6 +130,7 @@ def _initial_state(input: PlannerInput, now: datetime) -> dict[str, Any]:
         "user_id": input.user_id,
         "history": [],
         "recent_turns": [],
+        "follow_up_count": 0,
         "user_profile_memory": input.user_profile_memory or {},
     }
 
@@ -159,12 +162,16 @@ def get_debug_state(*, thread_id: str, ports: PlannerPorts) -> dict[str, Any]:
     parsed_goal = values.get("parsed_goal") or {}
     return {
         "thread_id": thread_id,
+        "storage_backend": type(_GRAPH.checkpointer).__name__,
         "next": tuple(snapshot.next or ()),
         "history_turns": len(values.get("history") or []),
         "recent_turns": values.get("recent_turns") or [],
+        "user_profile_memory": values.get("user_profile_memory") or {},
+        "personalization_patch": values.get("personalization_patch") or {},
         "parsed_goal": parsed_goal,
         "missing_aspects": values.get("missing_aspects") or [],
         "has_previous_plan": bool(values.get("plan")),
         "todo_count": len(values.get("todos") or []),
         "calendar_count": len(values.get("calendar_events") or []),
+        "follow_up_count": int(values.get("follow_up_count") or 0),
     }

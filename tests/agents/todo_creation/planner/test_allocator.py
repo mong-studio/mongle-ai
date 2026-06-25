@@ -47,7 +47,7 @@ def test_title_truncated_and_tagged() -> None:
     )
     assert out
     assert all(len(c.title) <= 20 for c in out)
-    assert all("routine" in c.tags for c in out)
+    assert all("루틴" in c.tags for c in out)
 
 
 def test_blank_activity_falls_back_to_default_title() -> None:

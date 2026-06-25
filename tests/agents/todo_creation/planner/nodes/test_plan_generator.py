@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+import pytest
+
+from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.schemas import TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay
@@ -19,6 +22,7 @@ class _FakeLLM:
     goal_tag_response: str = "목표"
     tag_response: list[PlanDay] | None = None
     tag_error: Exception | None = None
+    generate_error: Exception | None = None
     generate_calls: int = 0
     goal_tag_calls: int = 0
     tag_calls: int = 0
@@ -27,6 +31,8 @@ class _FakeLLM:
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
         self.generate_calls += 1
+        if self.generate_error is not None:
+            raise self.generate_error
         return self.plan_response
 
     async def generate_goal_tag(
@@ -51,10 +57,20 @@ class _FakeLLM:
 @dataclass
 class _Ports:
     llm: _FakeLLM
+    classifier: _FakeLLM | None = None
+    validator: object | None = None
 
 
-def _config(llm: _FakeLLM) -> dict:
-    return {"configurable": {"ports": _Ports(llm=llm)}}
+def _config(llm: _FakeLLM, *, classifier=None, validator=None) -> dict:
+    return {
+        "configurable": {
+            "ports": _Ports(
+                llm=llm,
+                classifier=classifier,
+                validator=validator,
+            )
+        }
+    }
 
 
 def _state(parsed_goal: ParsedGoal | None = None) -> dict:
@@ -70,7 +86,7 @@ async def test_splits_today_tasks_into_todos() -> None:
 
     assert result["todos"][0].title == task.title
     assert result["calendar_events"] == []
-    assert result["summary_text"] == "오늘 코테 준비"
+    assert result["summary_text"] == "오늘 코테 준비, 몽글."
     assert result["todos"][0].tags == ["목표"]
 
 
@@ -103,14 +119,16 @@ async def test_mixed_plan_splits_correctly() -> None:
     assert result["calendar_events"][0].tags == ["목표"]
 
 
-async def test_empty_plan_returns_empty_lists() -> None:
+async def test_empty_plan_falls_back_to_safe_plan_after_retry() -> None:
+    """모델이 빈 일정을 반복하면 예외 대신 최소 안전 플랜으로 복구한다."""
+
     llm = _FakeLLM(plan_response=("", []))
 
     result = await plan_generator_node(_state(), _config(llm))
 
-    assert result["todos"] == []
-    assert result["calendar_events"] == []
-    assert result["plan"] == []
+    assert llm.generate_calls == 2
+    assert result["plan"]
+    assert result["plan"][0]["tasks"][0].title == "현재 상태 정리"
 
 
 async def test_spreads_duplicate_plan_dates_across_days() -> None:
@@ -131,7 +149,9 @@ async def test_spreads_duplicate_plan_dates_across_days() -> None:
 
 
 async def test_truncates_summary_after_retry() -> None:
-    llm = _FakeLLM(plan_response=("가" * 1600, []))
+    task = TaskCandidate(title="요약 점검", due_date=_TODAY)
+    plan: list[PlanDay] = [{"date": _TODAY, "tasks": [task]}]
+    llm = _FakeLLM(plan_response=("가" * 1600, plan))
 
     result = await plan_generator_node(_state(), _config(llm))
 
@@ -150,7 +170,7 @@ async def test_applies_same_goal_tag_without_tag_llm_call() -> None:
 
     result = await plan_generator_node(_state({"goal_tag": "영어말하기"}), _config(llm))
 
-    assert result["todos"][0].tags == ["영어말하기시험"]
+    assert result["todos"][0].tags == ["영어말하기시"]
     assert llm.goal_tag_calls == 1
     assert llm.tag_calls == 0
 
@@ -183,7 +203,8 @@ async def test_drops_tasks_after_deadline() -> None:
     llm = _FakeLLM(plan_response=("요약", plan))
 
     result = await plan_generator_node(
-        _state({"goal_tag": "목표", "deadline": deadline}), _config(llm)
+        _state({"plan_kind": "exam", "goal_tag": "목표", "deadline": deadline}),
+        _config(llm),
     )
 
     titles = [t.title for t in result["todos"] + result["calendar_events"]]
@@ -217,10 +238,437 @@ async def test_p1_no_task_strictly_after_deadline() -> None:
     llm = _FakeLLM(plan_response=("요약", plan))
 
     result = await plan_generator_node(
-        _state({"goal_tag": "정처기", "deadline": deadline}), _config(llm)
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 필기",
+                "goal_tag": "정처기",
+                "deadline": deadline,
+            }
+        ),
+        _config(llm),
     )
 
     all_tasks = result["todos"] + result["calendar_events"]
     assert all(t.due_date <= deadline for t in all_tasks)
     assert any(t.title == "시험 응시" and t.due_date == deadline for t in all_tasks)
     assert all(t.title != "회고" for t in all_tasks)
+
+
+async def test_long_event_plan_limits_calendar_to_thirty_day_detail() -> None:
+    """30일 밖 목표는 상세 일정만 저장하고 남은 기간은 채팅으로 안내한다."""
+
+    deadline = date(2026, 8, 8)
+    plan: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index),
+            "tasks": [
+                TaskCandidate(
+                    title=f"훈련 {index + 1}",
+                    due_date=_TODAY + timedelta(days=index),
+                )
+            ],
+        }
+        for index in range(7)
+    ]
+    llm = _FakeLLM(
+        plan_response=("철인 삼종 준비", plan),
+        goal_tag_response="철인삼종",
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_tag": "철인삼종",
+                "deadline": deadline,
+            }
+        ),
+        _config(llm),
+    )
+
+    dates = [day["date"] for day in result["plan"]]
+    window_end = _TODAY + timedelta(days=29)
+    assert dates[0] == _TODAY
+    assert dates[-1] == window_end
+    assert dates == sorted(dates)
+    assert all(_TODAY <= planned_date <= window_end for planned_date in dates)
+    assert deadline not in dates
+    assert all(
+        "진행 점검" not in task.title
+        for day in result["plan"]
+        for task in day["tasks"]
+    )
+    assert window_end.isoformat() in result["summary_text"]
+    assert deadline.isoformat() in result["summary_text"]
+    assert "흐름으로 이어가면" in result["summary_text"]
+
+
+async def test_general_goal_uses_base_generator() -> None:
+    """일반 목표는 시험 특화 LoRA 대신 base 모델로 격리한다."""
+
+    planner = _FakeLLM(
+        plan_response=(
+            "시험 준비",
+            [
+                {
+                    "date": _TODAY,
+                    "tasks": [TaskCandidate(title="필기 공부", due_date=_TODAY)],
+                }
+            ],
+        )
+    )
+    base = _FakeLLM(
+        plan_response=(
+            "수영과 달리기를 준비해요.",
+            [
+                {
+                    "date": _TODAY,
+                    "tasks": [TaskCandidate(title="수영 자세 점검", due_date=_TODAY)],
+                }
+            ],
+        ),
+        goal_tag_response="철인삼종",
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 완주",
+                "goal_tag": "철인삼종",
+            }
+        ),
+        _config(planner, classifier=base),
+    )
+
+    assert result["plan"][0]["tasks"][0].title == "수영 자세 점검"
+    assert base.generate_calls == 1
+    assert planner.generate_calls == 0
+
+
+async def test_supported_exam_keeps_planner_lora_generator() -> None:
+    """검증된 정보처리기사 목표는 기존 planner LoRA 지식을 유지한다."""
+
+    planner = _FakeLLM(
+        plan_response=(
+            "정처기 필기를 준비해요.",
+            [
+                {
+                    "date": _TODAY,
+                    "tasks": [TaskCandidate(title="필기 개념 복습", due_date=_TODAY)],
+                }
+            ],
+        ),
+        goal_tag_response="정보처리기사",
+    )
+    base = _FakeLLM()
+
+    await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 필기 준비",
+                "goal_tag": "정보처리기사",
+            }
+        ),
+        _config(planner, classifier=base),
+    )
+
+    assert planner.generate_calls == 1
+    assert base.generate_calls == 0
+
+
+async def test_invalid_planner_json_falls_back_to_base_generator() -> None:
+    """planner LoRA의 JSON이 깨지면 base 모델로 한 번 복구한다."""
+
+    planner = _FakeLLM(
+        goal_tag_response="정보처리기사",
+        generate_error=LLMOutputError("non-JSON response"),
+    )
+    base = _FakeLLM(
+        plan_response=(
+            "시험 전 핵심 내용을 복습해요.",
+            [
+                {
+                    "date": _TODAY,
+                    "tasks": [TaskCandidate(title="핵심 개념 복습", due_date=_TODAY)],
+                }
+            ],
+        ),
+        goal_tag_response="정보처리기사",
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 실기 준비",
+                "goal_tag": "정보처리기사",
+                "deadline": _TODAY,
+            }
+        ),
+        _config(planner, classifier=base),
+    )
+
+    assert result["plan"][0]["tasks"][0].title == "핵심 개념 복습"
+    assert planner.generate_calls == 1
+    assert base.generate_calls == 1
+
+
+async def test_invalid_plan_json_without_base_uses_safe_plan() -> None:
+    """JSON 파싱 실패의 안전 플랜은 semantic judge 재생성을 건너뛴다."""
+
+    llm = _FakeLLM(
+        goal_tag_response="철인삼종",
+        generate_error=LLMOutputError("non-JSON response"),
+    )
+
+    class _RejectingValidator:
+        async def validate_plan(self, **_):
+            raise AssertionError("안전 플랜은 semantic judge로 다시 보내면 안 된다")
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 경기 출전",
+                "goal_tag": "철인삼종",
+                "deadline": date(2026, 9, 30),
+                "slots": {"weekly_cadence": "주 3회"},
+            }
+        ),
+        _config(llm, validator=_RejectingValidator()),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    dates = [day["date"] for day in result["plan"]]
+    assert "주 3회 실행" in titles
+    assert dates[-1] == _TODAY + timedelta(days=29)
+    assert date(2026, 9, 30).isoformat() in result["summary_text"]
+    assert llm.generate_calls == 1
+
+
+async def test_ungrounded_english_falls_back_to_korean_plan() -> None:
+    """사용자 목표에 근거 없는 영어 일정은 한국어 안전 플랜으로 복구한다."""
+
+    llm = _FakeLLM(
+        plan_response=(
+            "Prepare for the race",
+            [
+                {
+                    "date": _TODAY,
+                    "tasks": [TaskCandidate(title="Running practice", due_date=_TODAY)],
+                }
+            ],
+        )
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "마라톤 완주",
+                "goal_tag": "마라톤",
+            }
+        ),
+        _config(llm),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert "기초 체력 30분" in titles
+    assert all("Running" not in title for title in titles)
+
+
+async def test_deterministic_contamination_falls_back_after_retry() -> None:
+    """비시험 플랜의 필기·기출 오염은 사용자에게 반환하지 않고 안전 플랜으로 복구한다."""
+
+    deadline = date(2026, 8, 8)
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [
+                TaskCandidate(title="필기 기출 문제 풀이", due_date=_TODAY)
+            ],
+        }
+    ]
+    llm = _FakeLLM(plan_response=("시험 준비", contaminated))
+
+    class _Validator:
+        async def validate_plan(self, **_):
+            return False, ["사용자 목표와 무관한 시험 내용"]
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 경기 출전",
+                "goal_tag": "철인삼종",
+                "deadline": deadline,
+                "slots": {"activity": "철인 삼종 경기"},
+            }
+        ),
+        _config(llm, validator=_Validator()),
+    )
+
+    assert llm.generate_calls == 2
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert "필기 기출 문제 풀이" not in titles
+    assert "기초 체력 30분" in titles
+
+
+async def test_supported_exam_alias_cannot_leak_into_event_plan() -> None:
+    """지원 시험 registry의 별칭이 일반 이벤트 일정에 섞이면 안전 플랜으로 복구한다."""
+
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index),
+            "tasks": [
+                TaskCandidate(title="정처기 훈련", due_date=_TODAY + timedelta(days=index))
+            ],
+        }
+        for index in range(4)
+    ]
+    llm = _FakeLLM(plan_response=("철인 삼종 훈련", contaminated))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 경기 출전",
+                "goal_tag": "철인삼종",
+            }
+        ),
+        _config(llm),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert all("정처기" not in title for title in titles)
+    assert "기초 체력 30분" in titles
+
+
+async def test_repeated_generic_plan_titles_fall_back() -> None:
+    """비루틴 플랜이 같은 제목을 세 번 넘게 반복하면 안전 플랜으로 복구한다."""
+
+    repeated: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index),
+            "tasks": [
+                TaskCandidate(title="철인삼종 훈련", due_date=_TODAY + timedelta(days=index))
+            ],
+        }
+        for index in range(4)
+    ]
+    llm = _FakeLLM(plan_response=("철인 삼종 준비", repeated))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 경기 출전",
+                "goal_tag": "철인삼종",
+            }
+        ),
+        _config(llm),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert titles.count("철인삼종 훈련") == 0
+    assert "현재 수준 기록" in titles
+
+
+async def test_goal_name_plus_generic_action_falls_back() -> None:
+    """목표명에 '훈련 계획'만 붙인 제목은 안전 플랜으로 복구한다."""
+
+    plan: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [TaskCandidate(title="철인삼종 훈련 계획", due_date=_TODAY)],
+        },
+        {
+            "date": _TODAY + timedelta(days=1),
+            "tasks": [TaskCandidate(title="수영 자세 20분", due_date=_TODAY + timedelta(days=1))],
+        },
+    ]
+    llm = _FakeLLM(
+        plan_response=("철인 삼종 준비", plan),
+        goal_tag_response="철인삼종",
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "event",
+                "goal_text": "철인 삼종 경기 출전",
+                "goal_tag": "철인삼종",
+            }
+        ),
+        _config(llm),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert "철인삼종 훈련 계획" not in titles
+    assert "기술 동작 20분" in titles
+
+
+async def test_semantic_false_positive_is_advisory_after_retry() -> None:
+    """judge가 시험 준비를 잘못 요구해도 하드 검증 통과 플랜은 보존한다."""
+
+    plan: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [TaskCandidate(title="대표 요리 연습", due_date=_TODAY)],
+        }
+    ]
+    llm = _FakeLLM(plan_response=("대표 요리를 준비해요.", plan))
+
+    class _Validator:
+        async def validate_plan(self, **_):
+            return False, ["시험 준비 단계가 누락되어 있습니다"]
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "project",
+                "goal_text": "요리 대회 준비",
+                "goal_tag": "요리대회",
+                "deadline": _TODAY,
+                "slots": {"goal": "대표 요리 완성"},
+            }
+        ),
+        _config(llm, validator=_Validator()),
+    )
+
+    assert llm.generate_calls == 2
+    assert result["plan"][0]["tasks"][0].title == "대표 요리 연습"
+
+
+async def test_semantic_validator_parse_failure_does_not_block_valid_plan() -> None:
+    """소프트 judge의 JSON 파싱 실패가 정상 플랜을 중단시키지 않는다."""
+
+    plan: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [TaskCandidate(title="핵심 개념 복습", due_date=_TODAY)],
+        }
+    ]
+    llm = _FakeLLM(plan_response=("시험 전 핵심 내용을 복습해요.", plan))
+
+    class _BrokenValidator:
+        async def validate_plan(self, **_):
+            raise LLMOutputError('non-JSON response: {"valid": false')
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 필기 준비",
+                "goal_tag": "정보처리기사",
+                "deadline": _TODAY,
+            }
+        ),
+        _config(llm, validator=_BrokenValidator()),
+    )
+
+    assert llm.generate_calls == 1
+    assert result["plan"][0]["tasks"][0].title == "핵심 개념 복습"

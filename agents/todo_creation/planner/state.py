@@ -25,6 +25,7 @@ class PlannerGraphState(TypedDict, total=False):
     missing_aspects: list[str]
     parsed_goal: ParsedGoal | None
     follow_up_question: str | None
+    follow_up_count: int
     out_of_scope_message: str | None
 
     # plan (P1: plan_generator 구현 시 채워짐)

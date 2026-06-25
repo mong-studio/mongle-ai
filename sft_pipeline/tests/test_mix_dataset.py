@@ -119,6 +119,15 @@ def test_public_includes_exam_synth():
     assert provs == ["daily-latte", "exam-synth"]
 
 
+def test_public_includes_planner_runtime():
+    sample = _daily()
+    sample["meta"]["provenance"] = "planner-runtime"
+
+    out = mix([sample], release="public")
+
+    assert out == [sample]
+
+
 def test_distractor_mix_validates(tmp_path):
     """plan(daily) + distractor 혼합이 통일 validate 를 통과한다(2층 분기 확인)."""
     out = mix([_daily(), _distractor()], release="internal")

@@ -19,39 +19,42 @@ from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.goal_rules import (
     build_recovery_goal,
     delegates_planning,
+    has_explicit_exam_context,
+    is_competition_event_context,
     merge_deadline_from_state,
     needs_deadline_follow_up,
+    is_supported_exam_context,
+    normalize_competition_event_goal,
+    normalize_supported_exam_goal,
+    required_competition_event_missing,
+    required_supported_exam_missing,
     should_accept_out_of_scope,
 )
 from agents.todo_creation.planner.state import PlannerGraphState
+from agents.todo_creation.planner.slot_schemas import missing_required
 from agents.todo_creation.state import ParsedGoal, Turn
 
 
 async def planner_node(
     state: PlannerGraphState, config: RunnableConfig
 ) -> Command[str]:
-    llm = get_ports(config).llm
+    ports = get_ports(config)
+    llm = ports.llm
     existing_goal = state.get("parsed_goal")
-    # routine 은 결정적 전개(expand_routine)라 revision_request 텍스트를 못 읽는다.
-    # revision 시 judge 를 재실행해 cadence 슬롯을 갱신·재전개하도록 단락을 건너뛴다.
-    is_routine = bool(existing_goal and existing_goal.get("plan_kind") == "routine")
-    if state.get("revision_request") and state.get("plan") and not is_routine:
-        previous_plan = state.get("plan") or []
-        revision_goal: ParsedGoal = cast(
-            ParsedGoal,
-            existing_goal.copy() if existing_goal is not None else {},
-        )
-        revision_goal["revision_request"] = state.get("revision_request")
-        revision_goal["previous_plan"] = previous_plan
-        revision_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
-        return _plan_command(
-            parsed_goal=revision_goal,
-            sufficient=True,
-            missing=[],
-        )
-
-    if _follow_up_count(state.get("history", [])) >= 2:
-        return _plan_command(parsed_goal=build_recovery_goal(state), sufficient=True, missing=[])
+    is_revision = bool(state.get("revision_request") and state.get("plan"))
+    classification = await _classify_request(
+        getattr(ports, "classifier", None),
+        history=state.get("history", []),
+        message=state.get("message", ""),
+        has_existing_goal=existing_goal is not None,
+    )
+    if (
+        classification
+        and classification["intent"] == "conversation"
+        and existing_goal is None
+        and not is_revision
+    ):
+        return _out_of_scope_command()
 
     sufficient, missing, parsed = await _judge_sufficiency(
         llm,
@@ -60,8 +63,14 @@ async def planner_node(
         today=state.get("today"),
         user_profile_memory=state.get("user_profile_memory"),
     )
-    if parsed and parsed.get("intent") == "out_of_scope" and not should_accept_out_of_scope(
-        state
+    if (
+        parsed
+        and parsed.get("intent") == "out_of_scope"
+        and (
+            is_revision
+            or (classification and classification["intent"] != "conversation")
+            or not should_accept_out_of_scope(state)
+        )
     ):
         parsed = build_recovery_goal(state)
         sufficient = True
@@ -78,9 +87,44 @@ async def planner_node(
         )
 
     resolved_goal: ParsedGoal | None = (
-        cast(ParsedGoal, parsed.copy()) if parsed is not None else None
+        _merge_goal_context(existing_goal, cast(ParsedGoal, parsed.copy()))
+        if parsed is not None
+        else (
+            normalize_competition_event_goal(state, None)
+            if is_competition_event_context(state, None)
+            else (
+                normalize_supported_exam_goal(state, None)
+                if is_supported_exam_context(state, None)
+                else None
+            )
+        )
     )
     if resolved_goal is not None:
+        _apply_classification(resolved_goal, classification)
+        if is_competition_event_context(state, resolved_goal):
+            resolved_goal = normalize_competition_event_goal(state, resolved_goal)
+        elif is_supported_exam_context(state, resolved_goal):
+            resolved_goal = normalize_supported_exam_goal(state, resolved_goal)
+        elif (
+            resolved_goal.get("plan_kind") == "exam"
+            and not has_explicit_exam_context(state, resolved_goal)
+        ):
+            resolved_goal["plan_kind"] = "project"
+            slots = resolved_goal.get("slots")
+            if isinstance(slots, dict):
+                resolved_goal["slots"] = {
+                    key: value
+                    for key, value in slots.items()
+                    if key
+                    not in {
+                        "exam_name",
+                        "exam_part",
+                        "exam_date",
+                        "daily_hours",
+                        "background",
+                        "weak_subjects",
+                    }
+                }
         # routine 은 요일 단어가 cadence(주기)라 deadline 으로 오인하면 안 된다
         # (예: "매주 월요일" 의 '월요일' 을 마감일로 파싱해 horizon 을 clamp 하는 버그 방지).
         if resolved_goal.get("plan_kind") != "routine":
@@ -90,20 +134,69 @@ async def planner_node(
                 if not missing:
                     sufficient = True
         resolved_goal["user_profile_memory"] = state.get("user_profile_memory") or {}
+        plan_kind = resolved_goal.get("plan_kind") or "project"
+        if plan_kind not in ("exam", "event", "routine", "vague_goal", "lifestyle", "project"):
+            plan_kind = "project"
+        resolved_goal["plan_kind"] = plan_kind
+        if is_revision:
+            resolved_goal["revision_request"] = state.get("revision_request")
+            resolved_goal["previous_plan"] = state.get("plan") or []
 
     if delegates_planning(state.get("message", "")) and resolved_goal:
         sufficient = True
         missing = []
 
-    if sufficient and needs_deadline_follow_up(state, resolved_goal):
-        return Command(
-            goto="follow_up",
-            update={
-                "sufficiency": False,
-                "missing_aspects": ["deadline"],
-                "parsed_goal": resolved_goal,
-            },
+    if resolved_goal is not None:
+        if is_competition_event_context(state, resolved_goal):
+            missing = required_competition_event_missing(state, resolved_goal)
+            sufficient = not missing
+        elif is_supported_exam_context(state, resolved_goal):
+            missing = required_supported_exam_missing(state, resolved_goal)
+            sufficient = not missing
+        else:
+            slots = resolved_goal.get("slots") or {}
+            filled = {
+                key
+                for key, value in slots.items()
+                if value not in (None, "", [], {})
+            }
+            plan_kind = str(resolved_goal.get("plan_kind") or "project")
+            if plan_kind == "project":
+                if str(resolved_goal.get("goal_text") or "").strip():
+                    filled.add("goal")
+                if resolved_goal.get("deadline"):
+                    filled.add("horizon")
+                if resolved_goal.get("daily_capacity_minutes"):
+                    filled.add("available_time")
+            schema_missing = missing_required(plan_kind, filled)
+            # 모델이 다른 유형의 슬롯을 섞어도 현재 plan_kind 스키마만 따른다.
+            missing = schema_missing
+            sufficient = not missing
+
+    follow_up_count = int(state.get("follow_up_count") or 0)
+    deadline_needed = bool(
+        sufficient and needs_deadline_follow_up(state, resolved_goal) and not is_revision
+    )
+    if deadline_needed:
+        if follow_up_count < 2:
+            return Command(
+                goto="follow_up",
+                update={
+                    "sufficiency": False,
+                    "missing_aspects": ["deadline"],
+                    "parsed_goal": resolved_goal,
+                },
+            )
+        sufficient = False
+        missing = list(dict.fromkeys(["deadline", *(missing or [])]))
+
+    if resolved_goal is not None and (is_revision or (not sufficient and follow_up_count >= 2)):
+        _apply_missing_assumptions(
+            resolved_goal,
+            missing=list(missing or []),
+            today=state.get("today"),
         )
+        sufficient = True
 
     return Command(
         goto="plan_generator" if sufficient else "follow_up",
@@ -115,18 +208,78 @@ async def planner_node(
     )
 
 
-def _follow_up_count(history: list[Turn]) -> int:
-    """assistant 질문 수를 기준으로 꼬리질문 반복 횟수를 계산한다."""
+def _merge_goal_context(
+    existing: ParsedGoal | None, current: ParsedGoal
+) -> ParsedGoal:
+    """이전 턴에서 확보한 목표/슬롯을 현재 판정 결과에 누적한다."""
 
-    return sum(
-        1
-        for turn in history
-        if turn.get("role") == "assistant"
-        and (
-            turn.get("type") == "follow_up"
-            or (turn.get("type") is None and str(turn.get("content") or "").endswith("?"))
-        )
+    if not existing:
+        return current
+    merged: ParsedGoal = existing.copy()
+    merged.update({key: value for key, value in current.items() if value is not None})
+    previous_slots = existing.get("slots")
+    current_slots = current.get("slots")
+    merged["slots"] = {
+        **(previous_slots if isinstance(previous_slots, dict) else {}),
+        **(current_slots if isinstance(current_slots, dict) else {}),
+    }
+    return merged
+
+
+async def _classify_request(
+    classifier: Any,
+    *,
+    history: list[Turn],
+    message: str,
+    has_existing_goal: bool,
+) -> dict[str, Any] | None:
+    if classifier is None:
+        return None
+    classify = getattr(classifier, "classify_request", None)
+    if classify is None:
+        return None
+    return await classify(
+        history=history,
+        message=message,
+        has_existing_goal=has_existing_goal,
     )
+
+
+def _apply_classification(
+    goal: ParsedGoal, classification: dict[str, Any] | None
+) -> None:
+    if not classification:
+        return
+    confidence = float(classification.get("confidence") or 0.0)
+    plan_kind = classification.get("plan_kind")
+    if classification.get("intent") == "continuation" and (
+        confidence < 0.65 or plan_kind is None
+    ):
+        plan_kind = goal.get("plan_kind") or "project"
+    if confidence < 0.65 or plan_kind not in {
+        "exam",
+        "event",
+        "routine",
+        "lifestyle",
+        "project",
+    }:
+        if classification.get("intent") != "continuation":
+            plan_kind = "project"
+    goal["plan_kind"] = cast(Any, plan_kind)
+    goal["classification_confidence"] = confidence
+    goal["classification_evidence"] = list(classification.get("evidence") or [])
+    goal["unknown_entity"] = classification.get("unknown_entity")
+
+
+def _apply_missing_assumptions(
+    goal: ParsedGoal, *, missing: list[str], today: Any
+) -> None:
+    assumptions = list(goal.get("assumptions") or [])
+    if not goal.get("deadline") and today is not None:
+        assumptions.append("목표 날짜는 정하지 않고 첫 30일 실행안만 구성")
+    for item in missing:
+        assumptions.append(f"{item} 정보는 확인되지 않아 일반적인 수준으로 가정")
+    goal["assumptions"] = list(dict.fromkeys(assumptions))
 
 
 async def _judge_sufficiency(
@@ -159,5 +312,16 @@ def _plan_command(
             "sufficiency": bool(sufficient),
             "missing_aspects": list(missing),
             "parsed_goal": parsed_goal,
+        },
+    )
+
+
+def _out_of_scope_command() -> Command[str]:
+    return Command(
+        goto="out_of_scope",
+        update={
+            "sufficiency": False,
+            "missing_aspects": [],
+            "parsed_goal": {"intent": "out_of_scope"},
         },
     )

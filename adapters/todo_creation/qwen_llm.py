@@ -29,24 +29,32 @@ from adapters.todo_creation._domain_wiki import load_wiki
 from adapters.todo_creation._prompts import (
     FOLLOW_UP_SYSTEM,
     GOAL_TAG_SYSTEM,
+    OUT_OF_SCOPE_REPLY_SYSTEM,
     PLAN_GENERATOR_SYSTEM,
+    PLAN_VALIDATOR_SYSTEM,
     PLANNER_JUDGE_SYSTEM,
+    REQUEST_CLASSIFIER_SYSTEM,
     TASK_SPLITTER_SYSTEM,
     follow_up_user,
     goal_tag_user,
+    out_of_scope_reply_user,
     plan_generator_user,
+    plan_validator_user,
     planner_judge_user,
+    request_classifier_user,
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
 from agents.todo_creation.planner.allocator import cadence_is_specific
 from agents.todo_creation.planner.slot_schemas import SLOT_SCHEMAS, missing_required
-from agents.todo_creation.schemas import SplitResult, TaskCandidate
+from agents.todo_creation.schemas import MAX_TAG_LENGTH, SplitResult, TaskCandidate
 from agents.todo_creation.state import ParsedGoal, PlanDay, Turn
 from agents.todo_creation.todo.when_resolver import resolve_when
 
-# 스키마 뱅크로 충족을 코드 결정하는 일상 종류(exam 은 기존 모델·deadline 휴리스틱 유지).
-_SCHEMA_DRIVEN_KINDS = frozenset({"routine", "vague_goal", "lifestyle"})
+# 스키마 뱅크로 충족을 코드 결정하는 일상 종류.
+_SCHEMA_DRIVEN_KINDS = frozenset(
+    {"event", "routine", "vague_goal", "lifestyle", "project"}
+)
 
 log = logging.getLogger(__name__)
 
@@ -70,8 +78,50 @@ def _loads_tolerant(stripped: str) -> Any:
     try:
         return json.loads(stripped)
     except json.JSONDecodeError:
-        # 1회 복구 시도 — 재실패하면 원래 JSONDecodeError 를 그대로 전파
-        return json.loads(_WEDGED_QUOTE.sub("", stripped))
+        # Qwen이 문자열 안의 줄바꿈을 이스케이프하지 않거나 구조 토큰 사이에
+        # 잉여 따옴표를 넣는 경우만 제한적으로 복구한다.
+        repaired = _WEDGED_QUOTE.sub("", stripped)
+        try:
+            return json.loads(repaired, strict=False)
+        except json.JSONDecodeError:
+            return json.loads(_trim_truncated_top_level_object(repaired), strict=False)
+
+
+def _trim_truncated_top_level_object(raw: str) -> str:
+    """뒤쪽 필드가 잘린 객체에서 완성된 top-level 필드만 보존한다.
+
+    예: {"summary_text":"...", "days":[...], "personalization_patch":{"plann
+    처럼 optional 뒤쪽 필드가 끊기면 마지막 top-level 쉼표 앞까지만 남기고
+    객체를 닫는다. 중첩 객체/배열 내부 쉼표는 건드리지 않는다.
+    """
+
+    stripped = raw.strip()
+    if not stripped.startswith("{"):
+        raise json.JSONDecodeError("not an object", raw, 0)
+    depth = 0
+    in_string = False
+    escaped = False
+    last_top_level_comma = -1
+    for index, char in enumerate(stripped):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+        elif char in "]}":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 1:
+            last_top_level_comma = index
+    if last_top_level_comma == -1:
+        raise json.JSONDecodeError("no complete top-level field", raw, 0)
+    return stripped[:last_top_level_comma].rstrip() + "}"
 
 
 def strip_json_fence(raw: str) -> str:
@@ -114,7 +164,7 @@ def _parse_split_object(raw: str) -> dict[str, Any]:
     stripped = strip_json_fence(raw)
     try:
         cand = _loads_tolerant(stripped)
-        if isinstance(cand, dict):
+        if isinstance(cand, dict) and "tasks" in cand:
             return cand
     except json.JSONDecodeError:
         pass
@@ -190,14 +240,22 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
 
 
 async def _complete_json_with_retry(
-    llm: "QwenLLM", *, messages: list[dict[str, str]], label: str
+    llm: "QwenLLM",
+    *,
+    messages: list[dict[str, str]],
+    label: str,
+    required_keys: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     last_err: LLMOutputError | None = None
     current = messages
     for attempt in range(2):
         raw = await llm.complete_raw(messages=current, label=label)
         try:
-            return _parse_json_object(raw)
+            parsed = _parse_json_object(raw)
+            missing = [key for key in required_keys if key not in parsed]
+            if missing:
+                raise LLMOutputError("missing required JSON keys: " + ", ".join(missing))
+            return parsed
         except LLMOutputError as err:
             last_err = err
             log.warning("qwen %s parse fail (attempt %d): %s", label, attempt + 1, err)
@@ -242,7 +300,7 @@ class QwenLLM:
     model: str = DEFAULT_QWEN_MODEL
     api_key: str = "EMPTY"
     temperature: float = 0.1
-    max_tokens: int = 1024
+    max_tokens: int = 2400
     timeout_seconds: float = 90.0
 
     async def complete_raw(
@@ -347,7 +405,7 @@ class QwenLLM:
         intent = parsed.get("intent") or goal.get("intent") or "plan"
         goal["intent"] = intent
         goal["goal_tag"] = str(goal.get("goal_tag") or goal.get("goal_text") or "목표")[
-            :20
+            :MAX_TAG_LENGTH
         ]
         missing = parsed.get("missing_aspects") or []
         if not isinstance(missing, list):
@@ -360,13 +418,23 @@ class QwenLLM:
         if isinstance(plan_kind, str) and plan_kind in SLOT_SCHEMAS:
             goal["plan_kind"] = plan_kind
         else:
-            goal.pop("plan_kind", None)
-            plan_kind = None
+            plan_kind = "project" if intent == "plan" else None
+            if plan_kind is not None:
+                goal["plan_kind"] = plan_kind
+            else:
+                goal.pop("plan_kind", None)
 
-        # 일상 종류(routine/vague_goal/lifestyle)는 스키마 뱅크로 충족을 코드 결정한다.
-        # exam·미분류는 모델의 is_sufficient/missing_aspects 를 그대로 신뢰(기존 거동 보존).
+        # 일반 계획 종류는 스키마 뱅크로 충족을 코드 결정한다.
+        # exam 은 시험마다 필수 정보가 달라 모델 판단과 planner_node 의 도메인 보정을 함께 쓴다.
         if intent == "plan" and plan_kind in _SCHEMA_DRIVEN_KINDS:
             filled = {k for k, v in slots.items() if v not in (None, "", [], {})}
+            if plan_kind == "project":
+                if str(goal.get("goal_text") or "").strip():
+                    filled.add("goal")
+                if goal.get("deadline"):
+                    filled.add("horizon")
+                if goal.get("daily_capacity_minutes"):
+                    filled.add("available_time")
             # routine: cadence 가 채워졌어도 '매주'처럼 빈도(주 N회/요일)가 없으면
             # 모호하므로 미충족으로 보고 cadence 를 되묻는다.
             if (
@@ -376,9 +444,66 @@ class QwenLLM:
             ):
                 filled.discard("cadence")
             schema_missing = missing_required(plan_kind, filled)
+            if plan_kind == "project":
+                schema_missing = list(
+                    dict.fromkeys(
+                        [
+                            *[
+                                str(item)
+                                for item in missing
+                                if str(item) not in filled
+                            ],
+                            *schema_missing,
+                        ]
+                    )
+                )
             return (not schema_missing), schema_missing, goal
 
         return bool(parsed.get("is_sufficient")), [str(x) for x in missing], goal
+
+    async def classify_request(
+        self,
+        *,
+        history: list[Turn],
+        message: str,
+        has_existing_goal: bool,
+    ) -> dict[str, Any]:
+        messages = [
+            {"role": "system", "content": REQUEST_CLASSIFIER_SYSTEM},
+            {
+                "role": "user",
+                "content": request_classifier_user(
+                    history=_as_jsonable(history),
+                    message=message,
+                    has_existing_goal=has_existing_goal,
+                ),
+            },
+        ]
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="classify_request"
+        )
+        intent = str(parsed.get("intent") or "planning")
+        if intent not in {"planning", "conversation", "continuation"}:
+            intent = "planning"
+        plan_kind = parsed.get("plan_kind")
+        if plan_kind not in SLOT_SCHEMAS:
+            plan_kind = "project" if intent != "conversation" else None
+        try:
+            confidence = float(parsed.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        evidence = parsed.get("evidence") or []
+        return {
+            "intent": intent,
+            "plan_kind": plan_kind,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "evidence": [str(item) for item in evidence if str(item).strip()][:5],
+            "unknown_entity": (
+                str(parsed.get("unknown_entity")).strip()
+                if parsed.get("unknown_entity")
+                else None
+            ),
+        }
 
     async def generate_follow_up_question(
         self,
@@ -404,6 +529,30 @@ class QwenLLM:
             raise LLMOutputError("empty follow-up question")
         return question[:300]
 
+    async def generate_out_of_scope_reply(
+        self,
+        *,
+        message: str,
+        history: list[Turn],
+    ) -> str:
+        messages = [
+            {"role": "system", "content": OUT_OF_SCOPE_REPLY_SYSTEM},
+            {
+                "role": "user",
+                "content": out_of_scope_reply_user(
+                    message=message,
+                    history=_as_jsonable(history),
+                ),
+            },
+        ]
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="out_of_scope_reply"
+        )
+        reply = str(parsed.get("reply") or "").strip()
+        if not reply:
+            raise LLMOutputError("empty out-of-scope reply")
+        return reply[:180]
+
     async def generate_plan(
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
@@ -425,7 +574,9 @@ class QwenLLM:
                 ),
             },
         ]
-        parsed = await _complete_json_with_retry(self, messages=messages, label="plan")
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="plan", required_keys=("days",)
+        )
         summary = str(parsed.get("summary_text") or "").strip()
         if "personalization_patch" in parsed:
             parsed_goal["personalization_patch"] = parsed.get("personalization_patch") or {}
@@ -450,7 +601,7 @@ class QwenLLM:
         goal_tag = str(parsed.get("goal_tag") or "").strip()
         if not goal_tag:
             raise LLMOutputError("empty goal_tag")
-        return goal_tag[:20]
+        return goal_tag[:MAX_TAG_LENGTH]
 
     async def tag_plan(
         self, *, plan: list[PlanDay], parsed_goal: ParsedGoal
@@ -458,7 +609,7 @@ class QwenLLM:
         goal_tag = str(
             parsed_goal.get("goal_tag") or parsed_goal.get("goal_text") or "목표"
         )
-        goal_tag = goal_tag.strip()[:20] or "목표"
+        goal_tag = goal_tag.strip()[:MAX_TAG_LENGTH] or "목표"
         return [
             {
                 **day,
@@ -469,3 +620,31 @@ class QwenLLM:
             }
             for day in plan
         ]
+
+    async def validate_plan(
+        self,
+        *,
+        plan: list[PlanDay],
+        summary_text: str,
+        parsed_goal: ParsedGoal,
+        today: date,
+    ) -> tuple[bool, list[str]]:
+        messages = [
+            {"role": "system", "content": PLAN_VALIDATOR_SYSTEM},
+            {
+                "role": "user",
+                "content": plan_validator_user(
+                    parsed_goal=_as_jsonable(parsed_goal),
+                    summary_text=summary_text,
+                    days=_as_jsonable(plan),
+                    today=today,
+                ),
+            },
+        ]
+        parsed = await _complete_json_with_retry(
+            self, messages=messages, label="validate_plan"
+        )
+        issues = parsed.get("issues") or []
+        if not isinstance(issues, list):
+            raise LLMOutputError("'issues' is not a list")
+        return bool(parsed.get("valid")), [str(item) for item in issues]

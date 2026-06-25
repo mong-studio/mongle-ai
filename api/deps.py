@@ -190,7 +190,12 @@ def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
-    return PlannerPorts(llm=_build_todo_llm(cfg, adapter="planner"))
+    base = _build_todo_llm(cfg, adapter="base")
+    return PlannerPorts(
+        llm=_build_todo_llm(cfg, adapter="planner"),
+        classifier=base,
+        validator=base,
+    )
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:

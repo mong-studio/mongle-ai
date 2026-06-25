@@ -15,7 +15,7 @@ import json
 import re
 from collections.abc import Iterator
 from datetime import date, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -34,6 +34,17 @@ class PlanOutput(BaseModel):
     summary_text: Annotated[str | None, Field(max_length=1500)] = None
     todos: list[PlanTask]
     calendar_events: list[PlanTask]
+
+
+class RuntimePlanDay(BaseModel):
+    date: date
+    tasks: list[PlanTask]
+
+
+class RuntimePlanOutput(BaseModel):
+    summary_text: Annotated[str, Field(min_length=1, max_length=1500)]
+    personalization_patch: dict[str, Any] = Field(default_factory=dict)
+    days: list[RuntimePlanDay]
 
 
 def _extract_json(content: str) -> str:
@@ -55,6 +66,38 @@ def parse_plan(content: str) -> PlanOutput:
         return PlanOutput.model_validate(data)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise ValueError(f"[파싱] 플랜 출력 파싱 실패: {exc}") from exc
+
+
+def parse_runtime_plan(content: str) -> RuntimePlanOutput:
+    try:
+        data = json.loads(_extract_json(content), strict=False)
+        return RuntimePlanOutput.model_validate(data)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise ValueError(f"[파싱] runtime 플랜 출력 파싱 실패: {exc}") from exc
+
+
+def check_runtime_plan_consistency(
+    plan: RuntimePlanOutput, *, today: date
+) -> list[str]:
+    errors: list[str] = []
+    tasks = [task for day in plan.days for task in day.tasks]
+    if not tasks:
+        errors.append("[분량] 빈 플랜")
+    if len(tasks) > 15:
+        errors.append(f"[분량] 항목 과다 ({len(tasks)} > 15)")
+    window_end = today + timedelta(days=29)
+    dates = [day.date for day in plan.days]
+    if dates != sorted(dates):
+        errors.append("[날짜] days가 오름차순이 아님")
+    for day in plan.days:
+        if day.date < today or day.date > window_end:
+            errors.append(f"[날짜] {day.date}: 30일 상세 범위 밖")
+        for task in day.tasks:
+            if task.due_date != day.date:
+                errors.append(
+                    f"[날짜] '{task.title}': due_date와 day.date가 다름"
+                )
+    return errors
 
 
 # 모델이 due_date 대신 흔히 쓰는 키 별칭들(관용 정규화 대상).
