@@ -26,10 +26,6 @@ dependencies = [
     "python-dotenv>=1.0",
 ]
 
-[project.optional-dependencies]
-# 시험일 해석(§3.6) 라이브 호출용. 어댑터는 lazy import 라 미설치 시 되묻기로 폴백.
-tavily = ["tavily-python>=0.5"]
-
 [tool.pyright]
 venvPath = "."
 venv = ".venv"

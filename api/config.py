@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
@@ -59,7 +60,6 @@ class AppConfig:
     runpod_api_key: str = "EMPTY"
     runpod_planner_endpoint_url: str | None = None
     runpod_character_endpoint_url: str | None = None
-    tavily_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -89,7 +89,9 @@ class AppConfig:
                 f"FEED_LLM_PROVIDER 는 {'|'.join(_VALID_FEED_LLM_PROVIDERS)} 중 "
                 f"하나여야 합니다 (현재: {feed_llm_provider!r})"
             )
-        llm_provider = os.environ.get("LLM_PROVIDER", "qwen").strip().lower() or "qwen"
+        llm_provider = (
+            os.environ.get("LLM_PROVIDER", "qwen").strip().lower() or "qwen"
+        )
         if llm_provider not in _VALID_LLM_PROVIDERS:
             raise MissingEnvError(
                 f"LLM_PROVIDER 는 {'|'.join(_VALID_LLM_PROVIDERS)} 중 "
@@ -172,7 +174,6 @@ class AppConfig:
             runpod_api_key=runpod_api_key,
             runpod_planner_endpoint_url=runpod_planner_endpoint_url,
             runpod_character_endpoint_url=runpod_character_endpoint_url,
-            tavily_api_key=os.environ.get("TAVILY_API_KEY", "").strip(),
         )
 
         if backend == "s3":
@@ -181,8 +182,7 @@ class AppConfig:
             env_prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
             prefix = (
                 env_prefix
-                if env_prefix
-                and (env_prefix != "mongle-village" or not embedded_prefix)
+                if env_prefix and (env_prefix != "mongle-village" or not embedded_prefix)
                 else embedded_prefix or env_prefix or "mongle-village"
             )
             cfg = cls(

@@ -8,7 +8,6 @@ from uuid import uuid4
 from langgraph.types import Command
 
 from agents.todo_creation.planner.graph import build_planner_graph
-from agents.todo_creation.planner.schedule_lookup import ExamScheduleLookupPort
 from agents.todo_creation.protocols import LLMPort
 from agents.todo_creation.schemas import (
     FollowUpResult,
@@ -38,8 +37,6 @@ _ACCEPT_MESSAGES = {
 @dataclass
 class PlannerPorts:
     llm: LLMPort
-    # 옵셔널 시험일 해석 툴(§3.6). 없으면 기존 거동(되묻기). 라이브는 deps 에서 주입.
-    exam_schedule_lookup: ExamScheduleLookupPort | None = None
 
 
 _GRAPH = build_planner_graph()

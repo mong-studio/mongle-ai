@@ -5,14 +5,13 @@ import inspect
 from agents.todo_creation.protocols import LLMPort
 
 
-def test_llm_port_has_expected_async_methods() -> None:
+def test_llm_port_has_six_async_methods() -> None:
     names = {n for n, _ in inspect.getmembers(LLMPort, predicate=inspect.isfunction)}
     assert {
         "split_tasks",
         "judge_sufficiency",
         "generate_follow_up_question",
         "generate_plan",
-        "critique_plan",
         "generate_goal_tag",
         "tag_plan",
     } <= names
@@ -24,7 +23,6 @@ def test_llm_port_methods_are_async() -> None:
         "judge_sufficiency",
         "generate_follow_up_question",
         "generate_plan",
-        "critique_plan",
         "generate_goal_tag",
         "tag_plan",
     ):

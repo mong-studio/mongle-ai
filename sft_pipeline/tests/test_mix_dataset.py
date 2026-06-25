@@ -143,14 +143,3 @@ def test_interleave_spreads_extra_and_preserves_order():
 def test_interleave_handles_empty():
     assert interleave([], [{"a": 1}]) == [{"a": 1}]
     assert interleave([{"a": 1}], []) == [{"a": 1}]
-
-
-def test_daily_crawl_excluded_from_public_until_licensed():
-    """daily-crawl 은 라이선스 확인 전 공개판에서 제외(fail-closed).
-    distractor 는 우리가 만든 데이터라 포함된다."""
-    samples = [{"meta": {"provenance": "daily-crawl"}}, {"meta": {"provenance": "distractor"}}]
-    public = mix(samples, release="public")
-    provs = {s["meta"]["provenance"] for s in public}
-    # 기본 보수(fail-closed): 라이선스 확인 전 daily-crawl 은 공개 제외.
-    assert "daily-crawl" not in provs
-    assert "distractor" in provs

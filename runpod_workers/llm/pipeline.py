@@ -16,7 +16,6 @@ from typing import Any
 from huggingface_hub import snapshot_download
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
-from vllm.sampling_params import GuidedDecodingParams
 
 _BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 _BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
@@ -68,10 +67,6 @@ class QwenLoraPipeline:
         messages: list[dict[str, Any]],
         temperature: float = 0.1,
         max_tokens: int = 800,
-        top_p: float = 0.8,
-        top_k: int = 20,
-        repetition_penalty: float = 1.05,
-        guided_json: dict[str, Any] | None = None,
     ) -> str:
         # adapter="base"(또는 빈 값)는 LoRA 없이 base 모델로 추론한다.
         # (단일 TODO 분해기는 계획 확장 성향의 planner LoRA 대신 base 를 쓴다.)
@@ -90,21 +85,10 @@ class QwenLoraPipeline:
         # vLLM 기본 stop 은 eos(<|endoftext|>)뿐이라, 모델이 턴 종료로 내는 <|im_end|>
         # 에서 안 멈추고 system 의 few-shot(입력:/출력:) 패턴을 이어받아 가짜 턴을
         # 계속 생성(runaway)한다. <|im_end|> 토큰 id 를 stop 에 추가해 턴 끝에서 정지시킨다.
-        # guided_json 이 오면 JSON 스키마로 디코딩을 강제한다(outlines 백엔드 — pattern 지원
-        # 확실). 플래너 task.title 의 외국 문자(한자·라틴 잉여) 차단 + JSON 유효성 보장.
-        guided = (
-            GuidedDecodingParams(json=guided_json, backend="outlines")
-            if guided_json is not None
-            else None
-        )
         params = SamplingParams(
             temperature=temperature,
             max_tokens=max_tokens,
-            top_p=top_p,
-            top_k=top_k,
-            repetition_penalty=repetition_penalty,
             stop_token_ids=[self._tokenizer.convert_tokens_to_ids("<|im_end|>")],
-            guided_decoding=guided,
         )
         outputs = self._llm.generate([prompt], params, lora_request=lora_request)
         return outputs[0].outputs[0].text
