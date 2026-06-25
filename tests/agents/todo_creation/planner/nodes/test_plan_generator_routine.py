@@ -77,3 +77,32 @@ async def test_routine_clamps_to_deadline() -> None:
     assert all(e.due_date <= _TODAY + timedelta(days=3) for e in events)
     # today..today+3 = 4일, 매일 → 4개
     assert len(events) == 4
+
+
+async def test_routine_uses_structured_items_without_domain_specific_code() -> None:
+    parsed_goal: ParsedGoal = {
+        "plan_kind": "routine",
+        "slots": {
+            "activity": "러닝",
+            "cadence": "월수금",
+            "routine_items": ["이지런", "인터벌 러닝", "롱런"],
+        },
+        "goal_tag": "러닝",
+        "deadline": None,
+    }
+
+    result = await plan_generator_node(_state(parsed_goal), _config())
+
+    first_week = sorted(
+        [
+            event
+            for event in result["todos"] + result["calendar_events"]
+            if event.due_date < _TODAY + timedelta(days=7)
+        ],
+        key=lambda event: event.due_date,
+    )
+    assert [event.title for event in first_week] == [
+        "인터벌 러닝",
+        "롱런",
+        "이지런",
+    ]
