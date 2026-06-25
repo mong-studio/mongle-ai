@@ -27,7 +27,8 @@ class _FakeQuestLLM:
         if self.fail_times > 0:
             self.fail_times -= 1
             raise LLMFailedError("simulated LLM failure")
-        return f"{character.name}가 잠깐 한숨 돌리고 있어요."
+        # 한국어 전용 검증 가드를 통과하도록 라틴 이름(예: "A")을 끼우지 않는다.
+        return "잠깐 한숨 돌리고 있어요."
 
 
 def _today() -> date:
