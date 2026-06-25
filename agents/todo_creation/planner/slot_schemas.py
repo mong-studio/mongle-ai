@@ -60,6 +60,7 @@ SLOT_SCHEMAS: dict[str, PlanSchema] = {
             Slot("cadence", "주 몇 회 또는 어떤 요일인지", 2),
         ),
         optional=(
+            Slot("routine_items", "회차별로 다르게 실행할 구체적인 항목", 3),
             Slot("time_of_day", "시간대", 3),
             Slot("horizon", "언제까지", 4),
         ),

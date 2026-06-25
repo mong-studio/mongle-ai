@@ -41,6 +41,9 @@ flowchart TB
         MVE[/"에러 응답"/]
         MPR{"phase_router
         SessionStore 조회"}
+        MRF["Code Routine Fast Path
+        명확한 cadence 선판별
+        classifier LLM 생략"]
         MCL["Base LLM Classifier
         intent + plan_kind
         confidence + evidence"]
@@ -95,11 +98,15 @@ flowchart TB
     MA --> MV
     MV -- 실패 --> MVE
     MV -- 통과 --> MPR
-    MPR -- gathering --> MCL --> MPS
+    MPR -- gathering --> MRF
+    MRF -- 명확한 반복 주기 --> MPS
+    MRF -- 그 외 --> MCL --> MPS
     MPR -- reviewing --> EA
     MPS --> MQ
     MQ -- 부족 --> MFU --> ME
-    MQ -- 충분/2회 완료 --> MPG --> MAL --> MQA --> MTG --> ME
+    MQ -- 충분/2회 완료 --> MPG --> MAL
+    MAL -- 일반 플랜 --> MQA --> MTG --> ME
+    MAL -- 루틴 코드 전개 --> ME
     EA -- regenerate_plan --> MPG
     EA -- confirm --> MC --> ME
     SC --> COMMIT
@@ -126,6 +133,7 @@ flowchart TB
      MV:::validation
      MVE:::error
      MPR:::process
+     MRF:::process
      MCL:::ai
      MPS:::ai
      MQ:::process

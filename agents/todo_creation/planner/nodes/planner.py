@@ -10,6 +10,7 @@ JSON 파싱 실패 등 LLMOutputError 는 그대로 raise.
 from __future__ import annotations
 
 import inspect
+import re
 from typing import Any, cast
 
 from langchain_core.runnables import RunnableConfig
@@ -38,7 +39,6 @@ from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.planner.slot_schemas import missing_required
 from agents.todo_creation.state import ParsedGoal, Turn
 
-
 async def planner_node(
     state: PlannerGraphState, config: RunnableConfig
 ) -> Command[str]:
@@ -46,12 +46,14 @@ async def planner_node(
     llm = ports.llm
     existing_goal = state.get("parsed_goal")
     is_revision = bool(state.get("revision_request") and state.get("plan"))
-    classification = await _classify_request(
-        getattr(ports, "classifier", None),
-        history=state.get("history", []),
-        message=state.get("message", ""),
-        has_existing_goal=existing_goal is not None,
-    )
+    classification = None
+    if not _is_routine_candidate(state, existing_goal=existing_goal):
+        classification = await _classify_request(
+            getattr(ports, "classifier", None),
+            history=state.get("history", []),
+            message=state.get("message", ""),
+            has_existing_goal=existing_goal is not None,
+        )
     if (
         classification
         and classification["intent"] == "conversation"
@@ -146,8 +148,9 @@ async def planner_node(
         # 주 1회로 펴버린다. 슬롯이 모호하면 원문에서 cadence 를 결정적으로 복구한다.
         if plan_kind == "routine":
             slots = resolved_goal.get("slots") or {}
-            if not cadence_is_specific(str(slots.get("cadence") or "")):
-                recovered = recover_cadence(str(state.get("message") or ""))
+            recovered = _recover_explicit_cadence(str(state.get("message") or ""))
+            if recovered or not cadence_is_specific(str(slots.get("cadence") or "")):
+                recovered = recovered or recover_cadence(str(state.get("message") or ""))
                 if recovered:
                     resolved_goal["slots"] = {**slots, "cadence": recovered}
         if is_revision:
@@ -321,6 +324,28 @@ async def _judge_sufficiency(
     ):
         kwargs["user_profile_memory"] = user_profile_memory
     return await llm.judge_sufficiency(**kwargs)
+
+
+def _is_routine_candidate(
+    state: PlannerGraphState, *, existing_goal: ParsedGoal | None
+) -> bool:
+    """명확한 반복 주기는 classifier를 생략하고 judge 한 번으로 처리한다."""
+    if existing_goal and existing_goal.get("plan_kind") == "routine":
+        return True
+    message = str(state.get("message") or "")
+    return bool(_recover_explicit_cadence(message))
+
+
+def _recover_explicit_cadence(text: str) -> str | None:
+    recovered = recover_cadence(text)
+    if recovered:
+        return recovered
+    compact = re.sub(r"[\s,·/&]+", "", text)
+    if compact in {"매일", "날마다"}:
+        return "매일"
+    if re.fullmatch(r"[월화수목금토일]{1,7}", compact):
+        return "".join(dict.fromkeys(compact))
+    return None
 
 
 def _plan_command(

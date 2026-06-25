@@ -675,6 +675,89 @@ async def test_base_classifier_routes_conversation_without_planner_judge() -> No
 
 
 @pytest.mark.asyncio
+async def test_explicit_routine_skips_classifier_but_uses_judge_once() -> None:
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            True,
+            [],
+            {
+                "intent": "plan",
+                "plan_kind": "routine",
+                "slots": {
+                    "activity": "헬스",
+                    "cadence": "주 3회",
+                    "routine_items": ["상체 헬스", "하체 헬스", "전신 헬스"],
+                },
+                "goal_text": "주 3회 헬스",
+                "goal_tag": "헬스",
+            },
+        )
+    )
+    classifier = AsyncMock()
+    state = {
+        "history": [{"role": "user", "content": "주 3회 헬스 하고 싶어"}],
+        "message": "주 3회 헬스 하고 싶어",
+        "today": date(2026, 6, 24),
+    }
+
+    cmd = await planner_node(state, _config(llm, classifier=classifier))
+
+    assert cmd.goto == "plan_generator"
+    assert cmd.update["parsed_goal"]["slots"]["routine_items"] == [
+        "상체 헬스",
+        "하체 헬스",
+        "전신 헬스",
+    ]
+    classifier.classify_request.assert_not_awaited()
+    llm.judge_sufficiency.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_weekday_answer_reuses_existing_routine_context() -> None:
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            True,
+            [],
+            {
+                "intent": "plan",
+                "plan_kind": "routine",
+                "slots": {
+                    "cadence": "월수금",
+                    "routine_items": ["상체 헬스", "하체 헬스", "전신 헬스"],
+                },
+            },
+        )
+    )
+    classifier = AsyncMock()
+    state = {
+        "history": [
+            {"role": "user", "content": "헬스 루틴을 잡고 싶어"},
+            {"role": "assistant", "content": "어떤 요일이 좋아요?"},
+            {"role": "user", "content": "월수금"},
+        ],
+        "message": "월수금",
+        "today": date(2026, 6, 24),
+        "parsed_goal": {
+            "intent": "plan",
+            "plan_kind": "routine",
+            "slots": {"activity": "헬스"},
+            "goal_text": "헬스 루틴",
+            "goal_tag": "헬스",
+        },
+    }
+
+    cmd = await planner_node(state, _config(llm, classifier=classifier))
+
+    assert cmd.goto == "plan_generator"
+    assert cmd.update["parsed_goal"]["slots"]["activity"] == "헬스"
+    assert cmd.update["parsed_goal"]["slots"]["cadence"] == "월수금"
+    classifier.classify_request.assert_not_awaited()
+    llm.judge_sufficiency.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_followup_answer_keeps_existing_goal_even_if_classified_conversation() -> None:
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(

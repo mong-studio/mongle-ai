@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, timedelta
+from typing import Sequence
 
 from agents.todo_creation.schemas import TaskCandidate
 
@@ -81,15 +82,40 @@ def expand_routine(
     today: date,
     horizon_days: int = 28,
     deadline: date | None = None,
+    routine_items: Sequence[str] | None = None,
 ) -> list[TaskCandidate]:
     """cadence 를 horizon 내 날짜로 전개한다(마감 이후 제외)."""
     weekdays = _parse_weekdays(cadence)
     title = activity.strip()[:20] or "루틴"
+    titles_by_weekday = _titles_by_weekday(routine_items, weekdays)
     events: list[TaskCandidate] = []
     for offset in range(max(0, horizon_days)):
         day = today + timedelta(days=offset)
         if deadline is not None and day > deadline:
             break
         if day.weekday() in weekdays:
-            events.append(TaskCandidate(title=title, due_date=day, tags=["루틴"]))
+            events.append(
+                TaskCandidate(
+                    title=titles_by_weekday.get(day.weekday(), title),
+                    due_date=day,
+                    tags=["루틴"],
+                )
+            )
     return events
+
+
+def _titles_by_weekday(
+    routine_items: Sequence[str] | None, weekdays: set[int]
+) -> dict[int, str]:
+    """구조화된 회차별 항목을 선택 요일 순서에 맞춰 배치한다."""
+    items = [
+        str(item).strip()[:20]
+        for item in (routine_items or [])
+        if str(item).strip()
+    ]
+    if not items:
+        return {}
+    return {
+        weekday: items[index % len(items)]
+        for index, weekday in enumerate(sorted(weekdays))
+    }

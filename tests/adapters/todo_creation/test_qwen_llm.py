@@ -323,7 +323,15 @@ async def test_judge_sufficiency_routine_schema_driven_sufficient() -> None:
                         "parsed_goal": {
                             "intent": "plan",
                             "plan_kind": "routine",
-                            "slots": {"activity": "헬스", "cadence": "주3"},
+                            "slots": {
+                                "activity": "헬스",
+                                "cadence": "주3",
+                                "routine_items": [
+                                    "상체 헬스",
+                                    "하체 헬스",
+                                    "전신 헬스",
+                                ],
+                            },
                             "goal_text": "주 3회 헬스",
                             "goal_tag": "헬스루틴",
                         },
@@ -343,6 +351,11 @@ async def test_judge_sufficiency_routine_schema_driven_sufficient() -> None:
     assert missing == []
     assert goal["plan_kind"] == "routine"
     assert goal["slots"]["activity"] == "헬스"
+    assert goal["slots"]["routine_items"] == [
+        "상체 헬스",
+        "하체 헬스",
+        "전신 헬스",
+    ]
 
 
 async def test_judge_sufficiency_routine_missing_slot_follows_up() -> None:

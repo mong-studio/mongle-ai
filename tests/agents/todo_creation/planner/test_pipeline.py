@@ -319,6 +319,36 @@ async def test_routine_request_can_generate_candidates() -> None:
     assert events and all(event.due_date.weekday() == 0 for event in events)
 
 
+async def test_routine_items_generate_distinct_weekday_tasks() -> None:
+    routine_goal: ParsedGoal = {
+        "intent": "plan",
+        "plan_kind": "routine",
+        "slots": {
+            "activity": "헬스",
+            "cadence": "주 3회",
+            "routine_items": ["상체 헬스", "하체 헬스", "전신 헬스"],
+        },
+        "goal_tag": "헬스",
+    }
+    llm = _FakeLLM(sufficiency_responses=[(True, [], routine_goal)])
+
+    result = await run(
+        _input(message="주 3회 헬스 하고 싶어"),
+        ports=_ports(llm),
+        now=_NOW,
+    )
+
+    assert isinstance(result, CandidatesResult)
+    first_by_weekday = {
+        event.due_date.weekday(): event.title
+        for event in result.todos + result.calendar_events
+    }
+    assert first_by_weekday[0] == "상체 헬스"
+    assert first_by_weekday[2] == "하체 헬스"
+    assert first_by_weekday[4] == "전신 헬스"
+    assert len(llm.seen_history) == 1
+
+
 async def test_validation_error_propagates() -> None:
     llm = _FakeLLM()
     bad = PlannerInput.model_construct(
