@@ -206,12 +206,15 @@ def build_todo_generate_ports(cfg: AppConfig) -> GeneratePorts:
 
 
 def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
+    planner_llm = _build_todo_llm(cfg, adapter="planner")
+    # planner 전용 OpenAI 가 설정되면 대화 전체(분류·follow-up·검증·생성)를 OpenAI 로 보낸다.
+    # 아니면 분류·검증 같은 경량 단계는 base(로컬 EXAONE)로 유지한다.
+    if cfg.planner_openai_base_url and cfg.planner_openai_model:
+        return PlannerPorts(
+            llm=planner_llm, classifier=planner_llm, validator=planner_llm
+        )
     base = _build_todo_llm(cfg, adapter="base")
-    return PlannerPorts(
-        llm=_build_todo_llm(cfg, adapter="planner"),
-        classifier=base,
-        validator=base,
-    )
+    return PlannerPorts(llm=planner_llm, classifier=base, validator=base)
 
 
 def build_quest_ports(cfg: AppConfig) -> QuestPorts:
