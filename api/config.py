@@ -17,6 +17,7 @@ class MissingEnvError(RuntimeError):
 _VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_FEED_LLM_PROVIDERS = ("qwen", "runpod")
 _VALID_LLM_PROVIDERS = ("qwen", "runpod")
+_VALID_STRUCTURED_MODES = ("vllm", "openai")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
     "http://localhost:8000/v1",
@@ -54,6 +55,11 @@ class AppConfig:
     qwen_model: str | None = None
     qwen_persona_model: str | None = None
     qwen_api_key: str = "EMPTY"
+    qwen_structured_mode: str = "vllm"
+    # planner(계획확장)만 OpenAI 로 분리할 때 쓰는 오버라이드. 비어 있으면 qwen 설정 사용.
+    planner_openai_base_url: str | None = None
+    planner_openai_model: str | None = None
+    planner_openai_api_key: str = "EMPTY"
     lora_dir: str = ""
     image_provider: str = "local"
     runpod_image_endpoint_url: str | None = None
@@ -122,6 +128,25 @@ class AppConfig:
         qwen_persona_model = (
             os.environ.get("QWEN_PERSONA_MODEL", "").strip() or qwen_model
         )
+        # 구조화 출력 방식: vllm(guided_json) | openai(response_format json_schema)
+        qwen_structured_mode = (
+            os.environ.get("QWEN_STRUCTURED_MODE", "vllm").strip().lower() or "vllm"
+        )
+        if qwen_structured_mode not in _VALID_STRUCTURED_MODES:
+            raise MissingEnvError(
+                f"QWEN_STRUCTURED_MODE 는 {'|'.join(_VALID_STRUCTURED_MODES)} 중 "
+                f"하나여야 합니다 (현재: {qwen_structured_mode!r})"
+            )
+        # planner 전용 OpenAI 오버라이드(선택). base/model 둘 다 있어야 활성화.
+        planner_openai_base_url = (
+            os.environ.get("PLANNER_OPENAI_BASE_URL", "").strip() or None
+        )
+        planner_openai_model = (
+            os.environ.get("PLANNER_OPENAI_MODEL", "").strip() or None
+        )
+        planner_openai_api_key = (
+            os.environ.get("PLANNER_OPENAI_API_KEY", "").strip() or "EMPTY"
+        )
 
         image_provider = (
             os.environ.get("IMAGE_PROVIDER", "local").strip().lower() or "local"
@@ -168,6 +193,10 @@ class AppConfig:
             qwen_model=qwen_model,
             qwen_persona_model=qwen_persona_model,
             qwen_api_key=qwen_api_key,
+            qwen_structured_mode=qwen_structured_mode,
+            planner_openai_base_url=planner_openai_base_url,
+            planner_openai_model=planner_openai_model,
+            planner_openai_api_key=planner_openai_api_key,
             lora_dir=lora_dir,
             image_provider=image_provider,
             runpod_image_endpoint_url=runpod_image_endpoint_url,

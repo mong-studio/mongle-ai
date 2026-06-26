@@ -154,6 +154,32 @@ async def test_complete_raw_uses_configured_timeout() -> None:
     assert _FakeAsyncClient.last_kwargs["timeout"] == 120
 
 
+async def test_complete_raw_openai_mode_uses_response_format_json_schema() -> None:
+    """structured_mode='openai' 면 vLLM 전용 guided_json 대신 OpenAI response_format(json_schema)."""
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [_FakeResponse(_payload('{"ok": true}'))]
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+
+    llm = QwenLLM(
+        base_url="https://api.openai.com/v1",
+        model="gpt-4.1-mini",
+        structured_mode="openai",
+    )
+    await llm.complete_raw(
+        messages=[{"role": "user", "content": "테스트"}],
+        guided_json=schema,
+    )
+
+    payload = _FakeAsyncClient.calls[0]["json"]
+    assert "guided_json" not in payload
+    assert "guided_decoding_backend" not in payload
+    rf = payload["response_format"]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["schema"] == schema
+    assert rf["json_schema"]["strict"] is True
+
+
 # 프롬프트 계약: 사용자 입력은 DATA 섹션에 격리된다. 뉴로-심볼릭이라 today(절대날짜)는
 # 보내지 않는다 — 모델은 when 구문만 뽑고 날짜 계산은 코드(resolver)가 한다.
 async def test_split_tasks_sends_prompt_and_no_absolute_date() -> None:
