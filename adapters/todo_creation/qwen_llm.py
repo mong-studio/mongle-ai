@@ -396,6 +396,9 @@ class QwenLLM:
     top_p: float = 0.8
     top_k: int = 20
     repetition_penalty: float = 1.05
+    # "vllm": guided_json — 자체 호스팅 vLLM 서버.
+    # "openai": response_format(json_schema) — OpenAI(또는 OpenAI 호환) 엔드포인트.
+    structured_mode: str = "vllm"
 
     async def complete_raw(
         self,
@@ -414,8 +417,15 @@ class QwenLLM:
             "top_p": self.top_p,
         }
         if guided_json is not None:
-            # backend 선택은 서버의 structured-output 설정(auto)에 맡긴다.
-            payload["guided_json"] = guided_json
+            if self.structured_mode == "openai":
+                # OpenAI 표준 구조화 출력. vLLM 전용 guided_json 은 OpenAI 가 거부한다.
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": "schema", "schema": guided_json, "strict": True},
+                }
+            else:
+                # backend 선택은 서버의 structured-output 설정(auto)에 맡긴다.
+                payload["guided_json"] = guided_json
         else:
             payload["response_format"] = {"type": "json_object"}
         headers = {"Authorization": f"Bearer {self.api_key}"}

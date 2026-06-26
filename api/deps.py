@@ -66,6 +66,19 @@ def _build_character_llm(cfg: AppConfig):
 
 
 def _build_todo_llm(cfg: AppConfig, *, adapter: str = "planner"):
+    # planner(계획확장)만 OpenAI 로 분리(설정 시). splitter/classifier(adapter="base")는
+    # 영향 없이 로컬 Qwen/EXAONE 유지. runpod/qwen 분기보다 먼저 적용한다.
+    if (
+        adapter == "planner"
+        and cfg.planner_openai_base_url
+        and cfg.planner_openai_model
+    ):
+        return QwenTodoLLM(
+            model=cfg.planner_openai_model,
+            base_url=cfg.planner_openai_base_url,
+            api_key=cfg.planner_openai_api_key,
+            structured_mode="openai",
+        )
     if cfg.llm_provider == "runpod":
         from adapters.todo_creation.runpod_llm import RunPodQwenLLM as RunPodTodoLLM
 
@@ -83,7 +96,10 @@ def _build_todo_llm(cfg: AppConfig, *, adapter: str = "planner"):
             "TODO 생성은 Qwen 전용입니다 — QWEN_BASE_URL/QWEN_MODEL 이 필요합니다"
         )
     return QwenTodoLLM(
-        model=cfg.qwen_model, base_url=cfg.qwen_base_url, api_key=cfg.qwen_api_key
+        model=cfg.qwen_model,
+        base_url=cfg.qwen_base_url,
+        api_key=cfg.qwen_api_key,
+        structured_mode=cfg.qwen_structured_mode,
     )
 
 

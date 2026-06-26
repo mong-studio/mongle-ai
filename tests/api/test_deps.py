@@ -72,6 +72,39 @@ def test_build_todo_planner_ports_qwen():
     assert ports.validator is ports.classifier
 
 
+def test_build_todo_planner_ports_planner_only_openai():
+    """planner(계획확장)만 OpenAI 로, splitter/classifier 는 로컬 Qwen 유지."""
+    ports = build_todo_planner_ports(
+        _cfg(
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            planner_openai_base_url="https://api.openai.com/v1",
+            planner_openai_model="gpt-4.1-mini",
+            planner_openai_api_key="sk-test",
+        )
+    )
+    # planner LLM = OpenAI
+    assert ports.llm.base_url == "https://api.openai.com/v1"
+    assert ports.llm.model == "gpt-4.1-mini"
+    assert ports.llm.structured_mode == "openai"
+    # classifier/validator(base) = 로컬 Qwen 유지
+    assert ports.classifier.base_url == "http://qwen-host/v1"
+    assert ports.classifier.structured_mode == "vllm"
+
+
+def test_build_todo_generate_ports_unaffected_by_planner_openai():
+    """splitter(base) 는 planner_openai 설정과 무관하게 로컬 Qwen 을 쓴다."""
+    ports = build_todo_generate_ports(
+        _cfg(
+            qwen_base_url="http://qwen-host/v1",
+            qwen_model="planning-adapter",
+            planner_openai_base_url="https://api.openai.com/v1",
+            planner_openai_model="gpt-4.1-mini",
+        )
+    )
+    assert ports.llm.base_url == "http://qwen-host/v1"
+
+
 # ---------------------------------------------------------------------------
 # build_commit_ports
 # ---------------------------------------------------------------------------
