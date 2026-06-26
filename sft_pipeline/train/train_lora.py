@@ -12,8 +12,8 @@ teacher(14B)로 합성한 플래닝 데이터로 제품 서빙 모델(Qwen2.5-7B
 실행(RunPod GPU, PyTorch 템플릿에서):
     pip install "unsloth[colab-new]" trl peft accelerate bitsandbytes datasets
     python -m sft_pipeline.train.train_lora \
-        --train sft_pipeline/data/generated/sft_train.jsonl \
-        --valid sft_pipeline/data/generated/sft_valid.jsonl \
+        --train sft_pipeline/data/final/train.jsonl \
+        --valid sft_pipeline/data/final/valid.jsonl \
         --out outputs/qwen7b-planner-lora
 
 unsloth/trl 버전에 따라 일부 인자명이 다를 수 있다(주석 참고).
@@ -26,11 +26,35 @@ from pathlib import Path
 
 from sft_pipeline.train.dataset import load_messages
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+DEFAULT_MODEL = "LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct"
 MAX_SEQ_LEN = 4096
-# Qwen2.5 chat template 의 턴 마커 - responses-only 마스킹 기준(문자열 아닌 템플릿 마커 기반).
-QWEN_INSTRUCTION_PART = "<|im_start|>user\n"
-QWEN_RESPONSE_PART = "<|im_start|>assistant\n"
+
+# responses-only 마스킹 기준 turn 마커 + 종료 토큰. chat template 이 모델마다 다르다.
+# 틀린 프리셋을 쓰면 loss 마스킹이 조용히 어긋나므로 _chat_markers 에서 렌더 결과로 검증한다.
+# (instruction_part, response_part, eos_token)
+_CHAT_PRESETS = {
+    "exaone": ("[|user|]", "[|assistant|]", "[|endofturn|]"),
+    "qwen": ("<|im_start|>user\n", "<|im_start|>assistant\n", "<|im_end|>"),
+}
+
+
+def _chat_markers(model_name: str, tokenizer) -> tuple[str, str, str]:
+    """모델 chat template 의 (instruction_part, response_part, eos_token) 를 고른 뒤,
+    렌더된 템플릿에 실제로 존재하는지 검증한다(틀린 모델 프리셋 → 조용한 오학습 방지)."""
+    key = "exaone" if "exaone" in model_name.lower() else "qwen"
+    instruction_part, response_part, eos_token = _CHAT_PRESETS[key]
+    probe = tokenizer.apply_chat_template(
+        [{"role": "user", "content": "_"}, {"role": "assistant", "content": "_"}],
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+    for marker in (instruction_part, response_part):
+        if marker not in probe:
+            raise SystemExit(
+                f"[train] chat template 마커 불일치: {marker!r} 가 렌더 결과에 없음. "
+                f"모델={model_name} 의 실제 템플릿을 확인하고 _CHAT_PRESETS 를 갱신하라."
+            )
+    return instruction_part, response_part, eos_token
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -74,8 +98,11 @@ def main(argv: list[str] | None = None) -> None:
         dtype=None,  # 자동(bf16/fp16)
         load_in_4bit=args.load_in_4bit,
     )
-    # Qwen2.5-Instruct 토크나이저는 chat template 을 이미 포함 → get_chat_template 불필요.
+    # Instruct 토크나이저는 chat template 을 이미 포함 → get_chat_template 불필요.
     # (불러오면 일부 unsloth 버전에서 eos 를 '<EOS_TOKEN>' 플레이스홀더로 남겨 trl 이 거부함)
+
+    # 모델별 turn 마커 + 종료 토큰(렌더 결과로 검증됨). Qwen/EXAONE 모두 지원.
+    instruction_part, response_part, eos_token = _chat_markers(args.model, tokenizer)
 
     model = FastLanguageModel.get_peft_model(
         model,
@@ -120,19 +147,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     # trl 버전별: 신버전은 max_length + eos_token, 구버전은 max_seq_length.
     # eos_token 을 명시해야 unsloth 의 '<EOS_TOKEN>' 플레이스홀더가 그대로 새어
-    # trl 이 거부하는 것을 막는다(Qwen2.5 종료 토큰 = <|im_end|>).
+    # trl 이 거부하는 것을 막는다(종료 토큰은 모델별, _chat_markers 가 검증).
     try:
         sft_config = SFTConfig(
-            max_length=args.max_seq_len, eos_token="<|im_end|>", **sft_common
+            max_length=args.max_seq_len, eos_token=eos_token, **sft_common
         )
     except TypeError:
         sft_config = SFTConfig(max_seq_length=args.max_seq_len, **sft_common)
 
     # unsloth 가 eos_token 을 '<EOS_TOKEN>' sentinel 로 두고 실제 토큰으로 해소하지 못하는
-    # 버전 조합 버그 회피: 생성 후(=unsloth 패치 이후) Qwen2.5 종료 토큰으로 직접 덮어쓴다.
+    # 버전 조합 버그 회피: 생성 후(=unsloth 패치 이후) 모델 종료 토큰으로 직접 덮어쓴다.
     if getattr(sft_config, "eos_token", None) in (None, "<EOS_TOKEN>"):
         try:
-            sft_config.eos_token = "<|im_end|>"
+            sft_config.eos_token = eos_token
         except Exception:  # noqa: BLE001
             pass
 
@@ -148,8 +175,8 @@ def main(argv: list[str] | None = None) -> None:
     # responses-only loss: assistant 토큰에만 학습(user 발화 모방 방지).
     trainer = train_on_responses_only(
         trainer,
-        instruction_part=QWEN_INSTRUCTION_PART,
-        response_part=QWEN_RESPONSE_PART,
+        instruction_part=instruction_part,
+        response_part=response_part,
     )
 
     trainer.train()
