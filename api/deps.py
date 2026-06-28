@@ -43,6 +43,10 @@ def get_config(request: Request) -> AppConfig:
 
 
 def _build_character_llm(cfg: AppConfig):
+    if cfg.llm_provider == "fake":
+        from adapters.character_creation.fake_llm import FakeLLM as FakeCharacterLLM
+
+        return FakeCharacterLLM()
     if cfg.llm_provider == "runpod":
         from adapters.character_creation.runpod_llm import RunPodQwenLLM as RunPodCharacterLLM
 
@@ -123,6 +127,10 @@ def _build_quest_llm(cfg: AppConfig):
 
 
 def _build_feed_llm(cfg: AppConfig):
+    if cfg.feed_llm_provider == "fake":
+        from adapters.feed_generation.fake_llm import FakeLLM as FakeFeedLLM
+
+        return FakeFeedLLM()
     if cfg.feed_llm_provider == "runpod":
         from adapters.feed_generation.runpod_llm import RunPodQwenLLM as RunPodFeedLLM
 

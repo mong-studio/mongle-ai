@@ -14,9 +14,9 @@ class MissingEnvError(RuntimeError):
     pass
 
 
-_VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod")
-_VALID_FEED_LLM_PROVIDERS = ("qwen", "runpod")
-_VALID_LLM_PROVIDERS = ("qwen", "runpod")
+_VALID_QUEST_LLM_PROVIDERS = ("qwen", "runpod", "fake")
+_VALID_FEED_LLM_PROVIDERS = ("qwen", "runpod", "fake")
+_VALID_LLM_PROVIDERS = ("qwen", "runpod", "fake")
 _VALID_STRUCTURED_MODES = ("vllm", "openai")
 _VALID_IMAGE_PROVIDERS = ("local", "runpod")
 _LOCAL_FASTAPI_QWEN_BASE_URLS = (
