@@ -1,6 +1,6 @@
 """
 Generate a pixel character from an appearance JSON using the existing
-text_pipeline image generator.
+text_character image generator.
 
 This path is intentionally text-only:
 
@@ -267,8 +267,8 @@ def _looks_like_costume_theme(card: dict[str, Any], character_type: str) -> bool
     return any(marker in blob for marker in costume_markers)
 
 
-def build_text_pipeline_visual_prompt(card: dict[str, Any]) -> str:
-    """Convert deploy-card or text_pipeline-card JSON to a concise visual prompt."""
+def build_text_character_visual_prompt(card: dict[str, Any]) -> str:
+    """Convert deploy-card or text-character card JSON to a concise visual prompt."""
     parts: list[str] = []
 
     main_color = _pick_main_color(card)
@@ -349,7 +349,7 @@ def build_prompt_pair_from_card(card: dict[str, Any], config_name: str | None = 
     Keep the prompt close to the first good run: the identity anchor comes
     first, and prompt_2 repeats that anchor with concise appearance details.
     """
-    persona_en = build_text_pipeline_visual_prompt(card)
+    persona_en = build_text_character_visual_prompt(card)
     prompt, prompt_2 = build_prompt_pair(persona_en, config_name=config_name)
     return persona_en, prompt, prompt_2
 
@@ -360,7 +360,7 @@ def build_cute_v2_prompt_pair_from_card(
 ) -> tuple[str, str, None]:
     """Combine the current appearance card with the earlier, cuter prompt style."""
     del config_name
-    persona_en = build_text_pipeline_visual_prompt(card)
+    persona_en = build_text_character_visual_prompt(card)
     prompt_parts = [
         "monglestyle",
         "32-bit pixel art sprite",
@@ -391,7 +391,7 @@ def build_legacy_v2_exact_prompt_pair_from_card(
 ) -> tuple[str, str, None]:
     """Use the exact final prompt template from appearance_prompt_v2_full_01."""
     del config_name
-    persona_en = build_text_pipeline_visual_prompt(card)
+    persona_en = build_text_character_visual_prompt(card)
     prompt = (
         "monglestyle, 32-bit pixel art sprite, hard pixel edges, blocky pixel art, "
         f"{persona_en}, flat pixel shading, limited color palette, clean silhouette, "
@@ -407,7 +407,7 @@ def build_cute_v2_limb_safe_prompt_pair_from_card(
 ) -> tuple[str, str, None]:
     """Combine the cute legacy rendering style with the proven limb guard."""
     del config_name
-    persona_en = build_text_pipeline_visual_prompt(card)
+    persona_en = build_text_character_visual_prompt(card)
     prompt = (
         "monglestyle, 32-bit pixel art sprite, hard pixel edges, blocky pixel art, "
         f"{persona_en}, faithful to source mascot, preserve source shape colors face accessories, "
@@ -465,7 +465,7 @@ def build_cute_v3_prompt_pair_from_card(
         no_arms=arm_state in {"none", "uncertain"},
         no_legs=leg_state in {"none", "uncertain"},
     ) if structured else card
-    persona_en = build_text_pipeline_visual_prompt(prompt_card)
+    persona_en = build_text_character_visual_prompt(prompt_card)
 
     prompt_parts = [
         "monglestyle",
@@ -569,10 +569,10 @@ def generate_from_appearance(
     seed: int = 42,
     configs: dict[str, dict[str, Any]] | None = None,
 ) -> list[Path]:
-    from text_pipeline.pipeline import load_sdxl_pipeline, unload_sdxl_pipeline
+    from pipelines.text_character.pipeline import load_sdxl_pipeline, unload_sdxl_pipeline
 
     card = load_json(card_json_path)
-    persona_en = build_text_pipeline_visual_prompt(card)
+    persona_en = build_text_character_visual_prompt(card)
     selected_configs = configs or TEXT2IMG_CONFIGS
 
     out_root = Path(output_dir)

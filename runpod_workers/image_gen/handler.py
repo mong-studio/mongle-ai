@@ -1,38 +1,90 @@
-"""RunPod Serverless 핸들러 — 멀티-어댑터 이미지 생성.
+"""RunPod Serverless handler for the Mongle image pipelines.
 
-입력:  {"input": {"adapter": "character|bg|feed",
-                  "source_image_b64": "<base64|null>",   # character/feed 모드(기준 이미지)
-                  "prompt": "<프롬프트 텍스트>",            # bg=씬, feed=캐릭터 포즈
-                  "scene_prompt": "<배경 장면 텍스트|null>"}}  # feed 모드 배경
-출력:  {"image_b64": "<base64 PNG>"}
-실패:  예외 전파 → RunPod 이 job 을 FAILED 로 마킹 (호출측 어댑터가 처리)
+Input examples:
+
+    {"input": {"mode": "image_character", "image": "<base64>", "seed": 42}}
+    {"input": {"mode": "text_character", "persona": "노란 오리 인형", "seed": 42}}
+    {"input": {"mode": "feed", "appearance": {...}, "quest_ko": "공원 산책", "seed": 42}}
+
+The character modes return a transparent-background character PNG plus the
+canonical appearance JSON. The feed mode consumes that appearance JSON.
 """
+
 from __future__ import annotations
 
-import base64
+import logging
+import traceback
+from typing import Any
 
-import runpod
+try:
+    import runpod
+except ModuleNotFoundError:
+    runpod = None
 
-from pipeline import get_pipeline
+
+LOGGER = logging.getLogger("image_gen")
+
+MODE_ALIASES = {
+    "image": "image_character",
+    "photo": "image_character",
+    "image_character": "image_character",
+    "text": "text_character",
+    "persona": "text_character",
+    "text_character": "text_character",
+    "feed": "feed",
+    "feed_generation": "feed",
+}
 
 
-def handler(job: dict) -> dict:
+def _mode(job_input: dict[str, Any]) -> str:
+    raw = job_input.get("mode") or job_input.get("adapter")
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("input.mode is required: image_character, text_character, or feed")
+    mode = MODE_ALIASES.get(raw.strip().lower())
+    if mode is None:
+        raise ValueError(f"unsupported input.mode: {raw!r}")
+    return mode
+
+
+def process_job(job: dict[str, Any]) -> dict[str, Any]:
     job_input = job.get("input") or {}
+    mode = _mode(job_input)
 
-    adapter = job_input.get("adapter")
-    if not adapter or not isinstance(adapter, str):
-        raise ValueError("[ERROR] 'adapter' 필드가 필요합니다 (character|bg|feed)")
+    if mode == "image_character":
+        from pipelines.image_character.handler import process_job as process_image
 
-    source_b64 = job_input.get("source_image_b64")
-    source_bytes = base64.b64decode(source_b64, validate=True) if source_b64 else None
+        image = job_input.get("image") or job_input.get("source_image_b64")
+        result = process_image({"input": {**job_input, "image": image}})
+    elif mode == "text_character":
+        from pipelines.text_character.handler import process_job as process_text
 
-    png_bytes = get_pipeline().generate(
-        adapter=adapter,
-        source_image_bytes=source_bytes,
-        prompt=job_input.get("prompt"),
-        scene_prompt=job_input.get("scene_prompt"),
-    )
-    return {"image_b64": base64.b64encode(png_bytes).decode()}
+        persona = job_input.get("persona") or job_input.get("prompt")
+        result = process_text({"input": {**job_input, "persona": persona}})
+    else:
+        from pipelines.feed.handler import process_job as process_feed
+
+        result = process_feed({"input": job_input})
+
+    if isinstance(result, dict):
+        result.setdefault("mode", mode)
+    return result
 
 
-runpod.serverless.start({"handler": handler})
+def handler(job: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return process_job(job)
+    except ValueError as exc:
+        return {"status": "failed", "error": str(exc), "code": "invalid_input"}
+    except Exception as exc:
+        LOGGER.error("image_gen failed: %s\n%s", exc, traceback.format_exc())
+        return {"status": "failed", "error": "image generation failed", "code": "generation_failed"}
+
+
+def main() -> None:
+    if runpod is None:
+        raise RuntimeError("runpod is required to start the Serverless worker")
+    runpod.serverless.start({"handler": handler})
+
+
+if __name__ == "__main__":
+    main()

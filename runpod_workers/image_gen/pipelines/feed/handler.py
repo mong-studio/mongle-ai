@@ -20,11 +20,11 @@ try:
 except ModuleNotFoundError:
     runpod = None
 
-from total.shared.character_profile import normalize_profile
+from pipelines.shared.character_profile import normalize_profile
 from .pipeline import generate, load_pipeline, unload_pipeline
 
 
-LOGGER = logging.getLogger("total.feed_pipeline2")
+LOGGER = logging.getLogger("pipelines.feed")
 _LOCK = threading.Lock()
 _PIPE = None
 MAX_QUEST_LENGTH = int(os.environ.get("MAX_QUEST_LENGTH", "1000"))
@@ -60,7 +60,7 @@ def _translate_quest(quest_ko: str) -> str:
             encoding="utf-8",
         )
         proc = subprocess.run(
-            [sys.executable, "-m", "total.feed_pipeline2.vlm_worker", str(batch_path)],
+            [sys.executable, "-m", "pipelines.feed.vlm_worker", str(batch_path)],
             cwd=str(APP_ROOT),
             stdout=subprocess.PIPE,
             stderr=None,

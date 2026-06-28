@@ -13,7 +13,7 @@ from agents.character_creation.exceptions import ImageGenerationFailedError
 from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 
 # 런타임 SSOT. 사람이 읽는 카탈로그: adapters/character_creation/prompts/image_gen_v1.md (변경 시 동기화).
-# RunPod 워커 사본: runpod_workers/image_gen/pipeline.py (변경 시 동기화).
+# 로컬 개발용 provider. 운영 RunPod 구현은 runpod_workers/image_gen/에 분리되어 있다.
 _PROMPT = (
     "16x16 pixel art sprite, NES style, cute stuffed animal character, "
     "strictly pixelated, chunky visible pixels, limited flat color palette, "

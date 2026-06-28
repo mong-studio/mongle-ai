@@ -1,4 +1,4 @@
-"""Local CLI for image_pipeline2."""
+"""Local CLI for photo-to-character generation."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ from .pipeline import PipelineRuntime
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plush photo to pixel-art character")
     parser.add_argument("--image", required=True, help="Input JPG/PNG path")
-    parser.add_argument("--name", default="output", help="Folder name under outputs/image_pipeline2")
+    parser.add_argument("--name", default="output", help="Folder name under outputs/image_character")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model-mode", choices=["resident", "sequential"], default=None)
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
-    out_dir = root / "outputs" / "image_pipeline2" / args.name
+    out_dir = root / "outputs" / "image_character" / args.name
     runtime = PipelineRuntime(model_mode=args.model_mode)
     try:
         with Image.open(args.image) as source:

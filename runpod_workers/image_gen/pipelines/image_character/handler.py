@@ -1,4 +1,4 @@
-"""RunPod Serverless handler for image_pipeline2."""
+"""RunPod handler for photo-to-character generation."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ try:
 except ModuleNotFoundError:  # Allows contract tests before installing RunPod SDK.
     runpod = None
 
-from total.shared.character_profile import normalize_profile
+from pipelines.shared.character_profile import normalize_profile
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
-LOGGER = logging.getLogger("image_pipeline2")
+LOGGER = logging.getLogger("pipelines.image_character")
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(7 * 1024 * 1024)))
 RETURN_DEBUG_DEFAULT = os.environ.get("RETURN_DEBUG_DEFAULT", "false").lower() == "true"
 Image.MAX_IMAGE_PIXELS = int(os.environ.get("MAX_INPUT_PIXELS", "40000000"))

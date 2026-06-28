@@ -16,7 +16,7 @@ def load_text2img_pipeline(lora_scale: float = 0.75):
     from diffusers import LCMScheduler, StableDiffusionXLPipeline
 
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA GPU is required for image_pipeline2")
+        raise RuntimeError("CUDA GPU is required for image-character generation")
 
     pipe = StableDiffusionXLPipeline.from_pretrained(
         BASE_MODEL,

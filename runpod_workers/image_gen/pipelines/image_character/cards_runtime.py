@@ -640,7 +640,7 @@ def main() -> None:
 
         # Step 3: appearance.json -> A/B/C text2img outputs. Load one pipe per config.
         print("\n=== [3] appearance.json -> text2img png ===")
-        from text_pipeline.pipeline import load_sdxl_pipeline, unload_sdxl_pipeline
+        from pipelines.text_character.pipeline import load_sdxl_pipeline, unload_sdxl_pipeline
 
         for config_name, config in selected_configs.items():
             print(f"\n--- config {config_name} (lora_scale={config['lora_scale']} steps={config['steps']}) ---")

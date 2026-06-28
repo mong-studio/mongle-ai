@@ -12,9 +12,10 @@ async def test_calls_generate_feed_with_prompts_and_ref():
     gen = FakeImageGenerator()
     state = make_state(feed_prompt=FeedPrompt(character="분홍, cleaning", scene="bedroom"))
     cmd = await feed_image_node(state, {"configurable": {"ports": make_ports(image_generator=gen)}})
-    ref, char, scene = gen.feed_calls[0]
+    ref, char, scene, appearance_payload = gen.feed_calls[0]
     assert ref == state["input"].character.image_url
     assert char == "분홍, cleaning" and scene == "bedroom"
+    assert appearance_payload == state["input"].character.appearance_payload
     assert cmd.update["raw_image"] == gen.image_bytes
     assert cmd.goto == "s3_upload"
 

@@ -1,4 +1,4 @@
-"""Canonical character profile matching image_pipeline2 appearance.json."""
+"""Canonical character profile shared by all image-generation pipelines."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
 
 
 def from_text_appearance(raw: dict[str, Any]) -> dict[str, Any]:
-    """Convert text_pipeline's generated-image analysis to the image schema."""
+    """Convert text-character analysis to the canonical image schema."""
     animal = _text(raw.get("animal_type")) or "plush mascot"
     body_color = _text(raw.get("body_color"))
     secondary = _list(raw.get("secondary_colors"))

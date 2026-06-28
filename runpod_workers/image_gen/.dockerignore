@@ -3,4 +3,4 @@ __pycache__/
 outputs/
 *.log
 *.tmp
-total/image_pipeline2/models/
+pipelines/image_character/models/

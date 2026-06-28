@@ -91,7 +91,7 @@ def unload_quest_model(model, processor) -> None:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        log("usage: python -m total.feed_pipeline2.vlm_worker <batch_json_path>")
+        log("usage: python -m pipelines.feed.vlm_worker <batch_json_path>")
         raise SystemExit(1)
 
     with open(sys.argv[1], encoding="utf-8") as batch_file:

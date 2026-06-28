@@ -13,7 +13,7 @@ from typing import Any
 
 from PIL import Image, ImageOps
 
-from total.shared.background import remove_solid_background
+from pipelines.shared.background import remove_solid_background
 from .appearance import (
     SOURCE_PHOTO_APPEARANCE_PROMPT,
     generate_card,
