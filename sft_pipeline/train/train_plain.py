@@ -25,14 +25,13 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-    DataCollatorForSeq2Seq,
     Trainer,
     TrainingArguments,
 )
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+DEFAULT_MODEL = "LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct"
 MAX_LEN = 4096
-EOS_MARKERS = ("<|im_end|>", "<|endoftext|>")
+EOS_MARKERS = ("<|im_end|>", "<|endoftext|>", "[|endofturn|]")  # Qwen + EXAONE
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 PLAN_PROVENANCES = {"exam-crawl", "daily-latte", "exam-synth"}
 
@@ -55,7 +54,13 @@ def build_tokenize_fn(tok):
         msgs = d["messages"]
         full = tok.apply_chat_template(msgs, tokenize=True, add_generation_prompt=False)
         prompt = tok.apply_chat_template(msgs[:-1], tokenize=True, add_generation_prompt=True)
-        full = full[:MAX_LEN]
+        # EXAONE 등 custom 토크나이저는 list[int] 가 아닌 tokenizers.Encoding 을 반환 → ids 로 정규화
+        if hasattr(full, "ids"):
+            full = full.ids
+        if hasattr(prompt, "ids"):
+            prompt = prompt.ids
+        full = list(full)[:MAX_LEN]
+        prompt = list(prompt)
         cut = min(len(prompt), len(full))
         labels = [-100] * cut + full[cut:]
         return {"input_ids": full, "attention_mask": [1] * len(full), "labels": labels}
@@ -150,6 +155,13 @@ def main():
         r=16, lora_alpha=16, lora_dropout=0.0, bias="none",
         task_type="CAUSAL_LM", target_modules=TARGET_MODULES,
     )
+    # EXAONE: transformers 5.x 가 get_input_embeddings 를 자동 인식 못 함 → 토큰 임베딩 직접 노출
+    # (없으면 peft 의 tied-modules 검사에서 NotImplementedError 로 죽음)
+    try:
+        model.get_input_embeddings()
+    except (NotImplementedError, AttributeError):
+        emb = next(m for m in model.modules() if isinstance(m, torch.nn.Embedding))
+        model.get_input_embeddings = lambda: emb
     model = get_peft_model(model, lora)
     model.print_trainable_parameters()
 
@@ -170,7 +182,19 @@ def main():
         save_strategy="no",
         **({"eval_strategy": "epoch"} if valid_ds is not None else {}),
     )
-    collator = DataCollatorForSeq2Seq(tok, padding=True, label_pad_token_id=-100)
+    # 수동 패딩 collator — DataCollatorForSeq2Seq 가 일부 custom 토크나이저(EXAONE)·transformers
+    # 버전에서 tok.pad 타입 추론에 실패(input_ids 를 str 로 오인)하므로 버전 의존을 제거한다.
+    # 우측 패딩 + attention_mask + labels(-100) 마스킹이라 causal SFT 에 정확.
+    pad_id = tok.pad_token_id
+    def collator(features):
+        m = max(len(f["input_ids"]) for f in features)
+        pad = lambda s, v: s + [v] * (m - len(s))
+        return {
+            "input_ids": torch.tensor([pad(f["input_ids"], pad_id) for f in features], dtype=torch.long),
+            "attention_mask": torch.tensor([pad(f["attention_mask"], 0) for f in features], dtype=torch.long),
+            "labels": torch.tensor([pad(f["labels"], -100) for f in features], dtype=torch.long),
+        }
+
     trainer = Trainer(
         model=model, args=targs, train_dataset=train_ds, eval_dataset=valid_ds,
         data_collator=collator, processing_class=tok,
