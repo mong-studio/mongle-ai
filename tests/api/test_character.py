@@ -5,7 +5,7 @@ import asyncio
 import httpx
 
 from agents.character_creation.pipeline import Ports as CharacterPorts
-from agents.character_creation.schemas import LLMPersonaResult
+from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 from api.character_creation.jobs import CharacterJobStore
 from api.character_creation.router import fetch_source_bytes, get_character_ports
 from api.main import create_app
@@ -22,7 +22,10 @@ class _FakeLLM:
 
 class _FakeImage:
     async def generate(self, *, user_id, llm_result, fallback_persona, source_image_bytes):
-        return b"\x89PNG generated"
+        return ImageGenerationResult(
+            image_bytes=b"\x89PNG generated",
+            appearance_payload={"character_type": "bear", "main_colors": ["brown"]},
+        )
 
 
 class _FakeS3:

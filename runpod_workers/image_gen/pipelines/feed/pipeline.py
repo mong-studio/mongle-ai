@@ -5,7 +5,7 @@ from __future__ import annotations
 import gc
 import os
 
-from total.shared.character_profile import normalize_profile
+from pipelines.shared.character_profile import normalize_profile
 
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"

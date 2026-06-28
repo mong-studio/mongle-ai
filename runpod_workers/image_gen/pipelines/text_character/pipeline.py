@@ -1,5 +1,5 @@
 """
-text_pipeline/pipeline.py — 텍스트 설명 → 픽셀아트 캐릭터 스프라이트
+pipelines/text_character/pipeline.py — 텍스트 설명 → 픽셀아트 캐릭터 스프라이트
 
 흐름:
   1. Qwen2-VL-7B (텍스트)  → 한글 페르소나 → 영어 시각 프롬프트
@@ -8,7 +8,7 @@ text_pipeline/pipeline.py — 텍스트 설명 → 픽셀아트 캐릭터 스프
   4. solid background removal → result_nobg.png
 
 사용:
-  from text_pipeline.pipeline import run_pipeline
+  from pipelines.text_character.pipeline import run_pipeline
   result = run_pipeline("크림색 곰이에요. 포근하고 따뜻한 친구예요")
   result["result_nobg"].save("output.png")
 """
@@ -18,8 +18,8 @@ import json
 import re
 from pathlib import Path
 
-from total.shared.background import remove_solid_background
-from total.shared.character_profile import from_text_appearance
+from pipelines.shared.background import remove_solid_background
+from pipelines.shared.character_profile import from_text_appearance
 
 CHAR_LORA_HF = "Hadimeeee/mongle-character-lora"
 LCM_LORA_HF  = "latent-consistency/lcm-lora-sdxl"

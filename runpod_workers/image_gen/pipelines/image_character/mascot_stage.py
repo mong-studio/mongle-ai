@@ -3,7 +3,7 @@ Stage A: real photo -> mascot LoRA + ControlNet(Canny) -> mascot concept image.
 
 Self-contained copy of the Stage-A half of mascot_pixel_deploy/pipeline.py.
 Stage B (sprite LoRA img2img) is intentionally not included here -- this
-pipeline replaces it with character_gen.py (text_pipeline's character LoRA,
+pipeline replaces it with character_gen.py (text_character's character LoRA,
 txt2img from the appearance card only, no mascot pixels). If
 mascot_pixel_deploy/pipeline.py's Stage A logic changes, this copy must be
 updated by hand to match.

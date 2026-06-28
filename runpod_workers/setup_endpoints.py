@@ -49,14 +49,15 @@ _WORKERS = [
         "network_volume_id": "lmrw00ibp3",
     },
     {
-        "label": "이미지 생성 워커 (character + bg 합본)",
+        "label": "이미지 생성 워커 (image/text character + feed)",
         "template_name": "mongle-image-gen",
         "endpoint_name": "mongle-image-gen",
         "image_env": "IMAGE_DOCKER_IMAGE",
         "container_disk_gb": 5,
         "env": {
-            "LORA_CHARACTER_REPO": "Hadimeeee/mongle-character-lora",
-            "LORA_BG_REPO": "Hadimeeee/mongle-bg-lora",
+            "MASCOT_LORA_SOURCE": "Hadimeeee/mongle-mascot-lora",
+            "CHAR_LORA_SOURCE": "Hadimeeee/mongle-character-lora",
+            "LCM_LORA_SOURCE": "latent-consistency/lcm-lora-sdxl",
         },
         "result_key": "RUNPOD_IMAGE_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_IMAGE_TEMPLATE_ID",

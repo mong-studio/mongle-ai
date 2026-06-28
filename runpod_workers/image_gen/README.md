@@ -1,11 +1,22 @@
-# image_gen_v2 RunPod Worker Draft
+# Image Generation RunPod Worker
 
-This is a safe draft worker for migrating Mongle image generation to the latest
-`image_test_ver/total` pipelines.
+This is the production RunPod Serverless worker for Mongle image generation.
+It owns GPU inference only; FastAPI orchestration remains in `agents/` and
+RunPod transport remains in `adapters/character_creation/runpod_image.py`.
 
-It is intentionally separate from the existing `mongle-ai/runpod_workers/image_gen`
-worker. Do not replace the production endpoint until this worker is tested
-directly on RunPod.
+## Layout
+
+```text
+image_gen/
+├── handler.py              # Serverless entry point and mode router
+├── Dockerfile
+├── requirements.txt        # Single dependency source for the worker image
+└── pipelines/
+    ├── image_character/    # Photo -> transparent character PNG + appearance
+    ├── text_character/     # Persona text -> transparent PNG + appearance
+    ├── feed/               # Appearance + quest -> feed image
+    └── shared/             # Canonical appearance and background utilities
+```
 
 ## What This Worker Does
 
@@ -75,20 +86,16 @@ If any Hugging Face repos are private, also set:
 HF_TOKEN=<token>
 ```
 
-## Why This Exists
+## API Contract
 
-The current production worker uses:
-
-```json
-{"input": {"adapter": "character|bg|feed", "source_image_b64": "..."}}
-```
-
-The new `total` pipeline uses:
+The worker uses one canonical contract:
 
 ```text
 character image/text -> transparent PNG + canonical appearance JSON
 appearance JSON + quest -> feed PNG
 ```
 
-So FastAPI and agents should be changed only after this worker passes direct
-RunPod tests.
+`handler.py` accepts the compatibility aliases documented in `MODE_ALIASES`,
+but new callers should send `image_character`, `text_character`, or `feed`.
+
+GitHub Actions builds this directory through `.github/workflows/deploy-workers.yml`.

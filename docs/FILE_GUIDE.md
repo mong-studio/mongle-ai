@@ -202,8 +202,14 @@ runpod_workers/                   # RunPod에 배포되는 GPU 컨테이너 (api
 │   ├── pipeline.py               #   추론 파이프라인
 │   ├── bake.py                   #   이미지에 모델 미리 굽기
 │   └── Dockerfile · requirements.txt
-├── image_gen/                    #   동일 구조 (SDXL+ControlNet+LoRA)
-│   └── handler.py · pipeline.py · bake.py · Dockerfile · requirements.txt
+├── image_gen/                    #   이미지 생성 통합 워커
+│   ├── handler.py                #   image/text character · feed 모드 라우팅
+│   ├── pipelines/
+│   │   ├── image_character/      #   사진 → 캐릭터 PNG + appearance
+│   │   ├── text_character/       #   텍스트 → 캐릭터 PNG + appearance
+│   │   ├── feed/                 #   appearance + quest → 피드 이미지
+│   │   └── shared/               #   공통 appearance/background 유틸
+│   └── Dockerfile · requirements.txt · README.md
 └── setup_endpoints.py            # RunPod 엔드포인트 생성 스크립트
 
 sft_pipeline/                     # 파인튜닝 데이터 파이프라인 (런타임 무관, 모델 제작용)

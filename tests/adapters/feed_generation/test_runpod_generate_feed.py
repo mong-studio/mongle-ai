@@ -30,11 +30,17 @@ async def test_generate_feed_sends_adapter_feed_and_scene_prompt():
     gen = RunPodImageGenerator(
         endpoint_url="http://ep", api_key="k", poll_interval=0, client=client
     )
-    out = await gen.generate_feed("http://ep/ref/x.png", "분홍, cleaning", "cozy bedroom")
+    appearance = {"character_type": "bear", "main_colors": ["pink"]}
+    out = await gen.generate_feed(
+        "http://ep/ref/x.png",
+        "분홍, cleaning",
+        "cozy bedroom",
+        appearance,
+    )
 
     assert out == b"\x89PNG\r\n"
     inp = captured["body"]["input"]
-    assert inp["adapter"] == "feed"
+    assert inp["mode"] == "feed"
     assert inp["prompt"] == "분홍, cleaning"
-    assert inp["scene_prompt"] == "cozy bedroom"
-    assert inp["source_image_b64"] == base64.b64encode(b"refimg").decode()
+    assert inp["quest_ko"] == "cozy bedroom"
+    assert inp["appearance"] == appearance

@@ -210,11 +210,25 @@ def test_image_provider_runpod_loads_endpoint(monkeypatch):
     assert cfg.lora_dir == ""
 
 
+def test_image_provider_runpod_builds_url_from_endpoint_id(monkeypatch):
+    _base_env(monkeypatch)
+    monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
+    monkeypatch.delenv("RUNPOD_IMAGE_ENDPOINT_URL", raising=False)
+    monkeypatch.setenv("RUNPOD_IMAGE_ENDPOINT_ID", "ep-from-id")
+    monkeypatch.setenv("RUNPOD_API_KEY", "rp-key")
+
+    cfg = AppConfig.from_env()
+
+    assert cfg.runpod_image_endpoint_url == "https://api.runpod.ai/v2/ep-from-id"
+
+
 def test_image_provider_runpod_missing_vars_raises(monkeypatch):
     """runpod 프로바이더인데 RUNPOD_* 변수가 없으면 MissingEnvError를 던진다."""
     _base_env(monkeypatch)
     monkeypatch.setenv("IMAGE_PROVIDER", "runpod")
     monkeypatch.delenv("RUNPOD_IMAGE_ENDPOINT_URL", raising=False)
+    monkeypatch.delenv("RUNPOD_IMAGE_ENDPOINT_ID", raising=False)
+    monkeypatch.delenv("RUNPOD_IMAGE_GEN_V2_ENDPOINT_ID", raising=False)
     monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
     with pytest.raises(MissingEnvError):
         AppConfig.from_env()

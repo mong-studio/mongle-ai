@@ -15,11 +15,11 @@ try:
 except ModuleNotFoundError:
     runpod = None
 
-from total.shared.character_profile import normalize_profile
+from pipelines.shared.character_profile import normalize_profile
 from .pipeline import run_pipeline
 
 
-LOGGER = logging.getLogger("total.text_pipeline")
+LOGGER = logging.getLogger("pipelines.text_character")
 _LOCK = threading.Lock()
 MAX_PERSONA_LENGTH = int(os.environ.get("MAX_PERSONA_LENGTH", "2000"))
 

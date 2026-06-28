@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 
-TOTAL_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE_ROOT = TOTAL_ROOT.parent
+PIPELINES_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = PIPELINES_ROOT.parent
 sys.path.insert(0, str(WORKSPACE_ROOT))
 
 
@@ -25,7 +25,7 @@ def main() -> None:
 
     from .pipeline import run_pipeline
 
-    out_dir = TOTAL_ROOT / "outputs" / "text_pipeline" / args.name
+    out_dir = PIPELINES_ROOT / "outputs" / "text_character" / args.name
     result = run_pipeline(
         persona_ko=args.persona,
         lcm=args.lcm,

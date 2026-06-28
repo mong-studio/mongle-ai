@@ -9,11 +9,11 @@ import sys
 from pathlib import Path
 
 
-TOTAL_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE_ROOT = TOTAL_ROOT.parent
+PIPELINES_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = PIPELINES_ROOT.parent
 sys.path.insert(0, str(WORKSPACE_ROOT))
 
-OUTPUT_ROOT = TOTAL_ROOT / "outputs" / "feed_pipeline2"
+OUTPUT_ROOT = PIPELINES_ROOT / "outputs" / "feed"
 
 
 def parse_args():
@@ -61,7 +61,7 @@ def run_translation_worker(batch: list[dict], work_dir: Path) -> list[dict]:
     batch_path = work_dir / "_translation_batch.json"
     batch_path.write_text(json.dumps(batch, ensure_ascii=False), encoding="utf-8")
     proc = subprocess.run(
-        [sys.executable, "-m", "total.feed_pipeline2.vlm_worker", str(batch_path)],
+        [sys.executable, "-m", "pipelines.feed.vlm_worker", str(batch_path)],
         cwd=str(WORKSPACE_ROOT),
         stdout=subprocess.PIPE,
         stderr=None,
@@ -93,7 +93,7 @@ def main():
         for item in run_translation_worker(translation_batch, out_dir)
     }
 
-    from total.shared.character_profile import normalize_profile
+    from pipelines.shared.character_profile import normalize_profile
     from .pipeline import generate, load_pipeline, unload_pipeline
 
     pipe = load_pipeline()

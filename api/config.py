@@ -164,15 +164,17 @@ class AppConfig:
             runpod_image_endpoint_url = (
                 os.environ.get("RUNPOD_IMAGE_ENDPOINT_URL", "").strip() or None
             )
-            runpod_image_gen_v2_endpoint_id = (
-                os.environ.get("RUNPOD_IMAGE_GEN_V2_ENDPOINT_ID", "").strip() or None
+            runpod_image_endpoint_id = (
+                os.environ.get("RUNPOD_IMAGE_ENDPOINT_ID", "").strip()
+                or os.environ.get("RUNPOD_IMAGE_GEN_V2_ENDPOINT_ID", "").strip()
+                or None
             )
-            if not runpod_image_endpoint_url and runpod_image_gen_v2_endpoint_id:
+            if not runpod_image_endpoint_url and runpod_image_endpoint_id:
                 runpod_image_endpoint_url = (
-                    f"https://api.runpod.ai/v2/{runpod_image_gen_v2_endpoint_id}"
+                    f"https://api.runpod.ai/v2/{runpod_image_endpoint_id}"
                 )
             if not runpod_image_endpoint_url:
-                missing.append("RUNPOD_IMAGE_ENDPOINT_URL or RUNPOD_IMAGE_GEN_V2_ENDPOINT_ID")
+                missing.append("RUNPOD_IMAGE_ENDPOINT_URL or RUNPOD_IMAGE_ENDPOINT_ID")
             if runpod_api_key == "EMPTY":
                 missing.append("RUNPOD_API_KEY")
 

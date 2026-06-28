@@ -8,7 +8,7 @@ import pytest
 
 from adapters.character_creation.runpod_image import RunPodImageGenerator
 from agents.character_creation.exceptions import ImageGenerationFailedError
-from agents.character_creation.schemas import LLMPersonaResult
+from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 
 ENDPOINT = "https://api.runpod.ai/v2/test-endpoint"
 PNG = b"\x89PNG-fake-image-bytes"
@@ -38,7 +38,7 @@ async def _call(
     gen: RunPodImageGenerator,
     source: bytes | None = None,
     appearance: str = "둥근 갈색 곰",
-) -> bytes:
+) -> ImageGenerationResult:
     return await gen.generate(
         user_id="u1",
         llm_result=_persona(appearance),
@@ -62,7 +62,7 @@ async def test_generate_completed_returns_decoded_bytes() -> None:
 
     result = await _call(_generator(handler))
 
-    assert result == PNG
+    assert result.image_bytes == PNG
     assert requests[0].url == httpx.URL(f"{ENDPOINT}/run")
     assert requests[1].url == httpx.URL(f"{ENDPOINT}/status/job-1")
 
@@ -86,8 +86,8 @@ async def test_generate_sends_bearer_auth_header() -> None:
 
 
 @pytest.mark.asyncio
-async def test_generate_without_source_sends_null_b64() -> None:
-    """source 이미지가 없으면 source_image_b64 를 null 로 보낸다."""
+async def test_generate_without_source_sends_text_character_payload() -> None:
+    """source 이미지가 없으면 v2 text_character 입력을 보낸다."""
     payloads: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -100,16 +100,12 @@ async def test_generate_without_source_sends_null_b64() -> None:
 
     await _call(_generator(handler), source=None)
 
-    assert payloads == [
-        {
-            "input": {
-                "source_image_b64": None,
-                "adapter": "character",
-                "prompt": "둥근 갈색 곰",
-                "scene_prompt": None,
-            }
-        }
-    ]
+    job_input = payloads[0]["input"]
+    assert job_input == {
+        "mode": "text_character",
+        "persona": "둥근 갈색 곰",
+        "prompt": "둥근 갈색 곰",
+    }
 
 
 @pytest.mark.asyncio
@@ -131,8 +127,8 @@ async def test_generate_sends_appearance_as_prompt() -> None:
 
 
 @pytest.mark.asyncio
-async def test_generate_sends_character_adapter() -> None:
-    """멀티-어댑터 이미지 워커가 모드를 고르도록 input.adapter='character' 를 보낸다."""
+async def test_generate_with_source_sends_image_character_mode() -> None:
+    """source 이미지가 있으면 v2 image_character 모드를 보낸다."""
     payloads: list[dict] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -145,7 +141,7 @@ async def test_generate_sends_character_adapter() -> None:
 
     await _call(_generator(handler), source=b"x")
 
-    assert payloads[0]["input"]["adapter"] == "character"
+    assert payloads[0]["input"]["mode"] == "image_character"
 
 
 @pytest.mark.asyncio
@@ -184,7 +180,7 @@ async def test_generate_polls_until_completed() -> None:
 
     result = await _call(_generator(handler))
 
-    assert result == PNG
+    assert result.image_bytes == PNG
 
 
 @pytest.mark.asyncio
@@ -218,7 +214,7 @@ async def test_generate_tolerates_transient_poll_errors() -> None:
 
     result = await _call(_generator(handler))
 
-    assert result == PNG
+    assert result.image_bytes == PNG
 
 
 @pytest.mark.asyncio
