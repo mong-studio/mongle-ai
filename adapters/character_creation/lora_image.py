@@ -10,7 +10,7 @@ from PIL import Image
 from rembg import remove
 
 from agents.character_creation.exceptions import ImageGenerationFailedError
-from agents.character_creation.schemas import LLMPersonaResult
+from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 
 # 런타임 SSOT. 사람이 읽는 카탈로그: adapters/character_creation/prompts/image_gen_v1.md (변경 시 동기화).
 # RunPod 워커 사본: runpod_workers/image_gen/pipeline.py (변경 시 동기화).
@@ -107,7 +107,7 @@ class LoRAImageGenerator:
         llm_result: LLMPersonaResult,
         fallback_persona: str | None,
         source_image_bytes: bytes | None = None,
-    ) -> bytes:
+    ) -> ImageGenerationResult:
         try:
             if source_image_bytes is not None:
                 # 사진 있을 때 — img2img + ControlNet
@@ -141,7 +141,7 @@ class LoRAImageGenerator:
                     strength=0.99,
                 ).images[0]
 
-            return self._to_bytes(result)
+            return ImageGenerationResult(image_bytes=self._to_bytes(result))
 
         except ImageGenerationFailedError:
             raise

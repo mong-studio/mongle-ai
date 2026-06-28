@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from agents.character_creation.schemas import (
     CharacterCreationInput,
@@ -20,6 +20,7 @@ class CharacterGraphState(_RequiredState, total=False):
     source_key: str | None
 
     image_bytes: bytes | None
+    appearance_payload: dict[str, Any] | None
     generated_url: str | None
 
     entity: CharacterEntity | None

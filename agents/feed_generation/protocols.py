@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class LLMPort(Protocol):
@@ -10,7 +10,11 @@ class LLMPort(Protocol):
 
 class ImageGeneratorPort(Protocol):
     async def generate_feed(
-        self, reference_url: str, character_prompt: str, scene_prompt: str
+        self,
+        reference_url: str,
+        character_prompt: str,
+        scene_prompt: str,
+        appearance_payload: dict[str, Any] | None = None,
     ) -> bytes: ...
 
 

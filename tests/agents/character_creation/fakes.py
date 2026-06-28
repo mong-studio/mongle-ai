@@ -9,6 +9,7 @@ from agents.character_creation.exceptions import (
 )
 from agents.character_creation.schemas import (
     CharacterEntity,
+    ImageGenerationResult,
     LLMPersonaResult,
     PersonalityKeyword,
 )
@@ -74,7 +75,7 @@ class FakeImageGenerator:
         llm_result: LLMPersonaResult,
         fallback_persona: str | None,
         source_image_bytes: bytes | None,
-    ) -> bytes:
+    ) -> ImageGenerationResult:
         self.calls += 1
         self.last_inputs = {
             "user_id": user_id,
@@ -85,7 +86,14 @@ class FakeImageGenerator:
         if self.fail_times > 0:
             self.fail_times -= 1
             raise ImageGenerationFailedError("simulated img gen failure")
-        return b"GENERATED_PNG_BYTES"
+        return ImageGenerationResult(
+            image_bytes=b"GENERATED_PNG_BYTES",
+            appearance_payload={
+                "character_type": "bear",
+                "main_colors": ["brown"],
+                "id": "test",
+            },
+        )
 
 
 @dataclass

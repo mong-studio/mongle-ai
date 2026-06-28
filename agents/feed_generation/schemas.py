@@ -1,6 +1,6 @@
 from __future__ import annotations
 import re
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
@@ -26,6 +26,10 @@ class CharacterRef(BaseModel):
     speech_style: str
     visual: list[str] = Field(
         validation_alias=AliasChoices("visual", "appearance_keywords"))
+    appearance_payload: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("appearance_payload", "appearance"),
+    )
     image_url: Annotated[str, Field(min_length=1)]
 
 

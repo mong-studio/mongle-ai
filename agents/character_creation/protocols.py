@@ -4,6 +4,7 @@ from typing import Protocol
 
 from agents.character_creation.schemas import (
     CharacterEntity,
+    ImageGenerationResult,
     LLMPersonaResult,
     PersonalityKeyword,
 )
@@ -32,7 +33,7 @@ class ImageGeneratorPort(Protocol):
         llm_result: LLMPersonaResult,
         fallback_persona: str | None,
         source_image_bytes: bytes | None,
-    ) -> bytes: ...
+    ) -> ImageGenerationResult: ...
 
 
 class CharacterRepositoryPort(Protocol):

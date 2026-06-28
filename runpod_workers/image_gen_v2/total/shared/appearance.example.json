@@ -1,0 +1,17 @@
+{
+  "id": "runtime",
+  "object_type": "plush toy",
+  "character_type": "cat",
+  "character_summary": "small cream cat plush with an orange outfit",
+  "main_colors": ["cream", "orange"],
+  "secondary_colors": ["pink inner ears", "dark brown facial details"],
+  "face": "small dark eyes, tiny nose and mouth",
+  "body": "short rounded plush body",
+  "pose": "front-facing centered pose",
+  "outfit": "orange sleeveless outfit",
+  "ears_arms": "two triangular ears and short visible plush arms",
+  "accessories": [],
+  "silhouette": "large head and compact rounded body",
+  "must_preserve": ["triangular ears", "orange outfit", "cream face"],
+  "sprite_notes": ["preserve the source limb count"]
+}

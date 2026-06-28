@@ -54,6 +54,7 @@ async def test_text_only_pipeline_returns_entity_without_source_url() -> None:
     entity = await run(_input(), ports=ports)
     assert entity.source_image_url is None
     assert entity.image_url.startswith("https://fake-s3.local/characters/u1/")
+    assert entity.appearance_payload is not None
 
 
 async def test_image_pipeline_uploads_source_url() -> None:

@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
+from typing import Any
 
 import httpx
 
 from agents.character_creation.exceptions import ImageGenerationFailedError
-from agents.character_creation.schemas import LLMPersonaResult
+from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 
 _TERMINAL_FAILURE_STATUSES = ("FAILED", "CANCELLED", "TIMED_OUT")
 _HTTP_TIMEOUT = 30.0
@@ -44,11 +45,16 @@ class RunPodImageGenerator:
         llm_result: LLMPersonaResult,
         fallback_persona: str | None,
         source_image_bytes: bytes | None = None,
-    ) -> bytes:
+    ) -> ImageGenerationResult:
         # 사진이 없으면 워커가 이 prompt 로 text2img 한다(사진 있으면 무시·img2img).
         prompt = (llm_result.appearance_en or llm_result.appearance or fallback_persona or "").strip() or None
         try:
-            return await self._submit_and_poll(source_image_bytes, prompt)
+            mode = "image_character" if source_image_bytes is not None else "text_character"
+            return await self._submit_and_poll(
+                mode=mode,
+                source_image_bytes=source_image_bytes,
+                prompt=prompt,
+            )
         except ImageGenerationFailedError:
             raise
         except Exception as err:
@@ -57,26 +63,29 @@ class RunPodImageGenerator:
             ) from err
 
     async def generate_feed(
-        self, reference_url: str, character_prompt: str, scene_prompt: str
+        self,
+        reference_url: str,
+        character_prompt: str,
+        scene_prompt: str,
+        appearance_payload: dict[str, Any] | None = None,
     ) -> bytes:
         """피드: reference 이미지 기반 5단계 feed 모드(adapter="feed").
 
         character_prompt(캐릭터 포즈)와 scene_prompt(배경 장면)를 워커로 보내
         캐릭터 img2img→배경→합성→블렌딩까지 마친 완성 PNG를 받는다.
         """
-        client = self._client or httpx.AsyncClient()
-        owns_client = self._client is None
-        try:
-            resp = await client.get(reference_url, timeout=_HTTP_TIMEOUT)
-            resp.raise_for_status()
-            source_image_bytes = resp.content
-        finally:
-            if owns_client:
-                await client.aclose()
-        try:
-            return await self._submit_and_poll(
-                source_image_bytes, character_prompt, adapter="feed", scene_prompt=scene_prompt
+        if not appearance_payload:
+            raise ImageGenerationFailedError(
+                "[ERROR] v2 feed generation requires character.appearance_payload"
             )
+        try:
+            result = await self._submit_and_poll(
+                mode="feed",
+                prompt=character_prompt,
+                scene_prompt=scene_prompt,
+                appearance_payload=appearance_payload,
+            )
+            return result.image_bytes
         except ImageGenerationFailedError:
             raise
         except Exception as err:
@@ -86,24 +95,33 @@ class RunPodImageGenerator:
 
     async def _submit_and_poll(
         self,
-        source_image_bytes: bytes | None,
-        prompt: str | None,
         *,
-        adapter: str = "character",
+        mode: str,
+        source_image_bytes: bytes | None = None,
+        prompt: str | None = None,
         scene_prompt: str | None = None,
-    ) -> bytes:
+        appearance_payload: dict[str, Any] | None = None,
+    ) -> ImageGenerationResult:
         source_b64 = (
             base64.b64encode(source_image_bytes).decode()
             if source_image_bytes is not None
             else None
         )
+        job_input: dict[str, Any] = {"mode": mode}
+        if mode == "image_character":
+            job_input["image"] = source_b64
+            job_input["source_image_b64"] = source_b64
+        elif mode == "text_character":
+            job_input["persona"] = prompt or ""
+            job_input["prompt"] = prompt or ""
+        elif mode == "feed":
+            job_input["appearance"] = appearance_payload
+            job_input["quest_ko"] = scene_prompt
+            job_input["prompt"] = prompt
+        else:
+            raise ImageGenerationFailedError(f"[ERROR] unsupported image mode: {mode}")
         payload = {
-            "input": {
-                "source_image_b64": source_b64,
-                "adapter": adapter,
-                "prompt": prompt,
-                "scene_prompt": scene_prompt,
-            }
+            "input": job_input
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
@@ -148,12 +166,21 @@ class RunPodImageGenerator:
                 status = data.get("status")
 
                 if status == "COMPLETED":
-                    image_b64 = (data.get("output") or {}).get("image_b64")
+                    output = data.get("output") or {}
+                    if output.get("status") == "failed":
+                        detail = str(output.get("error"))[:_ERROR_DETAIL_MAX_LEN]
+                        raise ImageGenerationFailedError(
+                            f"[ERROR] RunPod worker failed: {detail}"
+                        )
+                    image_b64 = output.get("image") or output.get("image_b64")
                     if not image_b64:
                         raise ImageGenerationFailedError(
                             "[ERROR] RunPod COMPLETED 응답에 output.image_b64 가 없습니다"
                         )
-                    return base64.b64decode(image_b64)
+                    return ImageGenerationResult(
+                        image_bytes=base64.b64decode(image_b64),
+                        appearance_payload=output.get("appearance"),
+                    )
 
                 if status in _TERMINAL_FAILURE_STATUSES:
                     detail = str(data.get("error"))[:_ERROR_DETAIL_MAX_LEN]

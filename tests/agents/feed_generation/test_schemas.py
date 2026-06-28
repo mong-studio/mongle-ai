@@ -22,6 +22,12 @@ def test_quest_alias_accepts_old_key():
     assert q.quest == "방 청소하기"
 
 
+def test_appearance_alias_accepts_worker_profile():
+    profile = {"character_type": "bear", "main_colors": ["pink"]}
+    c = CharacterRef(**_char(appearance=profile))
+    assert c.appearance_payload == profile
+
+
 def test_blank_image_url_rejected():
     with pytest.raises(ValidationError):
         CharacterRef(**_char(image_url="   "))

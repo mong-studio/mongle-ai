@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,6 +50,11 @@ class LLMPersonaResult(BaseModel):
     appearance_en: str = ""
 
 
+class ImageGenerationResult(BaseModel):
+    image_bytes: bytes
+    appearance_payload: dict[str, Any] | None = None
+
+
 class CharacterEntity(BaseModel):
     character_id: UUID
     user_id: str
@@ -59,6 +64,7 @@ class CharacterEntity(BaseModel):
     speech_style: str
     background: str
     appearance: str
+    appearance_payload: dict[str, Any] | None = None
     image_url: str
     source_image_url: str | None
     created_at: datetime

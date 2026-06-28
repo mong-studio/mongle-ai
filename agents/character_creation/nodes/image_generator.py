@@ -26,7 +26,7 @@ async def image_generator_node(
     for _ in range(MAX_ATTEMPTS):
         try:
             src = state["input"].source_image
-            image_bytes = await ports.image_generator.generate(
+            result = await ports.image_generator.generate(
                 user_id=state["input"].user_id,
                 llm_result=llm_result,
                 fallback_persona=state["input"].persona,
@@ -34,7 +34,8 @@ async def image_generator_node(
             )
             return Command(
                 update={
-                    "image_bytes": image_bytes,
+                    "image_bytes": result.image_bytes,
+                    "appearance_payload": result.appearance_payload,
                     "image_generator_seconds": round(time.perf_counter() - start, 3),
                 },
                 goto="generated_upload",

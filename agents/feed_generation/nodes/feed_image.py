@@ -17,6 +17,7 @@ async def feed_image_node(state: FeedGraphState, config: dict[str, Any]) -> Comm
             state["input"].character.image_url,
             feed_prompt.character,
             feed_prompt.scene,
+            state["input"].character.appearance_payload,
         )
     except ImageGenerationError:
         raise

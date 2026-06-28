@@ -33,8 +33,9 @@ async def test_run_feed_image_receives_quest_prompts():
     gen = FakeImageGenerator()
     inp = make_input()
     await pipeline.run(inp, ports=make_ports(image_generator=gen))
-    ref, char, scene = gen.feed_calls[0]
+    ref, char, scene, appearance_payload = gen.feed_calls[0]
     assert ref == inp.character.image_url
+    assert appearance_payload == inp.character.appearance_payload
     assert "방 청소하기" in char   # quest = action
     assert scene == "방 청소하기"    # quest = scene (pass-through)
 

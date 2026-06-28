@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from typing import Any
 from uuid import uuid4
 
 from PIL import Image
@@ -23,6 +24,7 @@ def make_input(**overrides) -> FeedGenerationInput:
             personality="밝고 활발함",
             speech_style="반말, 이모티콘 자주 사용",
             visual=["분홍색 머리", "큰 눈", "귀여운"],
+            appearance_payload={"character_type": "bear", "main_colors": ["pink"]},
             image_url="https://s3.example.com/characters/test.png",
         ),
     )
@@ -82,18 +84,28 @@ class FailingLLM:
 class FakeImageGenerator:
     def __init__(self, image_bytes: bytes = _FAKE_BG_PNG) -> None:
         self.image_bytes = image_bytes
-        self.feed_calls: list[tuple[str, str, str]] = []
+        self.feed_calls: list[tuple[str, str, str, dict[str, Any] | None]] = []
 
     async def generate_feed(
-        self, reference_url: str, character_prompt: str, scene_prompt: str
+        self,
+        reference_url: str,
+        character_prompt: str,
+        scene_prompt: str,
+        appearance_payload: dict[str, Any] | None = None,
     ) -> bytes:
-        self.feed_calls.append((reference_url, character_prompt, scene_prompt))
+        self.feed_calls.append(
+            (reference_url, character_prompt, scene_prompt, appearance_payload)
+        )
         return self.image_bytes
 
 
 class FailingImageGenerator:
     async def generate_feed(
-        self, reference_url: str, character_prompt: str, scene_prompt: str
+        self,
+        reference_url: str,
+        character_prompt: str,
+        scene_prompt: str,
+        appearance_payload: dict[str, Any] | None = None,
     ) -> bytes:
         raise ImageGenerationError("이미지 생성 서버 오류")
 

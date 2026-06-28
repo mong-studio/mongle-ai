@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+outputs/
+*.log
+*.tmp
+total/image_pipeline2/models/

@@ -30,6 +30,7 @@ async def test_image_generator_returns_bytes_on_success() -> None:
     img = FakeImageGenerator()
     out = await image_generator_node(_state(), _config(img, FakeRepository()))
     assert out.update["image_bytes"] == b"GENERATED_PNG_BYTES"
+    assert out.update["appearance_payload"]["character_type"] == "bear"
     assert isinstance(out.update["image_generator_seconds"], float)
     assert out.goto == "generated_upload"
     assert img.calls == 1

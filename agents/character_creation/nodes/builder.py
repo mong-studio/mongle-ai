@@ -24,6 +24,7 @@ def build(
     generated_image_url: str,
     source_image_url: str | None,
     now: datetime,
+    appearance_payload: dict[str, Any] | None = None,
     timings: dict[str, float] | None = None,
 ) -> CharacterEntity:
     return CharacterEntity(
@@ -35,6 +36,7 @@ def build(
         speech_style=llm_result.speech_style,
         background=llm_result.background,
         appearance=llm_result.appearance_en or llm_result.appearance,
+        appearance_payload=appearance_payload,
         image_url=generated_image_url,
         source_image_url=source_image_url,
         created_at=now,
@@ -71,6 +73,7 @@ async def builder_node(
             llm_result=llm_result,
             generated_image_url=generated_url,
             source_image_url=state.get("source_url"),
+            appearance_payload=state.get("appearance_payload"),
             now=now,
             timings=_collect_timings(state),
         )

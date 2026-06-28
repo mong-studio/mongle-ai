@@ -35,6 +35,7 @@ def test_builds_entity_with_all_required_fields() -> None:
         llm_result=_llm(),
         generated_image_url="https://s3/characters/u1/x.png",
         source_image_url="https://s3/sources/u1/y.png",
+        appearance_payload={"character_type": "bear"},
         now=fixed_now,
     )
     assert entity.user_id == "u1"
@@ -44,6 +45,7 @@ def test_builds_entity_with_all_required_fields() -> None:
     assert entity.speech_style == "존댓말"
     assert entity.background == "숲에서 옴"
     assert entity.image_url.endswith("x.png")
+    assert entity.appearance_payload == {"character_type": "bear"}
     assert entity.source_image_url is not None
     assert entity.created_at == fixed_now
     assert entity.character_id is not None
