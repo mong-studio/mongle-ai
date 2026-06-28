@@ -120,7 +120,7 @@ def _quick_eval(model, tok, valid_rows, n=20):
             device=model.device,
         )
         with torch.no_grad():
-            gen = model.generate(ids, max_new_tokens=1024, do_sample=False)
+            gen = model.generate(ids, max_new_tokens=512, do_sample=False)
         out = tok.decode(gen[0][ids.shape[1]:], skip_special_tokens=False)
         if any(out.rstrip().endswith(m) for m in EOS_MARKERS):
             ok_eos += 1
@@ -139,6 +139,8 @@ def _quick_eval(model, tok, valid_rows, n=20):
 
 
 def main():
+    # 메모리 단편화로 인한 OOM 완화 (CUDA init 전에 설정해야 적용됨)
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     ap = argparse.ArgumentParser()
     ap.add_argument("--train", required=True)
     ap.add_argument("--valid", default=None)
@@ -185,6 +187,7 @@ def main():
     targs = TrainingArguments(
         output_dir=os.path.join(a.out, "checkpoints"),
         per_device_train_batch_size=a.batch,
+        per_device_eval_batch_size=1,
         gradient_accumulation_steps=a.grad_accum,
         warmup_ratio=0.05,
         num_train_epochs=a.epochs,
@@ -197,7 +200,7 @@ def main():
         seed=42,
         report_to="none",
         save_strategy="no",
-        **({"eval_strategy": "epoch"} if valid_ds is not None else {}),
+        eval_strategy="no",  # in-loop 평가가 OOM 으로 train() 을 죽여 저장을 막던 문제 → 저장 후 따로 평가
     )
     # 수동 패딩 collator — DataCollatorForSeq2Seq 가 일부 custom 토크나이저(EXAONE)·transformers
     # 버전에서 tok.pad 타입 추론에 실패(input_ids 를 str 로 오인)하므로 버전 의존을 제거한다.
