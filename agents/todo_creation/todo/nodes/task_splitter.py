@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import re
-import zlib
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -17,40 +16,34 @@ logger = logging.getLogger(__name__)
 MAX_TASKS = 30
 
 
-# 정보량 게이트: 반복뿐인 입력은 잘 압축돼 ratio 가 낮다. 단일 splitter 입력 길이대(짧음)에서
-# 실측상 degenerate≈0.65, 정상≈0.84~1.17 로 갈려 0.75 가 안전한 경계다. 긴 자연어도 잘 압축되므로
-# 길이대를 벗어나면 판정하지 않는다(긴 컨텍스트 환각은 그라운딩 검증이 따로 잡는다).
-_LOW_INFO_THRESHOLD = 0.75
-_LOW_INFO_MIN_BYTES = 30
-_LOW_INFO_MAX_BYTES = 400
-
-
-def _is_low_information(text: str) -> bool:
-    """압축률로 입력 정보량을 잰다. 반복뿐이라 정보가 거의 없으면 True."""
-    raw = text.encode("utf-8")
-    if not (_LOW_INFO_MIN_BYTES <= len(raw) <= _LOW_INFO_MAX_BYTES):
-        return False
-    return len(zlib.compress(raw, 6)) / len(raw) < _LOW_INFO_THRESHOLD
-
-
-def _char_bigrams(text: str) -> set[str]:
-    s = "".join(text.split())
-    return {s[i : i + 2] for i in range(len(s) - 1)}
+def _common_prefix_len(a: str, b: str) -> int:
+    n = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+    return n
 
 
 def _is_grounded(title: str, prompt: str) -> bool:
-    """title 내용이 입력에 근거하는지 음절 2-gram 겹침으로 느슨히 본다.
+    """title 단어 중 하나라도 입력 어절에 근거하면 통과(환각 task 만 떨군다).
 
-    '입력에 없는 단어 금지'는 base 모델이 어기는 프롬프트 부탁일 뿐이라, 파싱 후 코드로 검증해
-    '토익'처럼 입력에 없는(특히 긴 컨텍스트에서 사전확률로 튀어나오는) 환각 task 를 떨군다.
-    title 은 어미 제거·명사형으로 정규화돼 입력과 글자 그대로 일치하진 않으므로 2-gram 겹침으로 판정한다.
+    '입력에 없는 단어 금지'는 프롬프트 부탁일 뿐이라, 파싱 후 코드로 '토익'처럼 입력에 없는
+    환각 task 를 떨군다. title 은 어미 제거·명사형으로 정규화돼 조사가 떨어져 나가므로
+    (예: '밥을 먹어야지' → '밥 먹기') 글자 n-gram 으론 입력과 어긋난다. 그래서 어절 접두
+    매칭으로 본다: 입력 어절이 title 단어로 시작하거나(밥←밥을) 그 반대거나, 공통 접두 2자
+    이상(건강하기~건강하고)이면 근거 있다고 본다.
     """
-    # ponytail: 음절 2-gram 겹침 휴리스틱. 어간이 살아남는 한국어 정규화엔 충분하다.
-    #           정밀 판정이 필요하면 형태소 분석기로 교체.
-    tb = _char_bigrams(title)
-    if not tb:
-        return True  # 1글자 제목 등 너무 짧으면 보수적으로 통과
-    return bool(tb & _char_bigrams(prompt))
+    # ponytail: 어절 접두 매칭 휴리스틱. 1글자 노이즈 매칭을 약간 허용(키워-드롭). 정밀 판정 필요하면 형태소 분석기로.
+    words = title.split()
+    if not words:
+        return True  # 빈 제목 등은 보수적으로 통과
+    input_words = prompt.split()
+    return any(
+        iw.startswith(w) or w.startswith(iw) or _common_prefix_len(w, iw) >= 2
+        for w in words
+        for iw in input_words
+    )
 
 
 # 한자·가나 등 비한국어 CJK — base 모델이 희귀 음절을 깨뜨릴 때 새는 스크립트.
@@ -114,10 +107,6 @@ async def task_splitter_node(
     today = state["input"].today
     prompt = state["input"].prompt
 
-    # 정보량 게이트: 반복뿐이라 정보가 거의 없는 입력은 LLM 을 부르지 않고 out_of_scope 안내로.
-    if _is_low_information(prompt):
-        return {"intent": "out_of_scope"}
-
     split = await _split_or_out_of_scope(ports, prompt, today)
     if split is None or split.intent == "out_of_scope":
         return {"intent": "out_of_scope"}
@@ -151,4 +140,7 @@ async def task_splitter_node(
     if not grounded:
         return {"intent": "out_of_scope"}
 
-    return {"intent": "plan", "split_tasks": grounded}
+    # 중복 제거: 모델이 반복 입력을 같은 task 로 여러 번 쪼개는 경우(밥 먹기 ×3)를 하나로.
+    deduped = list({(t.title, t.due_date): t for t in grounded}.values())
+
+    return {"intent": "plan", "split_tasks": deduped}
