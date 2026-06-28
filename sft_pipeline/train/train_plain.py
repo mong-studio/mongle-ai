@@ -52,15 +52,17 @@ def load_rows(path):
 def build_tokenize_fn(tok):
     def _tok(d):
         msgs = d["messages"]
-        full = tok.apply_chat_template(msgs, tokenize=True, add_generation_prompt=False)
-        prompt = tok.apply_chat_template(msgs[:-1], tokenize=True, add_generation_prompt=True)
-        # EXAONE 등 custom 토크나이저는 list[int] 가 아닌 tokenizers.Encoding 을 반환 → ids 로 정규화
-        if hasattr(full, "ids"):
-            full = full.ids
-        if hasattr(prompt, "ids"):
-            prompt = prompt.ids
-        full = list(full)[:MAX_LEN]
-        prompt = list(prompt)
+        # return_tensors='np' 로 토큰화 출력을 ndarray 로 강제 → 토크나이저별 반환형
+        # (list[int] / tokenizers.Encoding / BatchEncoding) 차이를 제거한다.
+        # EXAONE(tf5.x)는 BatchEncoding 을 반환해 list() 가 dict 키(str)를 뱉던 버그를 차단.
+        # 추론도 apply_chat_template(return_tensors='pt') 라 동일 경로 → train/infer skew 없음.
+        full = tok.apply_chat_template(
+            msgs, tokenize=True, add_generation_prompt=False, return_tensors="np"
+        )[0].tolist()
+        prompt = tok.apply_chat_template(
+            msgs[:-1], tokenize=True, add_generation_prompt=True, return_tensors="np"
+        )[0].tolist()
+        full = full[:MAX_LEN]
         cut = min(len(prompt), len(full))
         labels = [-100] * cut + full[cut:]
         return {"input_ids": full, "attention_mask": [1] * len(full), "labels": labels}
