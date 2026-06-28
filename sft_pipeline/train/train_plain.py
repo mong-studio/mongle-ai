@@ -49,20 +49,34 @@ def load_rows(path):
     return rows
 
 
+def to_ids(x):
+    """apply_chat_template/tokenizer 의 제각각인 반환형을 list[int] 로 정규화한다.
+
+    EXAONE 토크나이저는 버전에 따라 list[int] / tokenizers.Encoding / BatchEncoding /
+    ndarray / [Encoding] / [[int]] 등 다른 컨테이너를 돌려준다(return_tensors 도 무시).
+    어떤 형태든 실제 토큰 id 리스트만 뽑아낸다.
+    """
+    if hasattr(x, "tolist"):            # ndarray / tensor
+        x = x.tolist()
+    if hasattr(x, "input_ids"):         # BatchEncoding
+        x = x.input_ids
+        if hasattr(x, "tolist"):
+            x = x.tolist()
+    if hasattr(x, "ids"):               # tokenizers.Encoding
+        return list(x.ids)
+    seq = list(x)
+    if seq and hasattr(seq[0], "ids"):  # [Encoding]
+        return list(seq[0].ids)
+    if seq and isinstance(seq[0], (list, tuple)):  # [[int]]
+        seq = list(seq[0])
+    return [int(t) for t in seq]        # list[int] (문자열이면 여기서 즉시 실패)
+
+
 def build_tokenize_fn(tok):
     def _tok(d):
         msgs = d["messages"]
-        # return_tensors='np' 로 토큰화 출력을 ndarray 로 강제 → 토크나이저별 반환형
-        # (list[int] / tokenizers.Encoding / BatchEncoding) 차이를 제거한다.
-        # EXAONE(tf5.x)는 BatchEncoding 을 반환해 list() 가 dict 키(str)를 뱉던 버그를 차단.
-        # 추론도 apply_chat_template(return_tensors='pt') 라 동일 경로 → train/infer skew 없음.
-        full = tok.apply_chat_template(
-            msgs, tokenize=True, add_generation_prompt=False, return_tensors="np"
-        )[0].tolist()
-        prompt = tok.apply_chat_template(
-            msgs[:-1], tokenize=True, add_generation_prompt=True, return_tensors="np"
-        )[0].tolist()
-        full = full[:MAX_LEN]
+        full = to_ids(tok.apply_chat_template(msgs, tokenize=True, add_generation_prompt=False))[:MAX_LEN]
+        prompt = to_ids(tok.apply_chat_template(msgs[:-1], tokenize=True, add_generation_prompt=True))
         cut = min(len(prompt), len(full))
         labels = [-100] * cut + full[cut:]
         return {"input_ids": full, "attention_mask": [1] * len(full), "labels": labels}
@@ -101,9 +115,10 @@ def _quick_eval(model, tok, valid_rows, n=20):
         return {}
     ok_parse = ok_eos = 0
     for r in plan_rows:
-        ids = tok.apply_chat_template(
-            r["messages"][:-1], tokenize=True, add_generation_prompt=True, return_tensors="pt"
-        ).to(model.device)
+        ids = torch.tensor(
+            [to_ids(tok.apply_chat_template(r["messages"][:-1], tokenize=True, add_generation_prompt=True))],
+            device=model.device,
+        )
         with torch.no_grad():
             gen = model.generate(ids, max_new_tokens=1024, do_sample=False)
         out = tok.decode(gen[0][ids.shape[1]:], skip_special_tokens=False)
