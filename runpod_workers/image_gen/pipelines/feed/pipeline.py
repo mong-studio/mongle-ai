@@ -17,8 +17,9 @@ NEGATIVE = (
     "realistic, 3d render, photograph, blurry, dark, gloomy, watercolor, sketch, "
     "painterly, smooth illustration, modern city, urban, scary, violence, text, "
     "watermark, multiple characters, tiling, repeated, human, person, girl, boy, "
-    "man, woman, humanoid, human body, human face, skin, hair, clothes, dress, "
-    "shirt, close-up, cropped, zoomed in, macro, oversized character, character filling frame"
+    "man, woman, humanoid, human body, human face, skin, hair, clothes, dress, shirt, "
+    "empty scene, background only, scenery only, landscape only, no character, "
+    "tiny character, character out of frame, cropped character"
 )
 
 
@@ -40,13 +41,14 @@ def build_prompt(appearance, quest_en: str) -> tuple[str, str]:
     profile = normalize_profile(appearance)
     colors = " and ".join(profile["main_colors"][:2])
     identity = " ".join(part for part in (colors, profile["character_type"]) if part)
-    # 퀘스트 행동(quest_en)을 캐릭터 바로 뒤·앞쪽에 두어 그림에 확실히 드러나게 한다.
-    # 외형(identity/appearance)은 그대로 유지해 캐릭터를 최대한 보존한다.
+    # 캐릭터를 화면 중앙의 '주인공'으로 크게 그리고, 그 캐릭터가 퀘스트 행동(quest_en)을
+    # 하는 모습으로 만든다. 외형(identity/appearance)은 그대로 유지해 캐릭터를 보존한다.
     prompt = (
-        f"monglestyle, a small {identity} character {quest_en}, "
-        f"clearly showing the activity, full body, 32-bit pixel art, pastel colors"
+        f"monglestyle, one cute {identity} character {quest_en}, "
+        f"the character is the clear main subject, centered, full body visible, large in frame, "
+        f"simple uncluttered background, 32-bit pixel art, pastel colors"
     )
-    prompt_2 = f"monglestyle, {quest_en}, {_to_appearance_str(profile)}"
+    prompt_2 = f"monglestyle, a {identity} character {quest_en}, {_to_appearance_str(profile)}"
     return prompt, prompt_2
 
 
@@ -61,7 +63,9 @@ def load_pipeline():
     ).to("cuda")
     pipe.load_lora_weights(CHARACTER_LORA, adapter_name="character")
     pipe.load_lora_weights(BG_LORA, adapter_name="bg")
-    pipe.set_adapters(["character", "bg"], adapter_weights=[0.9, 1.1])
+    # 캐릭터가 화면의 주인공이 되도록 캐릭터 LoRA를 배경보다 강하게 준다.
+    # (이전 [0.9, 1.1]은 배경이 지배해 캐릭터가 사라졌음)
+    pipe.set_adapters(["character", "bg"], adapter_weights=[1.1, 0.6])
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(
         pipe.scheduler.config, use_karras_sigmas=True
     )
