@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import random
 import time
 from typing import Any
 
@@ -107,7 +108,10 @@ class RunPodImageGenerator:
             if source_image_bytes is not None
             else None
         )
-        job_input: dict[str, Any] = {"mode": mode}
+        # 워커 핸들러는 seed 가 없으면 42로 고정해버려서, 매 요청마다 새 시드를 보내야
+        # 한다(고정 시드 + LCM 의 낮은 guidance_scale 조합은 프롬프트와 무관하게 같은
+        # 캐릭터로 수렴함).
+        job_input: dict[str, Any] = {"mode": mode, "seed": random.randint(0, 2**32 - 1)}
         if mode == "image_character":
             job_input["image"] = source_b64
             job_input["source_image_b64"] = source_b64

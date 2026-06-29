@@ -101,11 +101,34 @@ async def test_generate_without_source_sends_text_character_payload() -> None:
     await _call(_generator(handler), source=None)
 
     job_input = payloads[0]["input"]
+    seed = job_input.pop("seed")
+    assert 0 <= seed <= 2**32 - 1
     assert job_input == {
         "mode": "text_character",
         "persona": "둥근 갈색 곰",
         "prompt": "둥근 갈색 곰",
     }
+
+
+@pytest.mark.asyncio
+async def test_generate_uses_a_different_seed_per_request() -> None:
+    """매 요청마다 새 랜덤 시드를 보낸다 (고정 시드로 캐릭터가 수렴하던 회귀 방지)."""
+    payloads: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/run"):
+            payloads.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": "job-1"})
+        return httpx.Response(
+            200, json={"status": "COMPLETED", "output": {"image_b64": PNG_B64}}
+        )
+
+    gen = _generator(handler)
+    await _call(gen)
+    await _call(gen)
+
+    seeds = [payload["input"]["seed"] for payload in payloads]
+    assert seeds[0] != seeds[1]
 
 
 @pytest.mark.asyncio
