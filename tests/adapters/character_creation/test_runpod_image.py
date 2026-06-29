@@ -29,8 +29,13 @@ def _generator(handler, **over) -> RunPodImageGenerator:
 
 
 def _persona(appearance: str = "둥근 갈색 곰") -> LLMPersonaResult:
+    # appearance_en 이 워커로 보낼 영어 프롬프트(prompt_en) 가 된다. 테스트에선 같은 값 사용.
     return LLMPersonaResult(
-        personality="p", speech_style="s", background="b", appearance=appearance
+        personality="p",
+        speech_style="s",
+        background="b",
+        appearance=appearance,
+        appearance_en=appearance,
     )
 
 
@@ -107,6 +112,8 @@ async def test_generate_without_source_sends_text_character_payload() -> None:
         "mode": "text_character",
         "persona": "둥근 갈색 곰",
         "prompt": "둥근 갈색 곰",
+        # 영어 태그(appearance_en)가 있으면 워커 재번역을 생략하도록 prompt_en 으로 함께 보낸다.
+        "prompt_en": "둥근 갈색 곰",
     }
 
 

@@ -16,6 +16,9 @@ pipelines/text_character/pipeline.py — 텍스트 설명 → 픽셀아트 캐�
 import gc
 import json
 import re
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 from pipelines.shared.background import remove_solid_background
@@ -23,6 +26,8 @@ from pipelines.shared.character_profile import from_text_appearance
 
 CHAR_LORA_HF = "Hadimeeee/mongle-character-lora"
 LCM_LORA_HF  = "latent-consistency/lcm-lora-sdxl"
+# 서브프로세스 워커를 `-m pipelines.text_character...` 로 띄울 때의 작업 디렉터리.
+APP_ROOT = Path(__file__).resolve().parents[2]  # runpod_workers/image_gen
 QWEN2VL_ID   = "Qwen/Qwen2-VL-7B-Instruct"
 
 STYLE_SUFFIX = (
@@ -200,6 +205,33 @@ def extract_appearance(image, model, proc) -> dict:
         }
 
 
+def _extract_appearance_subprocess(image) -> dict:
+    """STEP3 외형추출을 **별도 프로세스**로 실행한다.
+
+    Qwen2-VL 을 같은 프로세스에서 load/unload 하면 8bit+accelerate 특성상 VRAM 이
+    끝까지 회수되지 않아 요청마다 누적된다. 자식 프로세스로 분리하면 종료 시 OS 가
+    VRAM 을 전량 회수하므로 누수가 0 이 된다. (피드 vlm_worker 와 동일 패턴)
+    """
+    with tempfile.TemporaryDirectory(prefix="appearance_") as temp_dir:
+        img_path = Path(temp_dir) / "image.png"
+        image.save(img_path, format="PNG")
+        proc = subprocess.run(
+            [sys.executable, "-m", "pipelines.text_character.appearance_worker", str(img_path)],
+            cwd=str(APP_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=None,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    if proc.returncode != 0 or not proc.stdout.strip():
+        raise RuntimeError(
+            f"appearance extraction subprocess failed (exit={proc.returncode})"
+        )
+    # 워커는 stdout 마지막 줄에 외형 JSON 을 출력한다(앞선 줄은 진단 로그).
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
 # ══════════════════════════════════════════════════════════════
 # SDXL 파이프라인 (txt2img)
 # ══════════════════════════════════════════════════════════════
@@ -268,6 +300,7 @@ def generate_character(pipe, prompt: str, steps: int = 8,
 
 def run_pipeline(
     persona_ko: str,
+    prompt_en: str | None = None,
     lcm: bool = True,
     lora_scale: float = 0.9,
     steps: int = 8,
@@ -298,12 +331,18 @@ def run_pipeline(
     if save:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-    # STEP 1: 한글 페르소나 → 영어 프롬프트 번역
-    print("[1] 페르소나 번역...")
-    qwen_model, qwen_proc = load_qwen()
-    persona_en = translate_persona(persona_ko, qwen_model, qwen_proc)
-    print(f"  번역 결과: {persona_en}")
-    unload_qwen(qwen_model, qwen_proc)
+    # STEP 1: 한글 페르소나 → 영어 프롬프트
+    # 상류(에이전트 LLM)에서 이미 영어 태그(appearance_en)를 만들어 prompt_en 으로 넘기면
+    # 무거운 Qwen2-VL 번역을 건너뛴다 → 이미지 GPU VLM 로드/메모리 누수 제거. 비면 기존 번역.
+    if prompt_en:
+        print("[1] 페르소나 번역 생략 (이미 영어 prompt_en 수신)")
+        persona_en = prompt_en
+    else:
+        print("[1] 페르소나 번역...")
+        qwen_model, qwen_proc = load_qwen()
+        persona_en = translate_persona(persona_ko, qwen_model, qwen_proc)
+        print(f"  번역 결과: {persona_en}")
+        unload_qwen(qwen_model, qwen_proc)
 
     prompt = f"{persona_en}, {STYLE_SUFFIX}"
     if save:
@@ -319,11 +358,9 @@ def run_pipeline(
     if save:
         result.save(Path(out_dir) / "result.png")
 
-    # STEP 3: VLM 외형 추출 (SDXL 이후 VRAM 빡빡 → cpu offload 허용)
+    # STEP 3: VLM 외형 추출 — 별도 프로세스로 실행해 종료 시 VLM VRAM 을 전량 회수(누수 방지)
     print("[3] 외형 추출...")
-    qwen_model, qwen_proc = load_qwen(allow_cpu_offload=True)
-    appearance_raw = extract_appearance(result, qwen_model, qwen_proc)
-    unload_qwen(qwen_model, qwen_proc)
+    appearance_raw = _extract_appearance_subprocess(result)
     appearance = from_text_appearance(appearance_raw)
 
     if save:
