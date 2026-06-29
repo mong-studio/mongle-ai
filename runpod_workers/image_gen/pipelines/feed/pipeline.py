@@ -64,6 +64,8 @@ def load_pipeline():
         pipe.scheduler.config, use_karras_sigmas=True
     )
     pipe.enable_attention_slicing()
+    pipe.enable_vae_slicing()
+    pipe.enable_vae_tiling()  # 1024² VAE decode 피크 OOM 방지(타일 디코드)
     return pipe
 
 

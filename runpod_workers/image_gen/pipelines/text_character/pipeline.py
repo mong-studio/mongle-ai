@@ -228,6 +228,7 @@ def load_sdxl_pipeline(lora_scale: float = 0.9, lcm: bool = True):
     pipe.to("cuda")
     pipe.enable_attention_slicing()
     pipe.enable_vae_slicing()
+    pipe.enable_vae_tiling()  # VAE decode 피크 OOM 방지(타일 디코드)
     print("  SDXL 로드 완료")
     return pipe
 

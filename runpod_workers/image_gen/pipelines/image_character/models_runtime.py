@@ -30,6 +30,7 @@ def load_text2img_pipeline(lora_scale: float = 0.75):
     pipe.to("cuda")
     pipe.enable_attention_slicing()
     pipe.enable_vae_slicing()
+    pipe.enable_vae_tiling()  # VAE decode 피크 OOM 방지(타일 디코드)
     return pipe
 
 
