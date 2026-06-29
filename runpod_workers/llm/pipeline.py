@@ -93,7 +93,10 @@ class QwenLoraPipeline:
         from vllm.sampling_params import GuidedDecodingParams
 
         if guided_json is not None:
-            guided_decoding = GuidedDecodingParams(json=guided_json, backend="outlines")
+            # ponytail: backend 미지정 → vLLM 'auto'(xgrammar 등)가 JSON 스키마 강제.
+            # 신버전 vLLM 은 request-level backend 선택을 막아 backend="outlines" 가 ValueError.
+            # outlines 가 다시 필요하면 엔진 init 에서 --guided-decoding-backend 로 지정할 것.
+            guided_decoding = GuidedDecodingParams(json=guided_json)
         elif json_mode:
             guided_decoding = GuidedDecodingParams(json_object=True)
         else:
