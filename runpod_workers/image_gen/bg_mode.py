@@ -49,6 +49,8 @@ class BgMode:
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
         pipe.to("cuda")
         pipe.enable_attention_slicing()
+        pipe.enable_vae_slicing()  # 배치 디코드 슬라이스(피크 VRAM ↓)
+        pipe.enable_vae_tiling()  # 1024² VAE decode 피크 OOM 방지(타일 디코드)
         self._pipe = pipe
 
     def _to_bytes(self, image: Image.Image) -> bytes:

@@ -76,6 +76,8 @@ class CharacterMode:
         pipe.load_lora_weights(lora_source)
         pipe.to("cuda")
         pipe.enable_attention_slicing()
+        pipe.enable_vae_slicing()  # 배치 디코드 슬라이스(피크 VRAM ↓)
+        pipe.enable_vae_tiling()  # VAE decode 피크 OOM 방지(타일 디코드)
         self._pipe = pipe
         # 사진 없는 text-only 경로용 text2img — 동일 base/unet/LoRA 를 공유(VRAM 재사용).
         self._txt2img = StableDiffusionXLPipeline.from_pipe(pipe)
