@@ -13,7 +13,9 @@ from tests.agents.character_creation.fakes import FakeImageGenerator, FakeReposi
 def _state() -> CharacterGraphState:
     return CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        llm_result=LLMPersonaResult(
+            personality="p", speech_style="s", background="b", appearance="a", appearance_en="bear"
+        ),
     )
 
 

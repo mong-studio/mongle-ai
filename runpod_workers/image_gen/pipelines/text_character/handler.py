@@ -39,6 +39,12 @@ def process_job(job: dict[str, Any]) -> dict[str, Any]:
     if len(persona) > MAX_PERSONA_LENGTH:
         raise ValueError(f"input.persona must be at most {MAX_PERSONA_LENGTH} characters")
 
+    # prompt_en 이 오면(이미 영어 태그) 워커는 Qwen2-VL 번역을 건너뛴다. 비었으면 기존 번역 경로.
+    prompt_en = job_input.get("prompt_en")
+    if prompt_en is not None and (not isinstance(prompt_en, str) or not prompt_en.strip()):
+        raise ValueError("input.prompt_en must be a non-empty string when provided")
+    prompt_en = prompt_en.strip() if isinstance(prompt_en, str) and prompt_en.strip() else None
+
     seed = int(job_input.get("seed", 42))
     if not 0 <= seed <= 2**32 - 1:
         raise ValueError("input.seed must be between 0 and 4294967295")
@@ -46,6 +52,7 @@ def process_job(job: dict[str, Any]) -> dict[str, Any]:
     with _LOCK:
         result = run_pipeline(
             persona_ko=persona,
+            prompt_en=prompt_en,
             lcm=bool(job_input.get("lcm", True)),
             lora_scale=float(job_input.get("lora_scale", 0.9)),
             steps=int(job_input.get("steps", 8)),

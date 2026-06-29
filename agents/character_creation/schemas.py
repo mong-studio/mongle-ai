@@ -47,7 +47,9 @@ class LLMPersonaResult(BaseModel):
     speech_style: str
     background: str
     appearance: str
-    appearance_en: str = ""
+    # 영어 이미지 태그는 필수. 비면 스키마 검증 실패 → qwen 어댑터가 재시도해 채운다.
+    # (워커의 Qwen2-VL 재번역을 없애려면 이 값이 항상 채워져야 한다.)
+    appearance_en: Annotated[str, Field(min_length=1)]
 
 
 class ImageGenerationResult(BaseModel):

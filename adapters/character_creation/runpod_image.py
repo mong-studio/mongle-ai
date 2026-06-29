@@ -49,12 +49,16 @@ class RunPodImageGenerator:
     ) -> ImageGenerationResult:
         # 사진이 없으면 워커가 이 prompt 로 text2img 한다(사진 있으면 무시·img2img).
         prompt = (llm_result.appearance_en or llm_result.appearance or fallback_persona or "").strip() or None
+        # appearance_en 은 이미 영어 이미지 태그다. 워커가 이걸 받으면 재번역(Qwen2-VL)을
+        # 건너뛰도록 prompt_en 으로 별도 전달한다(비면 None → 워커가 한글 fallback 번역).
+        prompt_en = (llm_result.appearance_en or "").strip() or None
         try:
             mode = "image_character" if source_image_bytes is not None else "text_character"
             return await self._submit_and_poll(
                 mode=mode,
                 source_image_bytes=source_image_bytes,
                 prompt=prompt,
+                prompt_en=prompt_en,
             )
         except ImageGenerationFailedError:
             raise
@@ -100,6 +104,7 @@ class RunPodImageGenerator:
         mode: str,
         source_image_bytes: bytes | None = None,
         prompt: str | None = None,
+        prompt_en: str | None = None,
         scene_prompt: str | None = None,
         appearance_payload: dict[str, Any] | None = None,
     ) -> ImageGenerationResult:
@@ -118,6 +123,9 @@ class RunPodImageGenerator:
         elif mode == "text_character":
             job_input["persona"] = prompt or ""
             job_input["prompt"] = prompt or ""
+            # 영어 태그가 있으면 워커가 재번역을 생략하도록 전달한다.
+            if prompt_en:
+                job_input["prompt_en"] = prompt_en
         elif mode == "feed":
             job_input["appearance"] = appearance_payload
             job_input["quest_ko"] = scene_prompt

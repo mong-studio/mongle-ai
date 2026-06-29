@@ -25,6 +25,7 @@ def _llm() -> LLMPersonaResult:
         speech_style="존댓말",
         background="숲에서 옴",
         appearance="둥근 갈색 몸에 큰 눈",
+        appearance_en="cute brown bear, round ears, big eyes",
     )
 
 
@@ -66,7 +67,9 @@ async def test_builder_node_assembles_entity() -> None:
     state = CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
         is_regeneration=False,
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        llm_result=LLMPersonaResult(
+            personality="p", speech_style="s", background="b", appearance="a", appearance_en="bear"
+        ),
         generated_url="https://fake-s3.local/characters/u1/x.png",
     )
     out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
@@ -80,7 +83,9 @@ async def test_builder_node_assembles_entity() -> None:
 async def test_builder_node_collects_stage_timings() -> None:
     state = CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        llm_result=LLMPersonaResult(
+            personality="p", speech_style="s", background="b", appearance="a", appearance_en="bear"
+        ),
         generated_url="https://fake-s3.local/characters/u1/x.png",
         source_upload_seconds=0.4,
         llm_persona_seconds=1.23,
@@ -100,7 +105,9 @@ async def test_builder_node_collects_stage_timings() -> None:
 async def test_builder_node_timings_empty_when_unmeasured() -> None:
     state = CharacterGraphState(
         input=CharacterCreationInput(user_id="u1", name="몽글이", persona="다정한 곰"),
-        llm_result=LLMPersonaResult(personality="p", speech_style="s", background="b", appearance="a"),
+        llm_result=LLMPersonaResult(
+            personality="p", speech_style="s", background="b", appearance="a", appearance_en="bear"
+        ),
         generated_url="https://fake-s3.local/characters/u1/x.png",
     )
     out = await builder_node(state, {"configurable": {"ports": object(), "now": None}})
