@@ -16,8 +16,15 @@ from huggingface_hub.errors import HfHubHTTPError
 
 HF_HOME = os.environ.get("HF_HOME", "/app/hf-cache")
 HF_TOKEN = os.environ.get("HF_TOKEN") or None
-BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
+# pipeline.py 와 같은 env 를 쓴다. Dockerfile 이 build-arg→ENV 로 주입하면
+# 빌드 때 굽는 모델과 런타임에 로드하는 모델이 항상 일치한다(기본 Qwen).
+BASE_MODEL = os.environ.get("LLM_BASE_MODEL", "Qwen/Qwen2.5-7B-Instruct").strip()
+BASE_MODEL_REVISION = (
+    os.environ.get(
+        "LLM_BASE_MODEL_REVISION", "a09a35458c702b33eeacc393d103063234e8bc28"
+    ).strip()
+    or None
+)
 
 
 def download_base(*, attempts: int = 5, base_delay: int = 15) -> None:

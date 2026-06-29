@@ -6,6 +6,16 @@ FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/app/hf-cache
 
+# 베이스 모델 선택(build-arg). 기본 Qwen → character 이미지는 그대로.
+# planner 이미지는 EXAONE 으로 빌드:
+#   docker build --build-arg LLM_BASE_MODEL=LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct \
+#                --build-arg LLM_BASE_MODEL_REVISION= -t <planner-image> .
+# ENV 로 구워 두면 bake(빌드)와 pipeline(런타임)이 같은 모델을 본다(불일치 방지).
+ARG LLM_BASE_MODEL="Qwen/Qwen2.5-7B-Instruct"
+ARG LLM_BASE_MODEL_REVISION="a09a35458c702b33eeacc393d103063234e8bc28"
+ENV LLM_BASE_MODEL=${LLM_BASE_MODEL} \
+    LLM_BASE_MODEL_REVISION=${LLM_BASE_MODEL_REVISION}
+
 WORKDIR /app
 
 # 공개 베이스 모델(Qwen2.5-7B-Instruct)을 먼저 구워 둔다.

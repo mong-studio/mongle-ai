@@ -17,8 +17,36 @@ from huggingface_hub import snapshot_download
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 
-_BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-_BASE_MODEL_REVISION = "a09a35458c702b33eeacc393d103063234e8bc28"
+# 베이스 모델은 빌드/배포 시 env(LLM_BASE_MODEL)로 고른다. 기본은 Qwen.
+# 같은 이미지를 planner(EXAONE)·character(Qwen) 엔드포인트가 공유하므로 하드코딩 금지.
+# revision: 베이스를 바꾸면 Qwen 전용 핀이 안 맞으니 함께 주입한다. 빈 값이면 latest.
+_BASE_MODEL = os.environ.get("LLM_BASE_MODEL", "Qwen/Qwen2.5-7B-Instruct").strip()
+_BASE_MODEL_REVISION = (
+    os.environ.get(
+        "LLM_BASE_MODEL_REVISION", "a09a35458c702b33eeacc393d103063234e8bc28"
+    ).strip()
+    or None
+)
+
+
+def _turn_stop_token_ids(tokenizer) -> list[int]:
+    """턴 종료 토큰을 베이스 모델에 맞춰 고른다.
+
+    vLLM 기본 stop 은 eos 뿐이라, Qwen 의 <|im_end|> 처럼 eos 가 아닌 턴 종료 토큰에서
+    안 멈추고 system few-shot(입력:/출력:) 패턴을 이어받아 가짜 턴을 계속 생성(runaway)한다.
+    모델별 턴 종료 토큰(Qwen=<|im_end|>, EXAONE=[|endofturn|])을 vocab 에 실재하는 것만 추가하고,
+    eos 도 항상 포함한다(convert_tokens_to_ids 가 미존재 토큰에 unk id 를 주어 오정지하는 것 방지).
+    """
+    vocab = tokenizer.get_vocab()
+    ids: list[int] = [
+        tokenizer.convert_tokens_to_ids(tok)
+        for tok in ("<|im_end|>", "[|endofturn|]")
+        if tok in vocab
+    ]
+    eos = tokenizer.eos_token_id
+    if eos is not None and eos not in ids:
+        ids.append(eos)
+    return ids
 
 # 어댑터 이름 → LoRA HF repo 를 지정하는 환경변수
 _ADAPTER_ENV = {
@@ -52,6 +80,7 @@ class QwenLoraPipeline:
             enforce_eager=True,
         )
         self._tokenizer = self._llm.get_tokenizer()
+        self._stop_token_ids = _turn_stop_token_ids(self._tokenizer)
         # LoRA int id 는 1 부터 부여(0 은 베이스로 예약).
         self._lora_requests = {
             name: LoRARequest(
@@ -87,9 +116,6 @@ class QwenLoraPipeline:
         prompt: str = self._tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        # vLLM 기본 stop 은 eos(<|endoftext|>)뿐이라, 모델이 턴 종료로 내는 <|im_end|>
-        # 에서 안 멈추고 system 의 few-shot(입력:/출력:) 패턴을 이어받아 가짜 턴을
-        # 계속 생성(runaway)한다. <|im_end|> 토큰 id 를 stop 에 추가해 턴 끝에서 정지시킨다.
         from vllm.sampling_params import GuidedDecodingParams
 
         if guided_json is not None:
@@ -108,7 +134,7 @@ class QwenLoraPipeline:
             top_p=top_p,
             top_k=top_k,
             repetition_penalty=repetition_penalty,
-            stop_token_ids=[self._tokenizer.convert_tokens_to_ids("<|im_end|>")],
+            stop_token_ids=self._stop_token_ids,
             **({"guided_decoding": guided_decoding} if guided_decoding is not None else {}),
         )
         outputs = self._llm.generate([prompt], params, lora_request=lora_request)
