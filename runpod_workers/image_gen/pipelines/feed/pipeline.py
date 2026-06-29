@@ -40,13 +40,11 @@ def build_prompt(appearance, quest_en: str) -> tuple[str, str]:
     profile = normalize_profile(appearance)
     colors = " and ".join(profile["main_colors"][:2])
     identity = " ".join(part for part in (colors, profile["character_type"]) if part)
-    # 퀘스트 행동(quest_en)을 캐릭터 바로 뒤·앞쪽에 두어 그림에 확실히 드러나게 한다.
-    # 외형(identity/appearance)은 그대로 유지해 캐릭터를 최대한 보존한다.
     prompt = (
-        f"monglestyle, a small {identity} character {quest_en}, "
-        f"clearly showing the activity, full body, 32-bit pixel art, pastel colors"
+        f"monglestyle, full body shot, small {identity} character in a wide scene, "
+        f"{quest_en}, 32-bit pixel art, pastel colors"
     )
-    prompt_2 = f"monglestyle, {quest_en}, {_to_appearance_str(profile)}"
+    prompt_2 = f"monglestyle, {_to_appearance_str(profile)}"
     return prompt, prompt_2
 
 
