@@ -111,6 +111,8 @@ def load_mascot_pipeline(lora_scale: float = MASCOT_LORA_SCALE):
     pipe.to(device)
     if device == "cuda":
         pipe.enable_attention_slicing()
+        pipe.enable_vae_slicing()
+        pipe.enable_vae_tiling()  # VAE decode 피크 OOM 방지(타일 디코드)
     return pipe
 
 
