@@ -101,7 +101,7 @@ def main():
         for index, case in enumerate(cases):
             profile = normalize_profile(case["appearance"])
             quest_en = translated[case["name"]]
-            image = generate(profile, quest_en, pipe, seed=args.seed + index)
+            image = generate(quest_en, pipe, seed=args.seed + index)
             image.save(case["out_dir"] / "feed.png")
             (case["out_dir"] / "appearance.json").write_text(
                 json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8"

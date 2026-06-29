@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from adapters.feed_generation.composite import composite_sprite_on_background
 from agents.character_creation.exceptions import ImageGenerationFailedError
 from agents.character_creation.schemas import ImageGenerationResult, LLMPersonaResult
 
@@ -74,10 +75,10 @@ class RunPodImageGenerator:
         scene_prompt: str,
         appearance_payload: dict[str, Any] | None = None,
     ) -> bytes:
-        """피드: reference 이미지 기반 5단계 feed 모드(adapter="feed").
+        """피드: 워커가 '퀘스트 배경'을 그리고, 그 위에 원본 캐릭터 스프라이트를 합성한다.
 
-        character_prompt(캐릭터 포즈)와 scene_prompt(배경 장면)를 워커로 보내
-        캐릭터 img2img→배경→합성→블렌딩까지 마친 완성 PNG를 받는다.
+        캐릭터를 AI 로 다시 그리지 않고 원본 스프라이트(reference_url)를 그대로 얹어
+        캐릭터 동일성을 보장한다. scene_prompt(퀘스트 장면)로 배경을 만든다.
         """
         if not appearance_payload:
             raise ImageGenerationFailedError(
@@ -90,13 +91,30 @@ class RunPodImageGenerator:
                 scene_prompt=scene_prompt,
                 appearance_payload=appearance_payload,
             )
-            return result.image_bytes
+            background = result.image_bytes
+            if not reference_url:
+                # 원본 스프라이트가 없으면 합성 불가 → 배경만 반환.
+                return background
+            sprite = await self._download_bytes(reference_url)
+            return composite_sprite_on_background(background, sprite)
         except ImageGenerationFailedError:
             raise
         except Exception as err:
             raise ImageGenerationFailedError(
                 f"[ERROR] RunPod feed 생성 실패: {err}"
             ) from err
+
+    async def _download_bytes(self, url: str) -> bytes:
+        """presigned URL 등에서 원본 캐릭터 스프라이트 바이트를 받아온다."""
+        client = self._client or httpx.AsyncClient()
+        owns_client = self._client is None
+        try:
+            response = await client.get(url, timeout=_HTTP_TIMEOUT)
+            response.raise_for_status()
+            return response.content
+        finally:
+            if owns_client:
+                await client.aclose()
 
     async def _submit_and_poll(
         self,

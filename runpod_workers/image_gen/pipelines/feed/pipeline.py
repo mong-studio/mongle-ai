@@ -5,46 +5,31 @@ from __future__ import annotations
 import gc
 import os
 
-from pipelines.shared.character_profile import normalize_profile
-
-
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 CHARACTER_LORA = "Hadimeeee/mongle-character-lora"
 BG_LORA = "Hadimeeee/mongle-bg-lora"
 
+# 캐릭터는 나중에 원본 스프라이트로 합성하므로, 배경에는 어떤 캐릭터도 그려지면 안 된다.
 NEGATIVE = (
     "realistic, 3d render, photograph, blurry, dark, gloomy, watercolor, sketch, "
     "painterly, smooth illustration, modern city, urban, scary, violence, text, "
-    "watermark, multiple characters, tiling, repeated, human, person, girl, boy, "
-    "man, woman, humanoid, human body, human face, skin, hair, clothes, dress, "
-    "shirt, close-up, cropped, zoomed in, macro, oversized character, character filling frame"
+    "watermark, tiling, repeated, human, person, girl, boy, man, woman, humanoid, "
+    "human body, human face, skin, hair, clothes, dress, shirt, close-up, cropped, "
+    "zoomed in, macro, character, animal, creature, mascot, plush toy, doll, figure"
 )
 
 
-def _to_appearance_str(appearance) -> str:
-    profile = normalize_profile(appearance)
-    colors = " and ".join(profile["main_colors"][:2])
-    identity = " ".join(part for part in (colors, profile["character_type"]) if part)
-    parts = [f"a pixel art stuffed {identity} character"]
-    for key in ("body", "silhouette", "face", "ears_arms", "outfit"):
-        if profile[key]:
-            parts.append(profile[key])
-    parts.extend(profile["secondary_colors"][:3])
-    parts.extend(profile["accessories"][:3])
-    parts.extend(profile["must_preserve"][:5])
-    return ", ".join(parts)
-
-
-def build_prompt(appearance, quest_en: str) -> tuple[str, str]:
-    profile = normalize_profile(appearance)
-    colors = " and ".join(profile["main_colors"][:2])
-    identity = " ".join(part for part in (colors, profile["character_type"]) if part)
+def build_prompt(quest_en: str) -> tuple[str, str]:
+    """캐릭터 없는 '퀘스트 장면 배경' 프롬프트. quest_en 은 설정·소품 묘사다."""
     prompt = (
-        f"monglestyle, full body shot, small {identity} character in a wide scene, "
-        f"{quest_en}, 32-bit pixel art, pastel colors"
+        f"monglestyle, cozy pastel sky island village background scene, {quest_en}, "
+        f"no character, empty open foreground, 32-bit pixel art, pastel colors, wide shot"
     )
-    prompt_2 = f"monglestyle, {_to_appearance_str(profile)}"
+    prompt_2 = (
+        "monglestyle, detailed cozy pixel art environment, soft pastel lighting, "
+        "empty foreground, no character"
+    )
     return prompt, prompt_2
 
 
@@ -59,7 +44,8 @@ def load_pipeline():
     ).to("cuda")
     pipe.load_lora_weights(CHARACTER_LORA, adapter_name="character")
     pipe.load_lora_weights(BG_LORA, adapter_name="bg")
-    pipe.set_adapters(["character", "bg"], adapter_weights=[0.9, 1.1])
+    # 캐릭터는 합성으로 들어가므로 배경 생성에는 캐릭터 LoRA 를 끄고 배경 LoRA 만 쓴다.
+    pipe.set_adapters(["character", "bg"], adapter_weights=[0.0, 1.1])
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(
         pipe.scheduler.config, use_karras_sigmas=True
     )
@@ -69,10 +55,10 @@ def load_pipeline():
     return pipe
 
 
-def generate(appearance, quest_en: str, pipe, seed: int = 42):
+def generate(quest_en: str, pipe, seed: int = 42):
     import torch
 
-    prompt, prompt_2 = build_prompt(appearance, quest_en)
+    prompt, prompt_2 = build_prompt(quest_en)
     return pipe(
         prompt=prompt,
         prompt_2=prompt_2,
