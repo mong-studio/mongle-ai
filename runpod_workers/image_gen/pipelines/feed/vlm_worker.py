@@ -13,26 +13,25 @@ import sys
 
 QUEST_MODEL_ID = "Qwen/Qwen2-VL-7B-Instruct"
 
-QUEST_SYSTEM = """You are a BACKGROUND scene prompt writer for Mongle Village, a cozy pastel sky island pixel art village.
+QUEST_SYSTEM = """You are a scene prompt writer for Mongle Village, a cozy pastel pixel art world.
 
-The character is added later as a separate sprite, so describe ONLY the setting and props of the completed activity — with NO character in it.
-
-Convert a Korean quest completion message into a short English background description.
+Convert a Korean quest completion message into a short English scene that clearly shows ONE character DOING that activity.
 
 Rules:
-- Describe the environment and objects that make the completed activity recognizable.
-- Do NOT mention any character, animal, person, creature, mascot, or body part.
-- Keep the lower-center foreground open and uncluttered (a character is placed there later).
-- Cozy pastel sky island village style.
-- Use 12-20 words.
-- Output only the English background description.
+- Start with the character's visible action, and include the KEY PROPS/objects that make the activity unmistakable (e.g. reading -> an open storybook; cooking -> a steaming pot).
+- The activity is the main subject and must be central; keep the background simple and secondary so it never hides the action.
+- Match the setting to the activity itself (library, kitchen, park, ...) — do not force one fixed location.
+- Anatomy-neutral verbs only (reading, running, cooking, watering, resting). Do not mention arms, legs, hands, feet, or paws.
+- One character only. Cozy pastel pixel-art mood.
+- Use 12-22 words.
+- Output only the English scene description.
 
 Examples:
-Input: 공원에서 30분 달리기를 완료했어요
-Output: a winding cloud meadow path with flower markers and a small finish flag, open grassy foreground
+Input: 도서관에서 책 읽기를 완료했어요
+Output: reading an open storybook at a cozy library desk surrounded by tall bookshelves
 
-Input: 오늘 책 한 권을 다 읽었어요
-Output: a cozy reading nook with an open storybook on a cushion under a blossoming cloud tree
+Input: 공원에서 30분 달리기를 완료했어요
+Output: running along a grassy park path past flower markers and a small finish flag
 """
 
 
