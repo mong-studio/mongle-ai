@@ -279,31 +279,44 @@ def is_korean_reply(text: str) -> bool:
 
 
 def plan_guided_schema() -> dict[str, Any]:
-    """generate_plan 의 vLLM guided_json 스키마 — task.title 을 한국어-only 로 제약."""
+    """generate_plan 의 vLLM guided_json 스키마.
+
+    스키마가 문자열 길이를 막지 않으면 constrained decoding 이 title 문자열 안에서
+    같은 말을 반복하다가 max_tokens 로 잘릴 수 있다. 런타임 TaskCandidate 제약과
+    같은 길이를 생성 단계에도 걸어 JSON 을 닫을 수 있게 한다.
+    """
     task = {
         "type": "object",
         "properties": {
-            "title": {"type": "string", "pattern": _KOREAN_TITLE_PATTERN},
+            "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20,
+                "pattern": _KOREAN_TITLE_PATTERN,
+            },
             "due_date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
         },
         "required": ["title", "due_date"],
+        "additionalProperties": False,
     }
     day = {
         "type": "object",
         "properties": {
             "date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
-            "tasks": {"type": "array", "items": task},
+            "tasks": {"type": "array", "minItems": 1, "maxItems": 3, "items": task},
         },
         "required": ["date", "tasks"],
+        "additionalProperties": False,
     }
     return {
         "type": "object",
         "properties": {
-            "summary_text": {"type": "string"},
-            "days": {"type": "array", "items": day},
+            "summary_text": {"type": "string", "maxLength": 1500},
+            "days": {"type": "array", "minItems": 1, "maxItems": 30, "items": day},
             "personalization_patch": {"type": "object"},
         },
         "required": ["summary_text", "days"],
+        "additionalProperties": False,
     }
 
 
