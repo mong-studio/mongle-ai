@@ -4,9 +4,10 @@
 자동 생성하고, .env 에 붙여 넣을 URL 을 출력한다.
 
 필수 환경변수:
-  RUNPOD_API_KEY      — RunPod API 키
-  LLM_DOCKER_IMAGE    — LLM 워커 이미지  (예: docker.io/user/mongle-llm-worker:latest)
-  IMAGE_DOCKER_IMAGE  — 이미지 워커 이미지 (예: docker.io/user/mongle-image-worker:latest)
+  RUNPOD_API_KEY            — RunPod API 키
+  LLM_DOCKER_IMAGE          — character(Qwen) LLM 워커 이미지 (기본 빌드)
+  PLANNER_LLM_DOCKER_IMAGE  — planner LLM 워커 이미지 (EXAONE 베이스로 빌드한 것)
+  IMAGE_DOCKER_IMAGE        — 이미지 워커 이미지 (예: docker.io/user/mongle-image-worker:latest)
 
 선택 환경변수:
   HF_TOKEN            — private HuggingFace repo 접근용
@@ -25,9 +26,10 @@ _WORKERS = [
         "label": "플래너 LLM (todo · quest)",
         "template_name": "mongle-planner-llm",
         "endpoint_name": "mongle-planner-llm",
-        "image_env": "LLM_DOCKER_IMAGE",
+        # planner 는 EXAONE 베이스로 빌드한 별도 이미지를 쓴다(LoRA 가 EXAONE 기반).
+        "image_env": "PLANNER_LLM_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "env": {"LORA_PLANNER_REPO": "bigmooon/qwen2.5-7b-mongle-planner-ko-lora"},
+        "env": {"LORA_PLANNER_REPO": "angreum/exaone-planner-lora"},
         "result_key": "RUNPOD_PLANNER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_PLANNER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
@@ -149,7 +151,13 @@ def main() -> None:
     hf_token = os.environ.get("HF_TOKEN", "").strip()
 
     missing = [
-        k for k in ("RUNPOD_API_KEY", "LLM_DOCKER_IMAGE", "IMAGE_DOCKER_IMAGE")
+        k
+        for k in (
+            "RUNPOD_API_KEY",
+            "LLM_DOCKER_IMAGE",
+            "PLANNER_LLM_DOCKER_IMAGE",
+            "IMAGE_DOCKER_IMAGE",
+        )
         if not os.environ.get(k, "").strip()
     ]
     if missing:

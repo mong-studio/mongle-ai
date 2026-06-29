@@ -16,8 +16,9 @@ on:
         default: all
 
 env:
-  LLM_IMAGE:   ${{ secrets.DOCKERHUB_USERNAME }}/mongle-llm-worker
-  IMAGE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mongle-image-worker
+  LLM_IMAGE:         ${{ secrets.DOCKERHUB_USERNAME }}/mongle-llm-worker
+  PLANNER_LLM_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/mongle-planner-llm-worker
+  IMAGE_IMAGE:       ${{ secrets.DOCKERHUB_USERNAME }}/mongle-image-worker
 
 # ─────────────────────────────────────────────────────────────────────────────
 jobs:
@@ -70,6 +71,57 @@ jobs:
           cache-from: type=registry,ref=${{ env.LLM_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.LLM_IMAGE }}:buildcache,mode=max
 
+  # ── planner LLM 워커 (EXAONE 베이스) ────────────────────────────────────────
+  # character 와 같은 Dockerfile 이지만 build-arg 로 EXAONE 을 구워 둔다.
+  build-llm-planner:
+    name: Planner LLM Worker (EXAONE) — build & push
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      contains(fromJson('["llm","all"]'), github.event.inputs.target)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.PLANNER_LLM_IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod_workers/llm
+          platforms: linux/amd64
+          push: true
+          # EXAONE 베이스를 빌드 때 구워 둔다(revision 비움 = latest).
+          build-args: |
+            LLM_BASE_MODEL=LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct
+            LLM_BASE_MODEL_REVISION=
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ env.PLANNER_LLM_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.PLANNER_LLM_IMAGE }}:buildcache,mode=max
+
   # ── 이미지 생성 워커 ──────────────────────────────────────────────────────────
   build-image-gen:
     name: Image Gen Worker — build & push
@@ -120,7 +172,7 @@ jobs:
   update-runpod:
     name: Update RunPod Templates
     runs-on: ubuntu-latest
-    needs: [build-llm, build-image-gen]
+    needs: [build-llm, build-llm-planner, build-image-gen]
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
@@ -129,7 +181,9 @@ jobs:
           RUNPOD_API_KEY:               ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_PLANNER_TEMPLATE_ID:   ${{ secrets.RUNPOD_PLANNER_TEMPLATE_ID }}
           RUNPOD_CHARACTER_TEMPLATE_ID: ${{ secrets.RUNPOD_CHARACTER_TEMPLATE_ID }}
-          NEW_IMAGE: ${{ env.LLM_IMAGE }}:${{ github.ref_name }}
+          # planner 는 EXAONE 이미지, character 는 Qwen 이미지로 분리한다.
+          PLANNER_IMAGE:   ${{ env.PLANNER_LLM_IMAGE }}:${{ github.ref_name }}
+          CHARACTER_IMAGE: ${{ env.LLM_IMAGE }}:${{ github.ref_name }}
         run: |
           # 현재 템플릿 전체 조회
           FETCH=$(jq -nc '{"query":"{ myself { podTemplates { id name imageName containerDiskInGb dockerArgs env { key value } volumeInGb isServerless } } }"}')
@@ -143,6 +197,11 @@ jobs:
 
           for ENV_KEY in RUNPOD_PLANNER_TEMPLATE_ID RUNPOD_CHARACTER_TEMPLATE_ID; do
             TID="${!ENV_KEY}"
+            if [ "$ENV_KEY" = "RUNPOD_PLANNER_TEMPLATE_ID" ]; then
+              NEW_IMAGE="$PLANNER_IMAGE"
+            else
+              NEW_IMAGE="$CHARACTER_IMAGE"
+            fi
             echo "Updating $ENV_KEY ($TID) -> $NEW_IMAGE"
 
             TMPL=$(echo "$TEMPLATES" | jq -c --arg tid "$TID" \
@@ -218,7 +277,7 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-llm, build-image-gen]
+    needs: [build-llm, build-llm-planner, build-image-gen]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
@@ -233,8 +292,9 @@ jobs:
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '')
-            const llm   = `${{ env.LLM_IMAGE }}:${tag}`
-            const image = `${{ env.IMAGE_IMAGE }}:${tag}`
+            const llm     = `${{ env.LLM_IMAGE }}:${tag}`
+            const planner = `${{ env.PLANNER_LLM_IMAGE }}:${tag}`
+            const image   = `${{ env.IMAGE_IMAGE }}:${tag}`
 
             await github.rest.repos.createRelease({
               owner: context.repo.owner,
@@ -245,8 +305,9 @@ jobs:
               body: [
                 '## Docker Images',
                 '',
-                `- LLM Worker (플래너·빌리지): \`${llm}\``,
-                `- Image Gen Worker:           \`${image}\``,
+                `- LLM Worker (character/빌리지, Qwen): \`${llm}\``,
+                `- Planner LLM Worker (EXAONE):         \`${planner}\``,
+                `- Image Gen Worker:                    \`${image}\``,
                 '',
                 '> RunPod 템플릿은 CI/CD 에서 자동 업데이트됩니다.',
               ].join('\n'),
