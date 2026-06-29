@@ -678,6 +678,21 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert "전체 tasks 는 15개 이하" in serialized
 
 
+def test_plan_guided_schema_caps_repetitive_fields() -> None:
+    """guided_json 이 title 반복 생성을 생성 단계에서 제한한다."""
+
+    from adapters.todo_creation.qwen_llm import plan_guided_schema
+
+    schema = plan_guided_schema()
+    day = schema["properties"]["days"]["items"]
+    task = day["properties"]["tasks"]["items"]
+
+    assert schema["properties"]["summary_text"]["maxLength"] == 1500
+    assert schema["properties"]["days"]["maxItems"] == 30
+    assert day["properties"]["tasks"]["maxItems"] == 3
+    assert task["properties"]["title"]["maxLength"] == 20
+
+
 async def test_generate_plan_retries_when_required_days_key_is_missing() -> None:
     """summary 만 복구된 불완전 플랜은 성공 처리하지 않고 재요청한다."""
 
