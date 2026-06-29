@@ -99,7 +99,7 @@ def process_job(job: dict[str, Any]) -> dict[str, Any]:
             quest_en = _translate_quest(quest_ko.strip())
         else:
             quest_en = quest_en.strip()
-        image = generate(quest_en, _get_pipeline(), seed=seed)
+        image = generate(profile, quest_en, _get_pipeline(), seed=seed)
 
     return {
         "status": "done",
