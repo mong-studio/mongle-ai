@@ -8,6 +8,7 @@ def _base_env(monkeypatch):
     monkeypatch.setenv("MONGLE_API_KEY", "secret-key")
     monkeypatch.setenv("LLM_PROVIDER", "qwen")
     monkeypatch.setenv("QUEST_LLM_PROVIDER", "qwen")
+    monkeypatch.setenv("IMAGE_PROVIDER", "local")
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("QWEN_BASE_URL", "http://qwen-host/v1")
     monkeypatch.setenv("QWEN_MODEL", "Qwen/Qwen2.5-7B-Instruct")
