@@ -449,6 +449,32 @@ async def test_invalid_plan_json_without_base_uses_safe_plan() -> None:
     assert llm.generate_calls == 1
 
 
+async def test_database_project_safe_plan_uses_database_steps() -> None:
+    """DB 구축 목표의 안전 플랜은 시험/일반 템플릿 대신 DB 작업 흐름을 쓴다."""
+
+    llm = _FakeLLM(
+        goal_tag_response="데이터베이스",
+        generate_error=LLMOutputError("non-JSON response"),
+    )
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "project",
+                "goal_text": "데이터베이스 구축",
+                "goal_tag": "데이터베이스",
+            }
+        ),
+        _config(llm),
+    )
+
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert "ERD 초안 만들기" in titles
+    assert "테이블 컬럼 정의" in titles
+    assert "핵심 작업 1개" not in titles
+    assert "개념 복습 1회" not in titles
+
+
 async def test_english_title_passes_through_without_blocking() -> None:
     """영어 제목은 post-generation 단계에서 blocking 하지 않는다.
 

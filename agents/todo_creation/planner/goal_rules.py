@@ -96,20 +96,30 @@ def collect_user_text(state: PlannerGraphState) -> str:
 def is_supported_exam_context(
     state: PlannerGraphState, parsed_goal: ParsedGoal | None = None
 ) -> bool:
-    """지원하는 시험 맥락이 대화/목표 어디엔가 명시됐는지 확인한다."""
+    """지원하는 시험 맥락이 사용자 대화에 명시됐는지 확인한다.
 
-    text = _compact(
+    모델이 parsed_goal 안에 지원 시험명을 만들어내는 경우가 있어 사용자 원문에
+    별칭이 없는 값만으로는 지원 시험 플로우를 켜지 않는다.
+    """
+
+    user_text = _compact(collect_user_text(state))
+    if any(
+        _compact(alias) in user_text
+        for domain in SUPPORTED_EXAM_DOMAINS
+        for alias in domain.aliases
+    ):
+        return True
+
+    goal_text = _compact(
         " ".join(
             [
-                collect_user_text(state),
                 str((parsed_goal or {}).get("goal_text") or ""),
                 str((parsed_goal or {}).get("goal_tag") or ""),
-                str((parsed_goal or {}).get("slots") or ""),
             ]
         )
     )
-    return any(
-        _compact(alias) in text
+    return has_explicit_exam_context(state, parsed_goal) and any(
+        _compact(alias) in goal_text
         for domain in SUPPORTED_EXAM_DOMAINS
         for alias in domain.aliases
     )
@@ -118,16 +128,9 @@ def is_supported_exam_context(
 def has_explicit_exam_context(
     state: PlannerGraphState, parsed_goal: ParsedGoal | None = None
 ) -> bool:
-    """현재 대화에 실제 시험 준비를 뜻하는 표현이 있는지 확인한다."""
+    """현재 사용자 대화에 실제 시험 준비를 뜻하는 표현이 있는지 확인한다."""
 
-    text = _compact(
-        " ".join(
-            [
-                collect_user_text(state),
-                str((parsed_goal or {}).get("goal_text") or ""),
-            ]
-        )
-    )
+    text = _compact(collect_user_text(state))
     return any(_compact(word) in text for word in _EXPLICIT_EXAM_WORDS)
 
 

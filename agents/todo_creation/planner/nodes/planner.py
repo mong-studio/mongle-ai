@@ -36,7 +36,7 @@ from agents.todo_creation.planner.goal_rules import (
     should_accept_out_of_scope,
 )
 from agents.todo_creation.planner.state import PlannerGraphState
-from agents.todo_creation.planner.slot_schemas import missing_required
+from agents.todo_creation.planner.slot_schemas import missing_required, slot_hints
 from agents.todo_creation.state import ParsedGoal, Turn
 
 async def planner_node(
@@ -127,6 +127,7 @@ async def planner_node(
                         "exam_part",
                         "exam_date",
                         "daily_hours",
+                        "current_level",
                         "background",
                         "weak_subjects",
                     }
@@ -299,10 +300,33 @@ def _apply_missing_assumptions(
 ) -> None:
     assumptions = list(goal.get("assumptions") or [])
     if not goal.get("deadline") and today is not None:
-        assumptions.append("목표 날짜는 정하지 않고 첫 30일 실행안만 구성")
+        assumptions.append("목표 날짜가 정해지지 않아 첫 30일 실행안으로 구성했어요")
+    plan_kind = str(goal.get("plan_kind") or "project")
     for item in missing:
-        assumptions.append(f"{item} 정보는 확인되지 않아 일반적인 수준으로 가정")
+        assumptions.append(_assumption_sentence(plan_kind, item))
     goal["assumptions"] = list(dict.fromkeys(assumptions))
+
+
+def _assumption_sentence(plan_kind: str, missing_key: str) -> str:
+    """내부 슬롯명을 사용자에게 보일 한국어 가정 문장으로 바꾼다."""
+
+    custom = {
+        "deadline": "목표 날짜가 정해지지 않아 첫 30일 실행안으로 구성했어요",
+        "exam_date": "시험일이 확인되지 않아 가까운 준비 일정 기준으로 잡았어요",
+        "event_date": "행사일이 확인되지 않아 가까운 준비 일정 기준으로 잡았어요",
+        "horizon": "기간이 확인되지 않아 첫 30일 실행안으로 구성했어요",
+        "available_time": "가용 시간이 확인되지 않아 하루 30분 안팎으로 잡았어요",
+        "daily_hours": "하루 가능 시간이 확인되지 않아 하루 30분 안팎으로 잡았어요",
+        "current_level": "현재 수준이 확인되지 않아 입문 수준으로 잡았어요",
+        "background": "경험 배경이 확인되지 않아 처음 해보는 사람도 따라갈 수 있게 잡았어요",
+        "weekly_cadence": "주간 빈도가 확인되지 않아 주 2회 기준으로 잡았어요",
+    }
+    if missing_key in custom:
+        return custom[missing_key]
+    label = slot_hints(plan_kind, [missing_key])[0]
+    if label == missing_key:
+        label = "필요한 세부 조건"
+    return f"{label}이 확인되지 않아 일반적인 수준으로 잡았어요"
 
 
 async def _judge_sufficiency(
