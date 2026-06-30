@@ -578,6 +578,70 @@ async def test_supported_exam_alias_cannot_leak_into_event_plan() -> None:
     assert "기초 체력 30분" in titles
 
 
+async def test_off_topic_symbol_title_falls_back_after_retry() -> None:
+    """목표 문맥에 없는 코드형 제목이 섞이면 안전 플랜으로 복구한다."""
+
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index),
+            "tasks": [
+                TaskCandidate(
+                    title=f"10000BTC BTCUSDT {40 + index * 20}%",
+                    due_date=_TODAY + timedelta(days=index),
+                )
+            ],
+        }
+        for index in range(2)
+    ]
+    llm = _FakeLLM(plan_response=("정처기 실기 준비", contaminated))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 실기 준비",
+                "goal_tag": "정보처리기사",
+                "deadline": _TODAY + timedelta(days=20),
+                "slots": {"exam_part": "실기"},
+            }
+        ),
+        _config(llm),
+    )
+
+    assert llm.generate_calls == 2
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert all("BTC" not in title and "USDT" not in title for title in titles)
+    assert "범위 정리 30분" in titles
+
+
+async def test_exam_part_mismatch_falls_back_after_retry() -> None:
+    """사용자가 실기라고 답했는데 필기 플랜이 나오면 반환하지 않는다."""
+
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY,
+            "tasks": [TaskCandidate(title="오답 정리 1회", due_date=_TODAY)],
+        }
+    ]
+    llm = _FakeLLM(plan_response=("정처기 필기 오답 정리를 진행해요.", contaminated))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 실기 준비",
+                "goal_tag": "정보처리기사",
+                "deadline": _TODAY,
+                "slots": {"exam_part": "실기"},
+            }
+        ),
+        _config(llm),
+    )
+
+    assert llm.generate_calls == 2
+    assert "필기" not in result["summary_text"]
+
+
 async def test_repeated_generic_plan_titles_fall_back() -> None:
     """비루틴 플랜이 같은 제목을 세 번 넘게 반복하면 안전 플랜으로 복구한다."""
 
