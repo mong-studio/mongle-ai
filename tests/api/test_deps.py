@@ -275,11 +275,11 @@ def test_todo_generate_ports_runpod_uses_base_adapter():
 
 
 def test_todo_planner_ports_runpod_uses_planner_adapter():
-    """runpod 모드: 생성은 planner, 분류·검증은 base 어댑터를 쓴다."""
+    """runpod 모드: 생성은 planner, 분류는 base, semantic validator 는 잠시 끈다."""
     ports = build_todo_planner_ports(_runpod_cfg())
     assert ports.llm._adapter == "planner"
     assert ports.classifier._adapter == "base"
-    assert ports.validator is ports.classifier
+    assert ports.validator is None
 
 
 # ---------------------------------------------------------------------------

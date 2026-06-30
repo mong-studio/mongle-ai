@@ -170,8 +170,8 @@ async def test_applies_same_goal_tag_without_tag_llm_call() -> None:
 
     result = await plan_generator_node(_state({"goal_tag": "영어말하기"}), _config(llm))
 
-    assert result["todos"][0].tags == ["영어말하기시"]
-    assert llm.goal_tag_calls == 1
+    assert result["todos"][0].tags == ["영어말하기"]
+    assert llm.goal_tag_calls == 0
     assert llm.tag_calls == 0
 
 
