@@ -204,7 +204,7 @@ def parse_task_response(raw: str, today: date) -> SplitResult:
         try:
             out.append(
                 TaskCandidate(
-                    title=item["title"],
+                    title=_normalize_task_title(item["title"]),
                     due_date=resolve_when(item.get("when"), today),
                     tags=item.get("tags") or [],
                 )
@@ -248,6 +248,7 @@ _RETRY_TEMPERATURE = 0.7
 # 대문자(IT, SQL, GitHub 등 통용 약어)는 허용, 소문자 단독 라틴어만 차단.
 _KOREAN_TITLE_PATTERN = r"^[가-힣A-Z0-9 ()·,.~/%\-]+$"
 _ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+_MAX_TASK_TITLE_CHARS = 20
 
 # 외국어 응답 재시도용 리인포스 + 폴백.
 _KOREAN_REINFORCE = (
@@ -262,6 +263,26 @@ _FOLLOW_UP_FALLBACK = "조금만 더 구체적으로 알려주실 수 있을까�
 # (poc/outlines-cjk-block 참고). 사후 검사 + 재생성이 부작용 없이 안전하다.
 _CJK_CHARS = re.compile(r"[぀-ヿ㐀-䶿一-鿿豈-﫿]")
 _HANGUL_CHARS = re.compile(r"[가-힣]")
+
+
+def _normalize_task_title(value: Any) -> str:
+    """LLM 제목을 DB/UI 제약(20자)에 맞는 짧은 행동명으로 정리한다."""
+
+    title = re.sub(r"\s+", " ", str(value or "")).strip()
+    for separator in (" - ", " – ", " — "):
+        if separator in title:
+            title = title.split(separator, 1)[0].strip()
+            break
+    if len(title) > _MAX_TASK_TITLE_CHARS:
+        for separator in ("(", "[", "{"):
+            if separator in title:
+                candidate = title.split(separator, 1)[0].strip()
+                if candidate:
+                    title = candidate
+                    break
+    if len(title) > _MAX_TASK_TITLE_CHARS:
+        title = title[:_MAX_TASK_TITLE_CHARS].rstrip(" -–—,./")
+    return title or "할 일"
 
 
 def is_korean_reply(text: str) -> bool:
@@ -384,7 +405,7 @@ def _parse_plan_days(raw_days: Any) -> list[PlanDay]:
             day_date = date.fromisoformat(str(day["date"]))
             tasks = [
                 TaskCandidate(
-                    title=item["title"],
+                    title=_normalize_task_title(item["title"]),
                     due_date=date.fromisoformat(str(item["due_date"])),
                     tags=item.get("tags") or [],
                 )
