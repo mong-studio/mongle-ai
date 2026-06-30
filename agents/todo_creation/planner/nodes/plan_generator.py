@@ -54,10 +54,12 @@ async def plan_generator_node(
     # LoRA는 검증된 시험 도메인에만 사용한다. 범용 목표를 base 모델로
     # 격리해 시험 특화 학습 내용이 다른 계획으로 새는 것을 막는다.
     llm = _select_generator(ports, state=state, parsed_goal=parsed_goal)
-    goal_tag = await llm.generate_goal_tag(
-        parsed_goal=parsed_goal,
-        history=state.get("history", []),
-    )
+    goal_tag = _normalize_goal_tag(parsed_goal.get("goal_tag"))
+    if not goal_tag:
+        goal_tag = await llm.generate_goal_tag(
+            parsed_goal=parsed_goal,
+            history=state.get("history", []),
+        )
     parsed_goal = {**parsed_goal, "goal_tag": goal_tag}
     summary_text, plan, used_safe_fallback = await _generate_plan_with_base_fallback(
         llm,

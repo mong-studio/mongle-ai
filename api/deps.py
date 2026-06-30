@@ -220,8 +220,13 @@ def build_todo_planner_ports(cfg: AppConfig) -> PlannerPorts:
     if cfg.planner_openai_base_url and cfg.planner_openai_model:
         return PlannerPorts(
             llm=planner_llm, classifier=planner_llm, validator=planner_llm
-        )
+    )
     base = _build_todo_llm(cfg, adapter="base")
+    if cfg.llm_provider == "runpod":
+        # TODO: RunPod 응답 시간이 안정되면 semantic validator 를 다시 켠다.
+        # 현재는 validator LLM 호출이 planner job 을 길게 pending 상태로 묶어둔다.
+        # return PlannerPorts(llm=planner_llm, classifier=base, validator=base)
+        return PlannerPorts(llm=planner_llm, classifier=base, validator=None)
     return PlannerPorts(llm=planner_llm, classifier=base, validator=base)
 
 

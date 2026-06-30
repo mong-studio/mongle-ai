@@ -10,6 +10,28 @@ from adapters._shared.runpod_client import RunPodJobError, run_and_poll
 from adapters.todo_creation.qwen_llm import DEFAULT_QWEN_MODEL, QwenLLM
 from agents.todo_creation.exceptions import LLMFailedError
 
+_LABEL_MAX_TOKENS = {
+    "classify_request": 256,
+    "judge_sufficiency": 700,
+    "follow_up": 256,
+    "goal_tag": 96,
+    "out_of_scope_reply": 256,
+    "split_tasks": 384,
+    "validate_plan": 384,
+    "plan": 1400,
+}
+
+_LABEL_POLL_TIMEOUT = {
+    "classify_request": 45.0,
+    "judge_sufficiency": 75.0,
+    "follow_up": 45.0,
+    "goal_tag": 30.0,
+    "out_of_scope_reply": 45.0,
+    "split_tasks": 60.0,
+    "validate_plan": 45.0,
+    "plan": 150.0,
+}
+
 
 class RunPodQwenLLM(QwenLLM):
     """QwenLLM 의 RunPod Serverless 버전 — complete_raw 만 오버라이드."""
@@ -46,11 +68,17 @@ class RunPodQwenLLM(QwenLLM):
         temperature: float | None = None,
         guided_json: dict | None = None,
     ) -> str:
+        request_max_tokens = min(
+            self.max_tokens, _LABEL_MAX_TOKENS.get(label, self.max_tokens)
+        )
+        request_poll_timeout = min(
+            self._poll_timeout, _LABEL_POLL_TIMEOUT.get(label, self._poll_timeout)
+        )
         job_input: dict = {
             "adapter": self._adapter,
             "messages": messages,
             "temperature": self.temperature if temperature is None else temperature,
-            "max_tokens": self.max_tokens,
+            "max_tokens": request_max_tokens,
             "top_p": self.top_p,
             "top_k": self.top_k,
             "repetition_penalty": self.repetition_penalty,
@@ -67,7 +95,7 @@ class RunPodQwenLLM(QwenLLM):
                 payload=payload,
                 label=label,
                 poll_interval=self._poll_interval,
-                poll_timeout=self._poll_timeout,
+                poll_timeout=request_poll_timeout,
             )
         except RunPodJobError as err:
             raise LLMFailedError(str(err)) from err

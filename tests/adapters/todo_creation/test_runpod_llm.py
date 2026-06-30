@@ -120,3 +120,29 @@ async def test_payload_includes_adapter() -> None:
         await _llm(adapter="planner").complete_raw(messages=MESSAGES)
     sent = client.post.call_args.kwargs["json"]
     assert sent["input"]["adapter"] == "planner"
+
+
+@pytest.mark.asyncio
+async def test_lightweight_labels_use_bounded_tokens_and_timeout() -> None:
+    run_and_poll = AsyncMock(return_value={"text": "ok"})
+    with patch("adapters.todo_creation.runpod_llm.run_and_poll", run_and_poll):
+        await _llm(max_tokens=2400, poll_timeout=300.0).complete_raw(
+            messages=MESSAGES, label="judge_sufficiency"
+        )
+
+    payload = run_and_poll.call_args.kwargs["payload"]
+    assert payload["input"]["max_tokens"] == 700
+    assert run_and_poll.call_args.kwargs["poll_timeout"] == 75.0
+
+
+@pytest.mark.asyncio
+async def test_plan_label_keeps_larger_generation_budget() -> None:
+    run_and_poll = AsyncMock(return_value={"text": "ok"})
+    with patch("adapters.todo_creation.runpod_llm.run_and_poll", run_and_poll):
+        await _llm(max_tokens=2400, poll_timeout=300.0).complete_raw(
+            messages=MESSAGES, label="plan"
+        )
+
+    payload = run_and_poll.call_args.kwargs["payload"]
+    assert payload["input"]["max_tokens"] == 1400
+    assert run_and_poll.call_args.kwargs["poll_timeout"] == 150.0
