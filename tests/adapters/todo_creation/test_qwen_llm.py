@@ -219,6 +219,35 @@ async def test_split_tasks_strips_code_fence() -> None:
     assert out.tasks[0].title == "운동가기"
 
 
+async def test_split_tasks_shortens_overlong_title() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "title": "C/CPP 1000-1800 (C/CPP 300-600) - C/CPP",
+                                "when": "오늘",
+                                "tags": ["학습"],
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    out = await llm.split_tasks(prompt="오늘 C/CPP 공부", today=date(2026, 5, 24))
+
+    assert out.tasks[0].title == "C/CPP 1000-1800"
+    assert len(out.tasks[0].title) <= 20
+
+
 # 재시도: 첫 응답이 JSON 이 아니면 스키마 강화 메시지로 1회 재요청한다.
 async def test_split_tasks_retries_once_on_invalid_json() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
@@ -676,6 +705,42 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert parsed_goal["personalization_patch"] == {"planning_style": ["짧은 TODO"]}
     serialized = json.dumps(_FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False)
     assert "전체 tasks 는 15개 이하" in serialized
+
+
+async def test_generate_plan_shortens_overlong_title() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "C/CPP 플랜",
+                        "days": [
+                            {
+                                "date": "2026-06-30",
+                                "tasks": [
+                                    {
+                                        "title": "C/CPP 1000-1800 (C/CPP 300-600) - C/CPP",
+                                        "due_date": "2026-06-30",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    _, days = await llm.generate_plan(
+        parsed_goal={"goal_text": "C언어 공부"}, today=date(2026, 6, 30)
+    )
+
+    assert days[0]["tasks"][0].title == "C/CPP 1000-1800"
+    assert len(days[0]["tasks"][0].title) <= 20
 
 
 def test_plan_guided_schema_caps_repetitive_fields() -> None:
