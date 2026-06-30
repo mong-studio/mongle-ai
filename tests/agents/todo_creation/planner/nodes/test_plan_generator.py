@@ -611,7 +611,43 @@ async def test_off_topic_symbol_title_falls_back_after_retry() -> None:
     assert llm.generate_calls == 2
     titles = [task.title for day in result["plan"] for task in day["tasks"]]
     assert all("BTC" not in title and "USDT" not in title for title in titles)
-    assert "범위 정리 30분" in titles
+    assert "SQL 응용 기출풀기" in titles
+
+
+async def test_numeric_placeholder_titles_fall_back_after_retry() -> None:
+    """D-day와 숫자만 있는 제목은 실행 가능한 일정이 아니므로 복구한다."""
+
+    contaminated: list[PlanDay] = [
+        {
+            "date": _TODAY + timedelta(days=index * 2),
+            "tasks": [
+                TaskCandidate(
+                    title=f"D-{20 - index} {5000 + index * 3000} {4000 + index * 2000} 10000",
+                    due_date=_TODAY + timedelta(days=index * 2),
+                )
+            ],
+        }
+        for index in range(2)
+    ]
+    llm = _FakeLLM(plan_response=("현재 수준은 입문으로 잡았어요.", contaminated))
+
+    result = await plan_generator_node(
+        _state(
+            {
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 실기 준비",
+                "goal_tag": "정보처리기사",
+                "deadline": _TODAY + timedelta(days=20),
+                "slots": {"exam_part": "실기"},
+            }
+        ),
+        _config(llm),
+    )
+
+    assert llm.generate_calls == 2
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert all(not title.startswith("D-") for title in titles)
+    assert "SQL 응용 기출풀기" in titles
 
 
 async def test_exam_part_mismatch_falls_back_after_retry() -> None:
@@ -640,6 +676,8 @@ async def test_exam_part_mismatch_falls_back_after_retry() -> None:
 
     assert llm.generate_calls == 2
     assert "필기" not in result["summary_text"]
+    titles = [task.title for day in result["plan"] for task in day["tasks"]]
+    assert "SQL 응용 기출풀기" in titles
 
 
 async def test_repeated_generic_plan_titles_fall_back() -> None:

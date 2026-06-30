@@ -1,4 +1,4 @@
-"""Qwen2.5-7B-Instruct + LoRA 추론 파이프라인 (RunPod Serverless 워커용).
+"""Open-model + LoRA 추론 파이프라인 (RunPod Serverless 워커용).
 
 한 이미지로 단독(엔드포인트당 LoRA 1개) 또는 멀티-LoRA 를 모두 지원한다.
 베이스 모델은 VRAM 에 한 번만 올라가고, 요청의 adapter 이름으로 LoRA 를 고른다.
@@ -17,7 +17,7 @@ from huggingface_hub import snapshot_download
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 
-# 베이스 모델은 빌드/배포 시 env(LLM_BASE_MODEL)로 고른다. 기본은 Qwen.
+# 베이스 모델은 빌드/배포 시 env(LLM_BASE_MODEL)로 고른다. 기본은 character용 Qwen.
 # 같은 이미지를 planner(EXAONE)·character(Qwen) 엔드포인트가 공유하므로 하드코딩 금지.
 # revision: 베이스를 바꾸면 Qwen 전용 핀이 안 맞으니 함께 주입한다. 빈 값이면 latest.
 _BASE_MODEL = os.environ.get("LLM_BASE_MODEL", "Qwen/Qwen2.5-7B-Instruct").strip()
@@ -58,12 +58,18 @@ _ADAPTER_ENV = {
 }
 
 
-class QwenLoraPipeline:
-    """vLLM 기반 Qwen2.5-7B + LoRA 추론 파이프라인 (단독·멀티 겸용)."""
+class LoraPipeline:
+    """vLLM 기반 base model + LoRA 추론 파이프라인 (단독·멀티 겸용)."""
 
     def __init__(self, *, adapters: dict[str, str]) -> None:
         hf_home = os.environ.get("HF_HOME", "/app/hf-cache")
         hf_token = os.environ.get("HF_TOKEN") or None
+        adapter_names = ", ".join(f"{name}={repo}" for name, repo in adapters.items())
+        print(
+            "[llm-worker] loading base="
+            f"{_BASE_MODEL} revision={_BASE_MODEL_REVISION or 'latest'} "
+            f"adapters=[{adapter_names}]"
+        )
 
         self._llm = LLM(
             model=_BASE_MODEL,
@@ -81,13 +87,16 @@ class QwenLoraPipeline:
         )
         self._tokenizer = self._llm.get_tokenizer()
         self._stop_token_ids = _turn_stop_token_ids(self._tokenizer)
+        print(f"[llm-worker] stop_token_ids={self._stop_token_ids}")
         # LoRA int id 는 1 부터 부여(0 은 베이스로 예약).
-        self._lora_requests = {
-            name: LoRARequest(
-                name, idx, snapshot_download(repo, cache_dir=hf_home, token=hf_token)
+        self._lora_requests = {}
+        for idx, (name, repo) in enumerate(adapters.items(), start=1):
+            local_path = snapshot_download(repo, cache_dir=hf_home, token=hf_token)
+            self._lora_requests[name] = LoRARequest(name, idx, local_path)
+            print(
+                "[llm-worker] registered adapter="
+                f"{name} repo={repo} local_path={local_path}"
             )
-            for idx, (name, repo) in enumerate(adapters.items(), start=1)
-        }
 
     def generate(
         self,
@@ -141,10 +150,10 @@ class QwenLoraPipeline:
         return outputs[0].outputs[0].text
 
 
-_pipeline: QwenLoraPipeline | None = None
+_pipeline: LoraPipeline | None = None
 
 
-def get_pipeline() -> QwenLoraPipeline:
+def get_pipeline() -> LoraPipeline:
     """워커 프로세스에서 파이프라인을 한 번만 로드(지연).
 
     환경변수가 설정된 어댑터만 등록한다(단독 엔드포인트는 1개, 합본은 2개).
@@ -161,5 +170,5 @@ def get_pipeline() -> QwenLoraPipeline:
                 f"LoRA repo 환경변수가 최소 1개 필요합니다: "
                 f"{', '.join(_ADAPTER_ENV.values())}"
             )
-        _pipeline = QwenLoraPipeline(adapters=adapters)
+        _pipeline = LoraPipeline(adapters=adapters)
     return _pipeline

@@ -8,6 +8,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from agents.todo_creation.config_utils import get_ports
+from agents.todo_creation.domain_knowledge import recommended_task_titles_for_goal
 from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.planner.allocator import expand_routine
 from agents.todo_creation.planner.conversation_style import render_chief_voice
@@ -37,6 +38,8 @@ _EXAM_CONTAMINATION_TERMS = (
 _GENERIC_TITLE_FILLERS = ("훈련", "연습", "준비", "시작", "계획", "세우기", "체크")
 _EXAM_PARTS = ("필기", "실기")
 _HANGUL_RE = re.compile(r"[가-힣]")
+_D_DAY_RE = re.compile(r"\bD\s*-\s*\d+\b", re.IGNORECASE)
+_NUMERIC_TOKEN_RE = re.compile(r"\d+")
 _OPAQUE_SYMBOL_RE = re.compile(
     r"\b(?:\d+[A-Z][A-Z0-9]*|[A-Z]{2,}[A-Z0-9]*|[A-Z]+[0-9]+[A-Z0-9]*)\b"
 )
@@ -422,8 +425,7 @@ def _deterministic_fallback_seed(
         _spread_dates(today, detailed_end, len(tasks), single_at_end=True),
     )
     summary = (
-        "처음 초안이 목표와 맞지 않아, 지금 확인된 정보만으로 "
-        "기본 실행안을 다시 잡았어요."
+        "확인된 목표 정보로 바로 실행할 수 있는 기본 초안을 잡았어요."
     )
     return summary, plan
 
@@ -432,6 +434,11 @@ def _fallback_titles(
     plan_kind: str, slots: dict[str, Any], *, parsed_goal: ParsedGoal
 ) -> list[str]:
     if plan_kind == "exam":
+        domain_titles = recommended_task_titles_for_goal(
+            parsed_goal, limit=_MAX_TASKS
+        )
+        if domain_titles:
+            return domain_titles
         return [
             "범위 정리 30분",
             "개념 복습 1회",
@@ -596,6 +603,9 @@ def _deterministic_issues(
     symbol_issue = _off_topic_symbol_issue(tasks, parsed_goal)
     if symbol_issue:
         return [symbol_issue]
+    numeric_issue = _numeric_placeholder_title_issue(tasks)
+    if numeric_issue:
+        return [numeric_issue]
     if parsed_goal.get("plan_kind") != "exam" and any(
         term in plan_text for term in _EXAM_CONTAMINATION_TERMS
     ):
@@ -619,8 +629,8 @@ def _deterministic_issues(
     if deadline and tasks[-1].due_date != latest_allowed:
         return ["마지막 일정 날짜가 상세 플랜 종료일과 다름"]
     # ponytail: Latin blocking 제거 — "Python", "GitHub" 같은 정상 기술 용어를 false positive 로
-    # 잡아 deterministic fallback 으로 빠지는 문제. 외국어 품질은 semantic validator 에 위임.
-    # 생성 단계 차단은 plan_guided_schema(outlines) 가 담당한다.
+    # 잡아 deterministic fallback 으로 빠지는 문제. 언어 품질은 semantic validator 에 위임하고,
+    # 생성 단계의 guided schema 는 구조/길이만 제한한다.
     return []
 
 
@@ -642,6 +652,23 @@ def _off_topic_symbol_issue(
         has_ratio = "%" in title
         if len(unknown) >= 2 or (unknown and has_ratio):
             return "목표와 무관한 코드형 일정 제목이 포함됨"
+    return None
+
+
+def _numeric_placeholder_title_issue(tasks: list[TaskCandidate]) -> str | None:
+    """숫자·D-day만으로 된 제목은 실행 단위가 아니므로 차단한다."""
+
+    for task in tasks:
+        title = task.title.strip()
+        if _HANGUL_RE.search(title) or not any(char.isdigit() for char in title):
+            continue
+        number_count = len(_NUMERIC_TOKEN_RE.findall(title))
+        title_without_d_day = _D_DAY_RE.sub("", title)
+        residue = re.sub(r"[\d\s:/.,~%+\-()·]+", "", title_without_d_day)
+        if not residue:
+            return "의미 없는 숫자 나열 일정 제목이 포함됨"
+        if _D_DAY_RE.search(title) and number_count >= 2:
+            return "의미 없는 D-day 숫자 일정 제목이 포함됨"
     return None
 
 

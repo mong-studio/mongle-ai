@@ -59,6 +59,25 @@
   **사진 있는 img2img 경로(표준 30-step)는 불변.** ⚠️ GPU 워커 재배포 필요(로컬 GPU 미검증).
 
 ### Fixed
+- **TODO planner LoRA 출력 스키마 호환 복구**: RunPod/HuggingFace planner LoRA가
+  `summary_text/todos/calendar_events` 런타임 응답 형태로 학습된 반면, 서빙 어댑터는
+  `summary_text/days`만 성공으로 인정해 `missing days → 재시도 → deterministic fallback`으로
+  떨어질 수 있던 문제를 수정했다. `generate_plan`의 guided JSON과 파서가 두 스키마를 모두
+  허용하고, LoRA가 낸 `todos/calendar_events`를 내부 `PlanDay`로 정규화한다. 프롬프트도 두
+  스키마를 명시해 정처기·토익·컴활·일상 등 SFT 데이터의 출력 습관을 런타임에서 살릴 수 있게 했다.
+  또한 title 문자 집합 regex를 guided decoding에서 제거해, CJK regex 제약 때문에 학습 데이터에
+  없는 `D-20 5000 4000`류 숫자 제목으로 무너지는 경로를 끊었다.
+- **RunPod planner EXAONE 배포 확인성 개선**: planner가 EXAONE 기반으로 전환된 상태에서
+  Qwen 시절 기본 LoRA repo가 다시 주입되지 않도록 최초 엔드포인트 생성 스크립트가
+  `LORA_PLANNER_REPO`를 필수 환경변수로 요구한다. LLM 워커 부팅 로그에는 실제
+  `LLM_BASE_MODEL`, revision, 등록된 LoRA repo, stop token id를 출력해 EXAONE base와
+  planner LoRA 조합이 맞는지 운영 로그에서 바로 확인할 수 있게 했다.
+- **TODO 플래너 정처기 실기 fallback 반복 완화**: `goal_tag`(6자 UI/DB 태그)만으로
+  도메인 위키를 찾던 결합을 끊고, `plan_kind`/`goal_text`/`slots.exam_part`를 함께 보는
+  공용 domain knowledge resolver를 추가했다. `goal_tag=정보처리기사`처럼 일반 태그여도
+  `exam_part=실기`면 `정처기실기.md`가 생성 프롬프트와 안전 플랜 양쪽에 적용된다. LLM 출력이
+  BTC 같은 목표 외 코드형 제목이나 필기/실기 불일치로 차단되어도 `범위 정리 30분` 고정
+  fallback 대신 위키의 추천 태스크(`SQL 응용 기출풀기`, `C언어 손코딩 연습` 등)로 복구한다.
 - **반복 루틴 응답 속도·일정 중복 수정**: 명확한 주간 횟수·요일이 있는 입력은 범용 classifier
   호출을 생략하고 planner judge 한 번으로 구조화한다. judge가 활동별 `routine_items`를 만들고,
   코드 전개기는 이를 선택 요일 순서에 배치하므로 헬스·러닝·학습 등 어떤 반복 활동도 회차별
