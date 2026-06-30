@@ -707,6 +707,52 @@ async def test_generate_plan_parses_days_and_personalization_patch() -> None:
     assert "전체 tasks 는 15개 이하" in serialized
 
 
+async def test_generate_plan_uses_exam_part_wiki_when_tag_is_generic() -> None:
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "실기 플랜",
+                        "days": [
+                            {
+                                "date": "2026-06-30",
+                                "tasks": [
+                                    {
+                                        "title": "SQL 응용 기출풀기",
+                                        "due_date": "2026-06-30",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    await llm.generate_plan(
+        parsed_goal={
+            "plan_kind": "exam",
+            "goal_text": "정처기 준비",
+            "goal_tag": "정보처리기사",
+            "slots": {"exam_part": "실기"},
+        },
+        today=date(2026, 6, 30),
+    )
+
+    serialized = json.dumps(
+        _FakeAsyncClient.calls[0]["json"]["messages"], ensure_ascii=False
+    )
+    assert "정보처리기사 실기 도메인 위키" in serialized
+    assert "SQL 응용 기출풀기" in serialized
+    assert "정보처리기사 필기 도메인 위키" not in serialized
+
+
 async def test_generate_plan_shortens_overlong_title() -> None:
     from adapters.todo_creation.qwen_llm import QwenLLM
 
@@ -743,8 +789,59 @@ async def test_generate_plan_shortens_overlong_title() -> None:
     assert len(days[0]["tasks"][0].title) <= 20
 
 
+async def test_generate_plan_accepts_sft_runtime_plan_schema() -> None:
+    """LoRA 학습 출력(todos/calendar_events)도 내부 days 로 정규화한다."""
+
+    from adapters.todo_creation.qwen_llm import QwenLLM
+
+    _FakeAsyncClient.responses = [
+        _FakeResponse(
+            _payload(
+                json.dumps(
+                    {
+                        "summary_text": "토익 2주 플랜",
+                        "todos": [
+                            {
+                                "title": "LC 오답 정리",
+                                "due_date": "2026-06-30",
+                                "tags": ["토익"],
+                            }
+                        ],
+                        "calendar_events": [
+                            {
+                                "title": "RC 시간 재기",
+                                "due_date": "2026-07-02",
+                                "tags": ["토익"],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        )
+    ]
+
+    llm = QwenLLM(base_url="http://qwen.test/v1")
+    summary, days = await llm.generate_plan(
+        parsed_goal={
+            "plan_kind": "exam",
+            "goal_text": "토익 2주 준비",
+            "goal_tag": "토익",
+        },
+        today=date(2026, 6, 30),
+    )
+
+    assert summary == "토익 2주 플랜"
+    assert [day["date"] for day in days] == [
+        date(2026, 6, 30),
+        date(2026, 7, 2),
+    ]
+    assert days[0]["tasks"][0].title == "LC 오답 정리"
+    assert days[1]["tasks"][0].title == "RC 시간 재기"
+
+
 def test_plan_guided_schema_caps_repetitive_fields() -> None:
-    """guided_json 이 title 반복 생성을 생성 단계에서 제한한다."""
+    """guided_json 은 구조·길이만 제한하고 title 문자 집합은 강제하지 않는다."""
 
     from adapters.todo_creation.qwen_llm import plan_guided_schema
 
@@ -754,8 +851,13 @@ def test_plan_guided_schema_caps_repetitive_fields() -> None:
 
     assert schema["properties"]["summary_text"]["maxLength"] == 1500
     assert schema["properties"]["days"]["maxItems"] == 30
+    assert schema["properties"]["todos"]["maxItems"] == 15
+    assert schema["properties"]["calendar_events"]["maxItems"] == 15
+    assert schema["required"] == ["summary_text"]
     assert day["properties"]["tasks"]["maxItems"] == 3
     assert task["properties"]["title"]["maxLength"] == 20
+    assert "pattern" not in task["properties"]["title"]
+    assert task["properties"]["tags"]["maxItems"] == 6
 
 
 async def test_generate_plan_retries_when_required_days_key_is_missing() -> None:

@@ -1,4 +1,4 @@
-"""RunPod Serverless 핸들러 — Qwen2.5 + 멀티 LoRA LLM 추론.
+"""RunPod Serverless 핸들러 — base model + 멀티 LoRA LLM 추론.
 
 입력:  {"input": {"adapter": "base|planner|character", "messages": [...],
                   "temperature": 0.1, "max_tokens": 800}}

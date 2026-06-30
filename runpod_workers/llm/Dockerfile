@@ -6,8 +6,9 @@ FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/app/hf-cache
 
-# 베이스 모델 선택(build-arg). 기본 Qwen → character 이미지는 그대로.
-# planner 이미지는 EXAONE 으로 빌드:
+# 베이스 모델 선택(build-arg). 기본은 character용 Qwen.
+# planner 이미지는 반드시 LoRA 학습 베이스와 같은 모델로 빌드한다.
+# 예: EXAONE 기반 LoRA 를 쓸 때만 아래처럼 override 한다.
 #   docker build --build-arg LLM_BASE_MODEL=LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct \
 #                --build-arg LLM_BASE_MODEL_REVISION= -t <planner-image> .
 # ENV 로 구워 두면 bake(빌드)와 pipeline(런타임)이 같은 모델을 본다(불일치 방지).
@@ -18,7 +19,7 @@ ENV LLM_BASE_MODEL=${LLM_BASE_MODEL} \
 
 WORKDIR /app
 
-# 공개 베이스 모델(Qwen2.5-7B-Instruct)을 먼저 구워 둔다.
+# 베이스 모델을 먼저 구워 둔다.
 # huggingface_hub 만 가볍게 깔아 굽고, 무거운 requirements 설치는 뒤로 미룬다.
 # (베이스 이미지엔 huggingface_hub 가 없으므로 반드시 먼저 설치해야 함)
 # 이렇게 하면 requirements.txt 변경이 이 15GB 다운로드 레이어 캐시를 무효화하지 않아,

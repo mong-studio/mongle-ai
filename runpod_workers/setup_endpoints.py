@@ -6,8 +6,9 @@
 필수 환경변수:
   RUNPOD_API_KEY            — RunPod API 키
   LLM_DOCKER_IMAGE          — character(Qwen) LLM 워커 이미지 (기본 빌드)
-  PLANNER_LLM_DOCKER_IMAGE  — planner LLM 워커 이미지 (EXAONE 베이스로 빌드한 것)
+  PLANNER_LLM_DOCKER_IMAGE  — planner LLM 워커 이미지 (LoRA 학습 베이스와 같은 모델로 빌드)
   IMAGE_DOCKER_IMAGE        — 이미지 워커 이미지 (예: docker.io/user/mongle-image-worker:latest)
+  LORA_PLANNER_REPO         — planner LoRA HF repo ID
 
 선택 환경변수:
   HF_TOKEN            — private HuggingFace repo 접근용
@@ -26,10 +27,10 @@ _WORKERS = [
         "label": "플래너 LLM (todo · quest)",
         "template_name": "mongle-planner-llm",
         "endpoint_name": "mongle-planner-llm",
-        # planner 는 EXAONE 베이스로 빌드한 별도 이미지를 쓴다(LoRA 가 EXAONE 기반).
+        # planner 이미지는 LoRA 학습 베이스와 같은 모델로 빌드해야 한다.
         "image_env": "PLANNER_LLM_DOCKER_IMAGE",
         "container_disk_gb": 5,
-        "env": {"LORA_PLANNER_REPO": "angreum/exaone-planner-lora"},
+        "env": {"LORA_PLANNER_REPO": os.environ.get("LORA_PLANNER_REPO", "").strip()},
         "result_key": "RUNPOD_PLANNER_ENDPOINT_URL",
         "template_secret_key": "RUNPOD_PLANNER_TEMPLATE_ID",
         "network_volume_id": "lmrw00ibp3",
@@ -130,7 +131,7 @@ def create_endpoint(
             "input": {
                 "name": name,
                 "templateId": template_id,
-                "gpuIds": "AMPERE_24",  # RTX 3090/4090 24 GB — Qwen 7B fp16 에 충분
+                "gpuIds": "AMPERE_24",  # RTX 3090/4090 24 GB — 7B급 fp16 추론용
                 "workersMin": 0,
                 "workersMax": 3,
                 "idleTimeout": 5,
@@ -157,6 +158,7 @@ def main() -> None:
             "LLM_DOCKER_IMAGE",
             "PLANNER_LLM_DOCKER_IMAGE",
             "IMAGE_DOCKER_IMAGE",
+            "LORA_PLANNER_REPO",
         )
         if not os.environ.get(k, "").strip()
     ]

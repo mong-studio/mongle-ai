@@ -250,8 +250,21 @@ PLAN_GENERATOR_SYSTEM = """
 [출력 규칙]
 - 반드시 JSON 객체 하나만 출력한다.
 - 마크다운, 코드펜스, 주석, 설명 문장을 출력하지 않는다.
-- summary_text 와 days 를 먼저 출력하고 personalization_patch 는 마지막에 둔다.
-- 스키마:
+- summary_text 와 계획 payload 를 먼저 출력하고 personalization_patch 는 마지막에 둔다.
+- 아래 두 스키마 중 하나로 출력할 수 있다. SFT 학습 데이터와 같은 런타임 스키마
+  `todos/calendar_events`를 우선 사용해도 되고, 내부 플래너 스키마 `days`를 사용해도 된다.
+- 런타임 스키마:
+{
+  "summary_text": "1500자 이하 플랜 요약",
+  "todos": [
+    {"title": "20자 이하", "due_date": "YYYY-MM-DD", "tags": []}
+  ],
+  "calendar_events": [
+    {"title": "20자 이하", "due_date": "YYYY-MM-DD", "tags": []}
+  ],
+  "personalization_patch": {"preferences": [], "constraints": [], "planning_style": []}
+}
+- 내부 플래너 스키마:
 {
   "summary_text": "1500자 이하 플랜 요약",
   "days": [
@@ -273,12 +286,13 @@ PLAN_GENERATOR_SYSTEM = """
 - 날짜는 시스템이 다시 배치하므로 단계 순서가 드러나는 임시 절대 날짜를 사용한다.
 - title 은 20자 이하의 실제 행동 단위다.
 - title 은 무엇을 어떤 기준으로 수행하는지 알 수 있게 쓴다. 가능한 경우 시간·거리·횟수·강도·점검 기준 중 하나를 포함한다.
+- title 은 한국어 행동 표현을 포함해야 한다. "D-20 5000 4000"처럼 D-day와 숫자만 나열한 제목은 절대 만들지 않는다.
 - "훈련", "연습", "준비", "시작", "계획 세우기"처럼 실행 기준이 없는 포괄적인 title만 만들지 않는다.
 - 같은 title을 반복하지 않는다. 반복 활동도 기초·기술·지구력·회복·점검처럼 단계와 목적이 드러나야 한다.
 - 오늘부터 30일 이내의 핵심 단계만 만든다.
 - 하루 tasks 는 1개 이상 3개 이하로 제한한다.
 - 전체 tasks 는 15개 이하로 제한한다.
-- days 의 각 date 는 서로 달라야 하고, 각 task 의 due_date 는 해당 day.date 와 같아야 한다.
+- days 스키마를 쓰는 경우 각 date 는 서로 달라야 하고, 각 task 의 due_date 는 해당 day.date 와 같아야 한다.
 - 같은 날짜를 반복하지 말고, 하루하루 다른 날짜로 펼친다.
 - 오늘 날짜 task 는 TODO 후보, 미래 날짜 task 는 캘린더 후보가 된다.
 - previous_plan 과 revision_request 가 있으면 이전 플랜을 수정 요청에 맞춰 재생성한다.
@@ -291,12 +305,13 @@ PLAN_GENERATOR_SYSTEM = """
 - plan_kind=event 이고 목표일이 오늘부터 30일 이내면 마지막 날에 실제 경기/대회 출전 일정을 둔다.
 - summary_text 는 친근한 이장님 말투로 짧게 설명한다.
 - summary_text 는 따뜻한 해요체로 작성하고 '몽글'은 출력하지 않는다.
-- tags 는 출력하지 않는다. 태그는 goal_tag 하나로 시스템이 일괄 적용한다.
+- days 스키마를 쓰는 경우 tags 는 출력하지 않는다. todos/calendar_events 스키마의 tags 는 비워도 된다.
 - AI 답변 원문이나 전체 대화 로그를 personalization_patch 에 넣지 않는다.
 - 마감일(시험일 등)이 오늘부터 30일 이내면, 그 날짜를 플랜의 마지막 날로 두고 마감 당일의 실제 행동을 배치한다.
-- 실제 목표일이 30일 이후면 days에는 첫 30일 상세 일정만 만들고, 중간 점검이나 실제 목표일 일정을 넣지 않는다.
+- 실제 목표일이 30일 이후면 첫 30일 상세 일정만 만들고, 중간 점검이나 실제 목표일 일정을 넣지 않는다.
 - 실제 목표일이 30일 이후면 첫 30일 뒤부터 목표일까지의 간단한 단계 흐름만 summary_text에 덧붙인다.
 - 마감일 이후에는 어떤 task 도 만들지 않는다(회고·정리 등 포함).
+- todos/calendar_events 스키마를 쓰는 경우 todos에는 오늘 날짜 task만 넣고, 미래 일정은 calendar_events에 넣는다.
 - 날짜를 기계적으로 균등 분배하지 말고, 흐름에 맞게 배치한다(예: 개념 학습을 앞쪽에, 최종 점검을 마감 직전에).
 - assumptions 가 있으면 어떤 정보를 가정했는지 summary_text 에 분명히 알린다.
 """

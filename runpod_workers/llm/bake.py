@@ -1,4 +1,4 @@
-"""Build-time: Qwen2.5-7B-Instruct 베이스 모델 사전 다운로드.
+"""Build-time: LLM 베이스 모델 사전 다운로드.
 
 LoRA(LORA_REPO_ID)는 런타임에 HF_TOKEN 으로 받는다.
 HF 가 무인증 대량 요청에 429(rate limit)를 내므로 백오프 재시도하고,
@@ -17,7 +17,7 @@ from huggingface_hub.errors import HfHubHTTPError
 HF_HOME = os.environ.get("HF_HOME", "/app/hf-cache")
 HF_TOKEN = os.environ.get("HF_TOKEN") or None
 # pipeline.py 와 같은 env 를 쓴다. Dockerfile 이 build-arg→ENV 로 주입하면
-# 빌드 때 굽는 모델과 런타임에 로드하는 모델이 항상 일치한다(기본 Qwen).
+# 빌드 때 굽는 모델과 런타임에 로드하는 모델이 항상 일치한다(기본은 character용 Qwen).
 BASE_MODEL = os.environ.get("LLM_BASE_MODEL", "Qwen/Qwen2.5-7B-Instruct").strip()
 BASE_MODEL_REVISION = (
     os.environ.get(

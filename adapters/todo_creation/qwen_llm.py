@@ -25,7 +25,6 @@ from typing import Any, cast
 
 import httpx
 
-from adapters.todo_creation._domain_wiki import load_wiki
 from adapters.todo_creation._prompts import (
     FOLLOW_UP_SYSTEM,
     GOAL_TAG_SYSTEM,
@@ -45,6 +44,7 @@ from adapters.todo_creation._prompts import (
     task_splitter_user,
 )
 from agents.todo_creation.exceptions import LLMFailedError, LLMOutputError
+from agents.todo_creation.domain_knowledge import resolve_domain_wiki
 from agents.todo_creation.planner.allocator import cadence_is_specific
 from agents.todo_creation.planner.slot_schemas import SLOT_SCHEMAS, missing_required
 from agents.todo_creation.schemas import MAX_TAG_LENGTH, SplitResult, TaskCandidate
@@ -243,10 +243,6 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
 # 재시도는 high-temp 로 샘플링 다양성을 줘 결정론적 실패를 탈출한다.
 _RETRY_TEMPERATURE = 0.7
 
-# 한국어-only 제목 패턴: 한글 음절 + 숫자 + 공백 + 한국어 흔한 구두점만 허용.
-# 외국 문자를 토큰 단계에서 차단 → 모델이 한글 표현으로 우회.
-# 대문자(IT, SQL, GitHub 등 통용 약어)는 허용, 소문자 단독 라틴어만 차단.
-_KOREAN_TITLE_PATTERN = r"^[가-힣A-Z0-9 ()·,.~/%\-]+$"
 _ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 _MAX_TASK_TITLE_CHARS = 20
 
@@ -305,6 +301,14 @@ def plan_guided_schema() -> dict[str, Any]:
     스키마가 문자열 길이를 막지 않으면 constrained decoding 이 title 문자열 안에서
     같은 말을 반복하다가 max_tokens 로 잘릴 수 있다. 런타임 TaskCandidate 제약과
     같은 길이를 생성 단계에도 걸어 JSON 을 닫을 수 있게 한다.
+
+    title 문자 집합은 regex 로 강제하지 않는다. vLLM guided decoding 이 CJK 범위
+    regex 와 결합되면 모델이 자연스러운 한국어 대신 숫자·대문자 토큰으로 우회하는
+    사례가 있어, 언어/의미 품질은 프롬프트와 사후 검증에 맡긴다.
+
+    SFT planner LoRA 는 최종 API 응답 형태(summary_text/todos/calendar_events)로
+    학습됐고, 현재 내부 planner 노드는 days 형태를 사용한다. 생성 단계에서는 두
+    스키마를 모두 허용하고 파서에서 하나로 정규화한다.
     """
     task = {
         "type": "object",
@@ -313,9 +317,13 @@ def plan_guided_schema() -> dict[str, Any]:
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 20,
-                "pattern": _KOREAN_TITLE_PATTERN,
             },
             "due_date": {"type": "string", "pattern": _ISO_DATE_PATTERN},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string", "maxLength": 12},
+                "maxItems": 6,
+            },
         },
         "required": ["title", "due_date"],
         "additionalProperties": False,
@@ -334,9 +342,11 @@ def plan_guided_schema() -> dict[str, Any]:
         "properties": {
             "summary_text": {"type": "string", "maxLength": 1500},
             "days": {"type": "array", "minItems": 1, "maxItems": 30, "items": day},
+            "todos": {"type": "array", "maxItems": 15, "items": task},
+            "calendar_events": {"type": "array", "maxItems": 15, "items": task},
             "personalization_patch": {"type": "object"},
         },
-        "required": ["summary_text", "days"],
+        "required": ["summary_text"],
         "additionalProperties": False,
     }
 
@@ -347,6 +357,7 @@ async def _complete_json_with_retry(
     messages: list[dict[str, str]],
     label: str,
     required_keys: tuple[str, ...] = (),
+    required_any_keys: tuple[str, ...] = (),
     temperature: float | None = None,
     guided_json: dict[str, Any] | None = None,
     korean_field: str | None = None,
@@ -370,6 +381,11 @@ async def _complete_json_with_retry(
             missing = [key for key in required_keys if key not in parsed]
             if missing:
                 raise LLMOutputError("missing required JSON keys: " + ", ".join(missing))
+            if required_any_keys and not any(key in parsed for key in required_any_keys):
+                raise LLMOutputError(
+                    "missing one of required JSON keys: "
+                    + ", ".join(required_any_keys)
+                )
             # 외국어 누출은 실패로 간주해 high-temp 재생성으로 탈출시킨다.
             if korean_field is not None:
                 value = str(parsed.get(korean_field) or "")
@@ -415,6 +431,47 @@ def _parse_plan_days(raw_days: Any) -> list[PlanDay]:
             raise LLMOutputError(f"invalid plan day {day!r}: {err}") from err
         days.append({"date": day_date, "tasks": tasks})
     return days
+
+
+def _parse_runtime_plan_days(parsed: dict[str, Any]) -> list[PlanDay]:
+    """Parse SFT/runtime-plan-v1 output into internal PlanDay groups."""
+
+    grouped: dict[date, list[TaskCandidate]] = {}
+    saw_plan_key = False
+    for key in ("todos", "calendar_events"):
+        raw_items = parsed.get(key)
+        if raw_items is None:
+            continue
+        saw_plan_key = True
+        if not isinstance(raw_items, list):
+            raise LLMOutputError(f"'{key}' is not a list")
+        for item in raw_items:
+            if not isinstance(item, dict):
+                raise LLMOutputError(f"invalid {key} item: {item!r}")
+            try:
+                due_date = date.fromisoformat(str(item["due_date"]))
+                task = TaskCandidate(
+                    title=_normalize_task_title(item["title"]),
+                    due_date=due_date,
+                    tags=item.get("tags") or [],
+                )
+            except (KeyError, ValueError, TypeError) as err:
+                raise LLMOutputError(f"invalid {key} item {item!r}: {err}") from err
+            grouped.setdefault(due_date, []).append(task)
+    if not saw_plan_key:
+        raise LLMOutputError("missing plan payload: days or todos/calendar_events")
+    return [
+        {"date": planned_date, "tasks": grouped[planned_date]}
+        for planned_date in sorted(grouped)
+    ]
+
+
+def _parse_generated_plan(parsed: dict[str, Any]) -> list[PlanDay]:
+    """Accept both internal days schema and SFT runtime-plan-v1 schema."""
+
+    if "days" in parsed:
+        return _parse_plan_days(parsed.get("days"))
+    return _parse_runtime_plan_days(parsed)
 
 
 @dataclass
@@ -711,13 +768,13 @@ class QwenLLM:
         self, *, parsed_goal: ParsedGoal, today: date
     ) -> tuple[str, list[PlanDay]]:
         system = PLAN_GENERATOR_SYSTEM
-        goal_tag = str(parsed_goal.get("goal_tag") or "")
-        wiki = load_wiki(goal_tag) if goal_tag else None
+        wiki = resolve_domain_wiki(parsed_goal)
         if wiki:
             system = (
-                system + f"\n\n[도메인 지식 — {goal_tag}]\n"
+                system + f"\n\n[도메인 지식 — {wiki.label}]\n"
                 "아래는 이 목표에 특화된 학습 전략 위키다. "
-                "플랜 생성 시 태스크 이름과 순서를 이 위키에 맞춰 만들어라.\n\n" + wiki
+                "플랜 생성 시 태스크 이름과 순서를 이 위키에 맞춰 만들어라.\n\n"
+                + wiki.content
             )
         messages = [
             {"role": "system", "content": system},
@@ -732,14 +789,15 @@ class QwenLLM:
             self,
             messages=messages,
             label="plan",
-            required_keys=("days",),
-            # 외국 문자 차단: task.title 을 한국어-only 로 강제(guided_json).
+            required_any_keys=("days", "todos", "calendar_events"),
+            # 구조와 길이만 제한한다. 제목 문자 집합까지 regex 로 강제하면
+            # guided decoding 이 자연스러운 한국어 대신 숫자/대문자 토큰으로 우회할 수 있다.
             guided_json=plan_guided_schema(),
         )
         summary = str(parsed.get("summary_text") or "").strip()
         if "personalization_patch" in parsed:
             parsed_goal["personalization_patch"] = parsed.get("personalization_patch") or {}
-        return summary, _parse_plan_days(parsed.get("days"))
+        return summary, _parse_generated_plan(parsed)
 
     async def generate_goal_tag(
         self, *, parsed_goal: ParsedGoal, history: list[Turn]
