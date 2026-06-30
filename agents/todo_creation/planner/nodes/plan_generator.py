@@ -35,6 +35,11 @@ _EXAM_CONTAMINATION_TERMS = (
     ),
 )
 _GENERIC_TITLE_FILLERS = ("훈련", "연습", "준비", "시작", "계획", "세우기", "체크")
+_EXAM_PARTS = ("필기", "실기")
+_HANGUL_RE = re.compile(r"[가-힣]")
+_OPAQUE_SYMBOL_RE = re.compile(
+    r"\b(?:\d+[A-Z][A-Z0-9]*|[A-Z]{2,}[A-Z0-9]*|[A-Z]+[0-9]+[A-Z0-9]*)\b"
+)
 
 log = logging.getLogger(__name__)
 
@@ -588,10 +593,16 @@ def _deterministic_issues(
     if len(tasks) > _MAX_TASKS:
         return [f"일정이 {_MAX_TASKS}개를 초과함"]
     plan_text = " ".join([summary_text, *(task.title for task in tasks)])
+    symbol_issue = _off_topic_symbol_issue(tasks, parsed_goal)
+    if symbol_issue:
+        return [symbol_issue]
     if parsed_goal.get("plan_kind") != "exam" and any(
         term in plan_text for term in _EXAM_CONTAMINATION_TERMS
     ):
         return ["비시험 목표에 시험 준비 내용이 포함됨"]
+    exam_part_issue = _exam_part_mismatch(plan_text, parsed_goal)
+    if exam_part_issue:
+        return [exam_part_issue]
     if parsed_goal.get("plan_kind") != "routine":
         normalized_titles = [re.sub(r"\s+", "", task.title) for task in tasks]
         if len(tasks) >= 4 and any(
@@ -611,6 +622,53 @@ def _deterministic_issues(
     # 잡아 deterministic fallback 으로 빠지는 문제. 외국어 품질은 semantic validator 에 위임.
     # 생성 단계 차단은 plan_guided_schema(outlines) 가 담당한다.
     return []
+
+
+def _off_topic_symbol_issue(
+    tasks: list[TaskCandidate], parsed_goal: ParsedGoal
+) -> str | None:
+    """목표 문맥에 없는 대문자/숫자 코드형 제목이 플랜을 지배하면 차단한다."""
+
+    context = _compact_goal_context(parsed_goal)
+    for task in tasks:
+        title = task.title.strip()
+        if _HANGUL_RE.search(title):
+            continue
+        unknown = [
+            token
+            for token in _OPAQUE_SYMBOL_RE.findall(title)
+            if token.upper() not in context
+        ]
+        has_ratio = "%" in title
+        if len(unknown) >= 2 or (unknown and has_ratio):
+            return "목표와 무관한 코드형 일정 제목이 포함됨"
+    return None
+
+
+def _compact_goal_context(parsed_goal: ParsedGoal) -> str:
+    values: list[str] = [
+        str(parsed_goal.get("goal_text") or ""),
+        str(parsed_goal.get("goal_tag") or ""),
+    ]
+    slots = parsed_goal.get("slots")
+    if isinstance(slots, dict):
+        values.extend(str(value) for value in slots.values())
+    return re.sub(r"[^0-9A-Z가-힣]", "", " ".join(values).upper())
+
+
+def _exam_part_mismatch(plan_text: str, parsed_goal: ParsedGoal) -> str | None:
+    if parsed_goal.get("plan_kind") != "exam":
+        return None
+    slots = parsed_goal.get("slots")
+    if not isinstance(slots, dict):
+        return None
+    expected = str(slots.get("exam_part") or "").strip()
+    if expected not in _EXAM_PARTS:
+        return None
+    opposite = "실기" if expected == "필기" else "필기"
+    if opposite in plan_text:
+        return f"시험 구분이 사용자 답변({expected})과 다름"
+    return None
 
 
 def _is_overly_generic_title(title: str, parsed_goal: ParsedGoal) -> bool:
