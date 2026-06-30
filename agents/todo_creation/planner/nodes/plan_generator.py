@@ -13,7 +13,6 @@ from agents.todo_creation.planner.allocator import expand_routine
 from agents.todo_creation.planner.conversation_style import render_chief_voice
 from agents.todo_creation.planner.goal_rules import (
     SUPPORTED_EXAM_DOMAINS,
-    is_supported_exam_context,
 )
 from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.schemas import MAX_TAG_LENGTH, TaskCandidate
@@ -408,7 +407,7 @@ def _deterministic_fallback_seed(
     deadline = parsed_goal.get("deadline")
     window_end = today + timedelta(days=_MAX_PLAN_DAYS - 1)
     detailed_end = min(max(today, deadline), window_end) if deadline else window_end
-    titles = _fallback_titles(plan_kind, slots)
+    titles = _fallback_titles(plan_kind, slots, parsed_goal=parsed_goal)
     tasks = [
         TaskCandidate(title=title, due_date=today, tags=[goal_tag])
         for title in titles[:_MAX_TASKS]
@@ -424,7 +423,9 @@ def _deterministic_fallback_seed(
     return summary, plan
 
 
-def _fallback_titles(plan_kind: str, slots: dict[str, Any]) -> list[str]:
+def _fallback_titles(
+    plan_kind: str, slots: dict[str, Any], *, parsed_goal: ParsedGoal
+) -> list[str]:
     if plan_kind == "exam":
         return [
             "범위 정리 30분",
@@ -443,6 +444,8 @@ def _fallback_titles(plan_kind: str, slots: dict[str, Any]) -> list[str]:
             "회복 상태 점검",
             "다음 단계 조정",
         ]
+    if plan_kind == "project":
+        return _project_fallback_titles(parsed_goal, slots)
     return [
         "현재 상태 정리",
         "핵심 작업 1개",
@@ -452,13 +455,67 @@ def _fallback_titles(plan_kind: str, slots: dict[str, Any]) -> list[str]:
     ]
 
 
+def _project_fallback_titles(
+    parsed_goal: ParsedGoal, slots: dict[str, Any]
+) -> list[str]:
+    text = " ".join(
+        str(value)
+        for value in (
+            parsed_goal.get("goal_text"),
+            parsed_goal.get("goal_tag"),
+            slots.get("goal"),
+            slots.get("current_state"),
+        )
+        if value
+    )
+    compact = text.replace(" ", "").lower()
+    if any(term in compact for term in ("데이터베이스", "database", "db", "sql", "erd")):
+        return [
+            "요구사항 목록 정리",
+            "엔티티 후보 작성",
+            "ERD 초안 만들기",
+            "테이블 컬럼 정의",
+            "샘플 데이터 입력",
+            "쿼리 동작 점검",
+        ]
+
+    topic = _fallback_topic(parsed_goal, slots)
+    if topic == "목표":
+        return [
+            "현재 상태 정리",
+            "핵심 작업 1개",
+            "초안 만들기 30분",
+            "진행 상태 점검",
+            "다음 단계 조정",
+        ]
+    return [
+        f"{topic} 범위 정리",
+        f"{topic} 첫 작업 선정",
+        f"{topic} 초안 30분",
+        f"{topic} 진행 점검",
+        f"{topic} 다음 단계 조정",
+    ]
+
+
+def _fallback_topic(parsed_goal: ParsedGoal, slots: dict[str, Any]) -> str:
+    for value in (
+        slots.get("goal"),
+        parsed_goal.get("goal_tag"),
+        parsed_goal.get("goal_text"),
+    ):
+        topic = re.sub(r"[^0-9A-Za-z가-힣]", "", str(value or ""))
+        if topic:
+            return topic[:8]
+    return "목표"
+
+
 def _append_plan_context(
     summary: str, *, parsed_goal: ParsedGoal, today: date
 ) -> str:
     parts = [summary.strip()] if summary.strip() else []
     assumptions = parsed_goal.get("assumptions") or []
     if assumptions:
-        parts.append("확인되지 않은 정보는 " + ", ".join(assumptions) + "으로 잡았어요.")
+        parts.extend(_sentence(str(item)) for item in assumptions if str(item).strip())
     deadline = parsed_goal.get("deadline")
     window_end = today + timedelta(days=_MAX_PLAN_DAYS - 1)
     if deadline and deadline > window_end:
@@ -468,6 +525,13 @@ def _append_plan_context(
             "점검하며 마무리하는 흐름으로 이어가면 돼요."
         )
     return " ".join(parts)
+
+
+def _sentence(value: str) -> str:
+    text = value.strip().rstrip(" ,.!?~")
+    if not text:
+        return ""
+    return text + "."
 
 
 def _render_summary(summary: str) -> str:
@@ -569,9 +633,29 @@ def _select_generator(
     state: PlannerGraphState,
     parsed_goal: ParsedGoal,
 ) -> Any:
-    if is_supported_exam_context(state, parsed_goal):
+    if _is_supported_exam_goal(parsed_goal):
         return ports.llm
     return getattr(ports, "classifier", None) or ports.llm
+
+
+def _is_supported_exam_goal(parsed_goal: ParsedGoal) -> bool:
+    """생성 단계에서는 planner가 확정한 exam 목표 자체를 기준으로 선택한다."""
+
+    if parsed_goal.get("plan_kind") != "exam":
+        return False
+    text = re.sub(
+        r"\s+",
+        "",
+        " ".join(
+            str(value or "")
+            for value in (parsed_goal.get("goal_text"), parsed_goal.get("goal_tag"))
+        ),
+    )
+    return any(
+        re.sub(r"\s+", "", alias) in text
+        for domain in SUPPORTED_EXAM_DOMAINS
+        for alias in domain.aliases
+    )
 
 
 def _normalize_goal_tag(value: Any) -> str:

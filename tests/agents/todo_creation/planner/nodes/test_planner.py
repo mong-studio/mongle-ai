@@ -280,6 +280,42 @@ async def test_unknown_goal_misclassified_as_exam_becomes_project_and_asks() -> 
 
 
 @pytest.mark.asyncio
+async def test_database_goal_does_not_trust_hallucinated_supported_exam() -> None:
+    """사용자가 지원 시험명을 말하지 않았다면 모델이 만든 정처기 맥락을 믿지 않는다."""
+
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            True,
+            [],
+            {
+                "intent": "plan",
+                "plan_kind": "exam",
+                "goal_text": "정보처리기사 데이터베이스 과목 준비",
+                "goal_tag": "정보처리기사",
+                "slots": {
+                    "exam_part": "필기",
+                    "current_level": "초보",
+                    "background": "비전공자",
+                },
+            },
+        )
+    )
+    state = {
+        "history": [{"role": "user", "content": "데이터베이스 구축이 어려워요"}],
+        "message": "데이터베이스 구축이 어려워요",
+        "today": date(2026, 6, 24),
+    }
+
+    cmd = await planner_node(state, _config(llm))
+
+    assert cmd.goto == "follow_up"
+    assert cmd.update["parsed_goal"]["plan_kind"] == "project"
+    assert cmd.update["parsed_goal"]["slots"] == {}
+    assert cmd.update["missing_aspects"] == ["horizon", "available_time"]
+
+
+@pytest.mark.asyncio
 async def test_project_slots_accumulate_across_follow_up_turns() -> None:
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
@@ -847,4 +883,8 @@ async def test_after_two_followups_keeps_deadline_unknown() -> None:
     assert cmd.update["parsed_goal"]["deadline"] is None
     assert any(
         "첫 30일" in item for item in cmd.update["parsed_goal"]["assumptions"]
+    )
+    assert all(
+        "horizon" not in item and "available_time" not in item
+        for item in cmd.update["parsed_goal"]["assumptions"]
     )
