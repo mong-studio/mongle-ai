@@ -35,7 +35,7 @@ HF repo·승격 게이트·A/B 노트북)을 `sft_pipeline/experiments/planner_s
 ```text
 sft_pipeline/experiments/planner_sft_v3/
 ├── README.md                 # 실행·평가·승격·롤백 절차
-├── contract_snapshot.py      # 서빙 계약 미러(프롬프트+guided JSON 스키마)
+├── contract.py               # 서빙 계약 스냅샷(프롬프트+guided JSON 스키마+파서)
 ├── goal_corpus.py            # 목표 분포 정의 + 시드 목표 목록
 ├── distill_dataset.py        # teacher 호출 → 검증 필터 → JSONL
 ├── data/planner_sft_v3_gold.jsonl
