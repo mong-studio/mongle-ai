@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, timedelta
 from typing import Any
@@ -101,3 +102,49 @@ def check_structure(plan: dict[str, Any], parsed_goal: dict[str, Any], today: da
                 issues.append(f"중복 배치: {key}")
             seen.add(key)
     return issues
+
+
+SEMANTIC_JUDGE_SYSTEM = """당신은 일정 계획의 논리성을 채점하는 심사자다.
+사용자 목표와 계획(JSON)을 보고 아래 4개 차원을 각각 1~5 정수로 채점한다.
+
+- M1 분배 합리성: "1일차, 2일차…" 식 기계적 균등 분할이 아니라 난이도와 맥락을 반영해 배분했는가
+- M2 시간 현실성: 항목당 부하가 현실적이고 무리한 몰아넣기가 없는가
+- M3 순서 논리: 선행→후행 의존을 지키는가 (점검은 실행 후, 기초는 심화 전)
+- M4 완결성: 이 계획대로 하면 사용자 목표가 실제로 달성되는가
+
+반드시 아래 JSON 형식으로만 답한다. 설명·서술 금지.
+{"M1": <1~5>, "M2": <1~5>, "M3": <1~5>, "M4": <1~5>}"""
+
+
+def semantic_judge_user(plan: dict[str, Any], parsed_goal: dict[str, Any]) -> str:
+    return (
+        f"[사용자 목표]\n{parsed_goal.get('goal_text')}"
+        f" (유형: {parsed_goal.get('plan_kind')})\n\n"
+        f"[계획]\n{json.dumps(plan, ensure_ascii=False)}"
+    )
+
+
+def parse_judge_reply(text: str) -> dict[str, Any]:
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"judge JSON 파싱 실패: {exc}") from exc
+    scores = {}
+    for key in ("M1", "M2", "M3", "M4"):
+        value = raw.get(key)
+        if not isinstance(value, int) or not 1 <= value <= 5:
+            raise ValueError(f"{key} 점수 범위 위반: {value!r}")
+        scores[key] = value
+    scores["average"] = round(sum(scores.values()) / 4, 2)
+    return scores
+
+
+def verdict(parse_ok: bool, structure_issues: list[str], semantic_avg: float | None) -> str:
+    """스펙 §5 판정 규칙. 구조 위반은 의미 점수로 희석하지 않는다."""
+    if not parse_ok or structure_issues:
+        return "DROP"
+    if semantic_avg is None or semantic_avg < 3.0:
+        return "DROP"
+    if semantic_avg < 4.0:
+        return "FIX"
+    return "ACCEPT"
