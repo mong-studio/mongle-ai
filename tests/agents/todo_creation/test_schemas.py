@@ -230,7 +230,6 @@ def test_out_of_scope_message_constant_nonempty() -> None:
 
 
 def test_todo_result_discriminates_candidates() -> None:
-    from datetime import date
     from pydantic import TypeAdapter
     from agents.todo_creation.schemas import TodoResult, CandidatesResult
 

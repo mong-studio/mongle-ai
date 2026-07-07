@@ -3,8 +3,6 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-from agents.character_creation.exceptions import S3UploadFailedError
-
 
 class LocalStorage:
     """Implements S3Port using in-memory storage.

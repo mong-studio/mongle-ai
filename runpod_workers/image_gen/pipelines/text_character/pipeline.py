@@ -85,7 +85,6 @@ def load_qwen(allow_cpu_offload: bool = False):
     allow_cpu_offload=True : VRAM 부족 시 일부 레이어를 CPU fp32로 분산
                              (SDXL 이후 2번째 로드 시 사용)
     """
-    import torch
     from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditionalGeneration
     if allow_cpu_offload:
         print("  Qwen2-VL 로드 중 (8bit + cpu offload)...")

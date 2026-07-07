@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import binascii
 import io
-import json
 import logging
 import os
 import traceback

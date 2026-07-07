@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-import pytest
-
 from agents.todo_creation.exceptions import LLMOutputError
 from agents.todo_creation.planner.nodes.plan_generator import plan_generator_node
 from agents.todo_creation.schemas import TaskCandidate
