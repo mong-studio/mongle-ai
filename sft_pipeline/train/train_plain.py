@@ -53,8 +53,10 @@ def load_rows(path):
 def build_tokenize_fn(tok):
     def _tok(d):
         msgs = d["messages"]
-        full = tok.apply_chat_template(msgs, tokenize=True, add_generation_prompt=False)
-        prompt = tok.apply_chat_template(msgs[:-1], tokenize=True, add_generation_prompt=True)
+        full_text = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)
+        full = tok(full_text, add_special_tokens=False)["input_ids"]
+        prompt_text = tok.apply_chat_template(msgs[:-1], tokenize=False, add_generation_prompt=True)
+        prompt = tok(prompt_text, add_special_tokens=False)["input_ids"]
         full = full[:MAX_LEN]
         cut = min(len(prompt), len(full))
         labels = [-100] * cut + full[cut:]
@@ -150,6 +152,14 @@ def main():
         r=16, lora_alpha=16, lora_dropout=0.0, bias="none",
         task_type="CAUSAL_LM", target_modules=TARGET_MODULES,
     )
+    # EXAONE × transformers 5.x: peft가 임베딩을 못 찾음 → 수동 노출
+    try:
+        _emb = model.get_input_embeddings()
+    except (NotImplementedError, AttributeError):
+        _emb = None
+    if _emb is None:
+        _e = next(m for m in model.modules() if isinstance(m, torch.nn.Embedding))
+        model.get_input_embeddings = lambda _e=_e: _e
     model = get_peft_model(model, lora)
     model.print_trainable_parameters()
 
@@ -168,7 +178,7 @@ def main():
         seed=42,
         report_to="none",
         save_strategy="no",
-        **({"eval_strategy": "epoch"} if valid_ds is not None else {}),
+        **({"eval_strategy": "no"} if valid_ds is not None else {}),
     )
     collator = DataCollatorForSeq2Seq(tok, padding=True, label_pad_token_id=-100)
     trainer = Trainer(

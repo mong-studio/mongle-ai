@@ -10,8 +10,8 @@
 # torch 는 RunPod PyTorch 베이스 이미지의 CUDA 빌드를 그대로 쓰므로 여기서 핀하지 않는다
 # (핀하면 베이스 이미지의 CUDA torch 를 덮어써 깨질 수 있다).
 
-unsloth
-trl>=0.12
+# unsloth  # EXAONE는 unsloth 미사용 (torch 2.10 재다운로드 유발)
+# trl>=0.12  # train_plain(표준 transformers+peft)에서 미사용
 peft>=0.13
 accelerate>=1.0
 bitsandbytes>=0.44
@@ -21,3 +21,4 @@ pydantic>=2.6,<3        # plan_schemas(추론 파서) 의존 — postcheck 에�
 # 재현성: 첫 GPU 학습이 성공하면 그 환경에서 정확한 버전을 고정하세요.
 #     uv pip freeze > sft_pipeline/train/requirements.lock.txt
 # (unsloth ↔ transformers/torch 호환 조합은 GPU 에서 검증 후에야 확정 가능)
+transformers==5.5.0  # EXAONE-3.5 호환 (최신 5.x는 create_causal_mask 시그니처 불일치)

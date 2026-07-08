@@ -101,7 +101,11 @@ def _load(adapter: str, base_model: str):
         base_model, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
     )
     # EXAONE × tf5.x: peft 가 임베딩을 못 찾음 → 수동 노출 (train_plain.py 와 동일 우회)
-    if not hasattr(model, "get_input_embeddings") or model.get_input_embeddings() is None:
+    try:
+        _emb = model.get_input_embeddings()
+    except (NotImplementedError, AttributeError):
+        _emb = None
+    if _emb is None:
         embedding = next(m for m in model.modules() if isinstance(m, nn.Embedding))
         model.get_input_embeddings = lambda: embedding
     if adapter and adapter != "base":
@@ -116,7 +120,10 @@ def _generate(model, tokenizer, system: str, user: str, max_new_tokens: int) -> 
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     ids = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, return_tensors="pt"
-    ).to(model.device)
+    )
+    if hasattr(ids, "input_ids"):
+        ids = ids["input_ids"]
+    ids = ids.to(model.device)
     with torch.no_grad():
         output = model.generate(ids, max_new_tokens=max_new_tokens, do_sample=False)
     return tokenizer.decode(output[0][ids.shape[-1]:], skip_special_tokens=True).strip()
