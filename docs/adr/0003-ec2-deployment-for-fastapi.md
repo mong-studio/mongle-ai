@@ -1,7 +1,9 @@
 # ADR-0003: FastAPI AI 서버 배포 플랫폼으로 EC2 선택
 
 **Date**: 2026-06-11
-**Status**: accepted
+**Status**: superseded — 2026-06-17 스튜디오 ADR-0005(RunPod AI 서빙 토폴로지)로 대체됨.
+FastAPI는 EC2가 아니라 **RunPod 상시 CPU Pod**에서 서빙 중이다(`.github/workflows/deploy-api.yml`).
+본 문서는 결정 당시의 기록으로만 유효하다.
 **Deciders**: 개발팀
 
 ## Context
