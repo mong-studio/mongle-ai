@@ -29,6 +29,9 @@ def _cors_origins() -> list[str]:
 
 
 def create_app() -> FastAPI:
+    from agents._shared.observability import init_langsmith
+
+    init_langsmith()
     app = FastAPI(title="Mongle AI Engine", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,

@@ -6,6 +6,8 @@ split_tasks · judge_sufficiency 등 모든 비즈니스 메서드는 그대로 
 """
 from __future__ import annotations
 
+from langsmith import traceable
+
 from adapters._shared.runpod_client import RunPodJobError, run_and_poll
 from adapters.todo_creation.qwen_llm import DEFAULT_QWEN_MODEL, QwenLLM
 from agents.todo_creation.exceptions import LLMFailedError
@@ -31,6 +33,10 @@ _LABEL_POLL_TIMEOUT = {
     "validate_plan": 45.0,
     "plan": 150.0,
 }
+
+
+def _drop_self(inputs: dict) -> dict:
+    return {k: v for k, v in inputs.items() if k != "self"}
 
 
 class RunPodQwenLLM(QwenLLM):
@@ -60,6 +66,7 @@ class RunPodQwenLLM(QwenLLM):
         self._poll_interval = poll_interval
         self._poll_timeout = poll_timeout
 
+    @traceable(run_type="llm", name="runpod_llm", process_inputs=_drop_self)
     async def complete_raw(
         self,
         *,
