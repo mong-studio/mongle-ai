@@ -1,7 +1,13 @@
 from llm_evaluation.langsmith.evaluators import (
     structure_valid, routing_correct, date_sanity, korean_only, frontend_contract,
-    plan_density,
+    plan_density, plan_split,
 )
+
+
+def _split_out(todos, events):
+    return {"kind": "candidates", "result": {
+        "kind": "candidates", "thread_id": "t", "todos": todos,
+        "calendar_events": events, "summary_text": "s", "personalization_patch": None}}
 
 _TODAY = "2026-07-15"
 
@@ -77,3 +83,31 @@ def test_plan_density_empty_is_zero():
 def test_plan_density_na_for_non_candidates():
     out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
     assert plan_density(out, {}, _inputs())["score"] is None
+
+
+def test_plan_split_good():
+    out = _split_out(
+        [_todo(title="시작", due="2026-07-15")],
+        [_todo(title="중간", due="2026-07-18"), _todo(title="마무리", due="2026-07-20")],
+    )
+    assert plan_split(out, {}, _inputs())["score"] == 1.0
+
+
+def test_plan_split_role_violation():
+    # 미래 날짜인데 todos 에 있음 → 역할 위반
+    out = _split_out([_todo(title="x", due="2026-07-18")], [])
+    assert plan_split(out, {}, _inputs())["score"] < 1.0
+
+
+def test_plan_split_duplicate_title():
+    out = _split_out(
+        [_todo(title="복습", due="2026-07-15")],
+        [_todo(title="복습", due="2026-07-18")],
+    )
+    r = plan_split(out, {}, _inputs())
+    assert r["score"] < 1.0 and "dup" in r["comment"]
+
+
+def test_plan_split_na_for_non_candidates():
+    out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
+    assert plan_split(out, {}, _inputs())["score"] is None

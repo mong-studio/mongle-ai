@@ -59,3 +59,12 @@ def test_month_day_rolls_to_next_year_when_already_past() -> None:
     )
 
     assert result == date(2027, 1, 10)
+
+
+def test_parses_relative_month() -> None:
+    today = date(2026, 7, 15)
+    # "다음 달까지" → 다음달 말일, "이번 달 말" → 이달 말일
+    assert parse_explicit_deadline("다음 달까지 포트폴리오", today=today) == date(2026, 8, 31)
+    assert parse_explicit_deadline("이번 달 말까지", today=today) == date(2026, 7, 31)
+    # 상대 월 표현 없으면 None
+    assert parse_explicit_deadline("포트폴리오 만들고 싶어", today=today) is None

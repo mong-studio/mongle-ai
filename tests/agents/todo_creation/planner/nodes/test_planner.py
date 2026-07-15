@@ -917,3 +917,59 @@ async def test_routine_cadence_recovered_from_followup_answer() -> None:
     cmd = await planner_node(state, _config(llm))
     # cadence 를 답변에서 복구 → 충분 → follow_up 이 아니라 plan_generator
     assert cmd.goto == "plan_generator"
+
+
+@pytest.mark.asyncio
+async def test_project_slots_filled_from_text() -> None:
+    """project: '다음 달까지'·'하루 2시간'을 코드가 추출해 horizon·available_time 을
+    채우면 되묻지 않고 plan_generator 로 간다."""
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            False,
+            ["horizon", "available_time"],
+            {
+                "intent": "plan",
+                "plan_kind": "project",
+                "goal_text": "포트폴리오 웹사이트",
+                "goal_tag": "포트폴리오",
+                "slots": {},
+            },
+        )
+    )
+    msg = "다음 달까지 포트폴리오 웹사이트 만들고 싶어, 하루 2시간 정도 가능해"
+    state = {
+        **_state(),
+        "today": date(2026, 7, 15),
+        "message": msg,
+        "history": [{"role": "user", "content": msg}],
+    }
+    cmd = await planner_node(state, _config(llm))
+    assert cmd.goto == "plan_generator"
+
+
+@pytest.mark.asyncio
+async def test_routine_weekday_cadence_filled_from_text() -> None:
+    """routine: '월수금'을 코드가 cadence 로 추출 → plan_generator."""
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            False,
+            ["cadence"],
+            {
+                "intent": "plan",
+                "plan_kind": "routine",
+                "goal_text": "러닝 루틴",
+                "goal_tag": "러닝",
+                "slots": {"activity": "러닝"},
+            },
+        )
+    )
+    state = {
+        **_state(),
+        "today": date(2026, 7, 15),
+        "message": "월수금 러닝 시작할래",
+        "history": [{"role": "user", "content": "월수금 러닝 시작할래"}],
+    }
+    cmd = await planner_node(state, _config(llm))
+    assert cmd.goto == "plan_generator"
