@@ -15,7 +15,7 @@
 | 월수금 러닝 | cadence | 요일 cadence 미추출(+복구 불가) |
 | 매일 아침 독서 | cadence | "매일" cadence 미추출(+복구 불가) |
 
-`json_mode`/`guided_json`(구조 강제화)는 **형식**만 보장하지 **값 추출**을 못 함. slots를 required로 강제하면 환각 유발(현재 프롬프트가 일부러 방지). LangChain OutputParser류는 파싱 오류 복구용이라 값 누락엔 무효. → **결정적으로 파싱 가능한 값(날짜·기간·빈도)은 코드가 텍스트에서 직접 추출**해야 한다(LLM-Modulo: 결정적인 건 코드가 authoritative).
+`json_mode`/`guided_json`(구조 강제화)는 **형식**만 보장하지 **값 추출**을 못 함. slots를 required로 강제하면 환각 유발(현재 프롬프트가 일부러 방지). LangChain OutputParser류는 파싱 오류 복구용이라 값 누락엔 무효. → **결정적으로 파싱 가능한 값(날짜·기간·빈도)은 코드가 텍스트에서 직접 추출**해야 한다(LLM-Modulo: 결정적인 건 코드가 소유).
 
 ## 목표 / 비목표
 
@@ -35,7 +35,7 @@
 ### 1. 파서 (기존 재사용 + 소량 확장)
 - **날짜** — `date_parser.parse_explicit_deadline(text, today)` **그대로 재사용**.
 - **빈도** — `allocator.recover_cadence` **확장**: 현재 "주 N회"만 → 명시 요일("월수금")·"매일"도 반환.
-- **기간** — **신설** `parse_daily_capacity(text) -> str | None`: "하루/매일 N시간·분" 정규식 파싱, 정규화 문자열 반환.
+- **기간** — **신설** `parse_daily_time(text) -> str | None`: "하루/매일 N시간·분" 정규식 파싱, 정규화 문자열 반환.
 
 ### 2. 추출 + 매핑 (planner_node 배선)
 `planner_node`의 else-분기(비 exam/event)에서 `missing_required` **직전에**, `collect_user_text(state)`로 추출한 값을 plan_kind 슬롯 이름에 매핑해 채운다:
