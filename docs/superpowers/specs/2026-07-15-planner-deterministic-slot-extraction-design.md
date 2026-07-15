@@ -49,14 +49,29 @@
 - 파서는 **보수적**(명확한 패턴만 발화) → 코드값 우선이라도 오파싱으로 정상값을 덮지 않게 방지.
 - exam/event는 이미 전용 normalize 경로가 있으므로, 매핑은 충돌 없이 보강만.
 
+## 검증 평가자 (신규 — "candidates가 적절히 나뉘어졌는가")
+플랜 분할 논리성 루브릭(evaluating-plan-coherence 스킬 3단 게이트)을 우리 스키마(todos/calendar_events·title/due_date/tags)에 적용. `llm_evaluation/langsmith/evaluators.py`.
+
+**`plan_split` (휴리스틱, Gate 2 구조)** — candidates만 채점:
+- 역할 분리(S1): 오늘 마감→`todos`, 미래→`calendar_events`, 같은 항목 중복 배치 금지, **제목 중복 금지**
+- 시간 논리(S2): 모든 due_date가 [today, 최대날짜] 범위·날짜 순서 정상
+- 점수: 위반 없으면 1, 위반 개수에 따라 감점(0~1)
+
+**`plan_quality` (LLM 판정, Gate 3 의미)** — candidates만 채점:
+- M1 분배 합리성(기계적 균등분할 아닌지)·M3 순서 논리(선행→후행)·M4 완결성(목표 달성) 1~5점
+- 기존 ports LLM(`judge`, EXAONE base)에 루브릭 프롬프트+guided_json으로 점수 요청 → 평균을 0~1로 정규화. **새 외부 모델·의존성 없음.**
+- 한계(정직): base가 자기 플래너 출력을 판정 → 약한 신호. 추후 상위 모델로 업그레이드 가능(별도).
+
 ## 테스트
 - **파서 순수 유닛테스트** — 실패 케이스 그대로: "다음 달까지"→date, "하루 2시간"/"매일 1시간"→duration, "월수금"/"매일"→freq. 각 pass/fail + 음성(추출 없어야 하는 모호 입력).
 - **배선 테스트** — planner_node에서 미추출 슬롯이 채워져 sufficient→plan_generator (iter3 회귀 테스트와 동형).
+- **평가자 테스트** — `plan_split` 순수 유닛(역할분리·중복·범위 위반 케이스), `plan_quality`는 fake judge로 점수 파싱 테스트.
 - **통합** — 19케이스 eval before(`planner-8b17283c`)/after.
 
 ## 성공 기준
 - 추출 실패 4건(포트폴리오·발표자료·월수금·매일 독서)이 **candidates 도달**(한국사는 분류 이슈라 제외).
 - routing_correct 상승, 다른 지표 회귀 0, 환각 슬롯 0(korean_only·structure_valid 유지).
+- **도달한 candidates가 `plan_split` 통과(역할분리·중복 없음) + `plan_quality` 측정됨** — "적절히 나뉘어졌는지"가 수치로 확인됨.
 
 ## 미해결(후속)
 - exam_part 파트 없는 시험(토익/JLPT), 한국사 project 오분류 = 별도 분류 iteration.
