@@ -23,6 +23,7 @@ from agents.todo_creation.planner.allocator import (
 )
 from agents.todo_creation.planner.goal_rules import (
     build_recovery_goal,
+    collect_user_text,
     delegates_planning,
     has_explicit_exam_context,
     is_competition_event_context,
@@ -149,9 +150,13 @@ async def planner_node(
         # 주 1회로 펴버린다. 슬롯이 모호하면 원문에서 cadence 를 결정적으로 복구한다.
         if plan_kind == "routine":
             slots = resolved_goal.get("slots") or {}
-            recovered = _recover_explicit_cadence(str(state.get("message") or ""))
+            # 멀티턴: follow_up 답변은 history/recent_turns 에만 실리고 state["message"]
+            # 는 첫 턴 그대로다. cadence("주 3회")가 답변에 있을 수 있으므로 현재+이전
+            # user 발화를 합친 텍스트에서 복구한다.
+            user_text = collect_user_text(state)
+            recovered = _recover_explicit_cadence(user_text)
             if recovered or not cadence_is_specific(str(slots.get("cadence") or "")):
-                recovered = recovered or recover_cadence(str(state.get("message") or ""))
+                recovered = recovered or recover_cadence(user_text)
                 if recovered:
                     resolved_goal["slots"] = {**slots, "cadence": recovered}
         if is_revision:

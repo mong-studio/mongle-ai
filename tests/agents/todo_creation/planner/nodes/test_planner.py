@@ -97,13 +97,8 @@ async def test_insufficient_goes_to_follow_up() -> None:
     cmd = await planner_node(state, _config(llm))
     assert cmd.goto == "follow_up"
     assert cmd.update["sufficiency"] is False
-    assert cmd.update["missing_aspects"] == [
-        "exam_part",
-        "exam_date",
-        "daily_hours",
-        "current_level",
-        "background",
-    ]
+    # exam required 는 blocking 슬롯만: exam_part·exam_date (Phase 2 over-clarification 제거).
+    assert cmd.update["missing_aspects"] == ["exam_part", "exam_date"]
     assert cmd.update["parsed_goal"]["goal_text"] == "정처기 준비"
 
 
@@ -378,7 +373,8 @@ async def test_called_with_history_and_message() -> None:
 
 @pytest.mark.asyncio
 async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
-    """follow_up가 반복돼도 정처기 필수 정보가 남으면 plan 생성을 막는지 확인한다."""
+    """exam blocking 슬롯(exam_part·exam_date)이 채워지면 background 같은 optional
+    슬롯이 없어도 되묻지 않고 plan_generator 로 진행하는지 확인한다(Phase 2)."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -419,8 +415,9 @@ async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
 
     cmd = await planner_node(state, _config(llm))
 
-    assert cmd.goto == "follow_up"
-    assert cmd.update["missing_aspects"] == ["background"]
+    # background 는 optional 이므로 exam_part·exam_date 가 있으면 plan 생성으로 진행한다.
+    assert cmd.goto == "plan_generator"
+    assert cmd.update["sufficiency"] is True
     llm.judge_sufficiency.assert_awaited_once()
 
 
@@ -888,3 +885,35 @@ async def test_after_two_followups_keeps_deadline_unknown() -> None:
         "horizon" not in item and "available_time" not in item
         for item in cmd.update["parsed_goal"]["assumptions"]
     )
+
+
+@pytest.mark.asyncio
+async def test_routine_cadence_recovered_from_followup_answer() -> None:
+    """멀티턴: cadence('주 3회')가 follow_up 답변(history)에만 있어도 복구해 plan 으로
+    진행한다. state['message']는 첫 턴 그대로라 예전엔 cadence 를 못 찾아 되물었다."""
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            False,
+            ["cadence"],
+            {
+                "intent": "plan",
+                "plan_kind": "routine",
+                "goal_text": "헬스 루틴",
+                "goal_tag": "헬스",
+                "slots": {"activity": "헬스"},  # cadence 슬롯 없음
+            },
+        )
+    )
+    state = {
+        **_state(),
+        "message": "운동 좀 해야겠어",  # 첫 턴 그대로 (답변은 history 에)
+        "history": [
+            {"role": "user", "content": "운동 좀 해야겠어"},
+            {"role": "assistant", "content": "얼마나 자주 하실 건가요?"},
+            {"role": "user", "content": "3주 동안 주 3회 헬스"},  # cadence 는 답변에
+        ],
+    }
+    cmd = await planner_node(state, _config(llm))
+    # cadence 를 답변에서 복구 → 충분 → follow_up 이 아니라 plan_generator
+    assert cmd.goto == "plan_generator"

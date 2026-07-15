@@ -102,13 +102,8 @@ async def test_insufficient_on_first_call_returns_follow_up() -> None:
 
     assert isinstance(result, FollowUpResult)
     assert result.question == "언제까지 완료하실 건가요, 몽글?"
-    assert result.missing_aspects == [
-        "exam_part",
-        "exam_date",
-        "daily_hours",
-        "current_level",
-        "background",
-    ]
+    # exam required 는 blocking 슬롯만: exam_part·exam_date (Phase 2 over-clarification 제거).
+    assert result.missing_aspects == ["exam_part", "exam_date"]
     assert result.thread_id  # non-empty
 
 

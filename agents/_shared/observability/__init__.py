@@ -1,3 +1,4 @@
+from agents._shared.observability.langsmith import init_langsmith, langsmith_enabled
 from agents._shared.observability.log_config import JsonFormatter, setup_logging
 from agents._shared.observability.trace_base import (
     BaseTraceCallback,
@@ -9,6 +10,8 @@ from agents._shared.observability.trace_base import (
 __all__ = [
     "BaseTraceCallback",
     "JsonFormatter",
+    "init_langsmith",
+    "langsmith_enabled",
     "pipeline_id_var",
     "session_id_var",
     "setup_logging",

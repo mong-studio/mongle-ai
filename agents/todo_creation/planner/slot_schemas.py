@@ -14,7 +14,7 @@ from dataclasses import dataclass
 class Slot:
     key: str
     question_hint: str  # follow_up 질문 생성 힌트
-    priority: int       # 작을수록 먼저 묻는다
+    priority: int  # 작을수록 먼저 묻는다
 
 
 @dataclass(frozen=True)
@@ -30,11 +30,14 @@ SLOT_SCHEMAS: dict[str, PlanSchema] = {
         required=(
             Slot("exam_part", "필기/실기 중 어떤 시험인지", 1),
             Slot("exam_date", "시험일 또는 남은 기간", 2),
+        ),
+        # daily_hours/current_level/background 는 없어도 합리적 기본값으로 플랜 생성이
+        # 가능하므로 optional. 있으면 slots 에 보존하되 없다고 되묻지 않는다
+        # (Clarify-When-Necessary·LLM-Modulo: 막히는 슬롯만 질문, 나머지는 기본값+검증기)
+        optional=(
             Slot("daily_hours", "하루 공부 가능 시간", 3),
             Slot("current_level", "현재 진도/수준", 4),
             Slot("background", "전공자/비전공자 여부", 5),
-        ),
-        optional=(
             Slot("weak_subjects", "약한 과목", 6),
             Slot("goal", "목표 점수/결과", 7),
         ),
