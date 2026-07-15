@@ -1,0 +1,6 @@
+﻿model_key,task,samples,auto_score,json_parse_success_rate,schema_success_rate,korean_output_rate,length_success_rate,forbidden_count,avg_latency_sec,total_latency_sec,avg_generated_tokens,avg_tokens_per_sec,speed_score,judge_score,final_score,samples_per_min
+exaone,character_message_generation,10,4.245,1.0,1.0,1.0,1.0,0,2.163,21.634,,,4.95,,,27.734
+exaone,feed_post_generation,20,4.744,1.0,1.0,1.0,1.0,0,2.664,53.273,,,4.795,,,22.526
+exaone,planner_chatbot,20,4.22,0.85,0.85,1.0,1.0,0,5.361,107.218,,,4.914,,,11.192
+exaone,quest_generation,20,3.964,0.9,0.9,1.0,0.0,0,2.113,42.261,,,4.961,,,28.395
+exaone,todo_decomposition,20,4.48,0.8,0.8,1.0,1.0,0,2.688,53.764,,,4.788,,,22.32
