@@ -97,13 +97,8 @@ async def test_insufficient_goes_to_follow_up() -> None:
     cmd = await planner_node(state, _config(llm))
     assert cmd.goto == "follow_up"
     assert cmd.update["sufficiency"] is False
-    assert cmd.update["missing_aspects"] == [
-        "exam_part",
-        "exam_date",
-        "daily_hours",
-        "current_level",
-        "background",
-    ]
+    # exam required 는 blocking 슬롯만: exam_part·exam_date (Phase 2 over-clarification 제거).
+    assert cmd.update["missing_aspects"] == ["exam_part", "exam_date"]
     assert cmd.update["parsed_goal"]["goal_text"] == "정처기 준비"
 
 
@@ -378,7 +373,8 @@ async def test_called_with_history_and_message() -> None:
 
 @pytest.mark.asyncio
 async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
-    """follow_up가 반복돼도 정처기 필수 정보가 남으면 plan 생성을 막는지 확인한다."""
+    """exam blocking 슬롯(exam_part·exam_date)이 채워지면 background 같은 optional
+    슬롯이 없어도 되묻지 않고 plan_generator 로 진행하는지 확인한다(Phase 2)."""
     llm = AsyncMock()
     llm.judge_sufficiency = AsyncMock(
         return_value=(
@@ -419,8 +415,9 @@ async def test_repeated_follow_up_falls_back_to_plan_generation() -> None:
 
     cmd = await planner_node(state, _config(llm))
 
-    assert cmd.goto == "follow_up"
-    assert cmd.update["missing_aspects"] == ["background"]
+    # background 는 optional 이므로 exam_part·exam_date 가 있으면 plan 생성으로 진행한다.
+    assert cmd.goto == "plan_generator"
+    assert cmd.update["sufficiency"] is True
     llm.judge_sufficiency.assert_awaited_once()
 
 
