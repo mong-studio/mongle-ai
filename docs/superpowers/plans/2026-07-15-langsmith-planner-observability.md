@@ -769,9 +769,171 @@ git commit -m "feat: LangSmith planner 평가 실행 스크립트 (aevaluate + �
 
 ---
 
+## Task 6: 이전/이후 비교 리포트 (자동)
+
+**Files:**
+- Create: `llm_evaluation/langsmith/compare.py`
+- Test: `tests/llm_evaluation/test_compare.py`
+
+**목적:** LangSmith 내장 비교 뷰(수동 스크린샷)와 별개로, 두 실험의 평가자별 평균
+점수를 SDK로 뽑아 **self-contained HTML 비교표**(before→after delta, 회귀는 빨강)로
+남긴다. 재현·공유 가능한 산출물. (LangSmith는 스크린샷을 API로 안 주므로 화면 캡처는
+수동, 이 리포트는 코드 생성.)
+
+**Interfaces:**
+- Consumes: `Client.read_project(project_name=...).feedback_stats` (evaluator_key →
+  `{"n": int, "avg": float}`).
+- Produces: `experiment_scores(client, experiment: str) -> dict[str, float]`
+  (evaluator_key → avg), `render_comparison_html(before: dict[str, float], after: dict[str, float], *, before_name: str, after_name: str) -> str`.
+
+- [ ] **Step 1: Write the failing test**
+
+`tests/llm_evaluation/test_compare.py`:
+```python
+from llm_evaluation.langsmith.compare import render_comparison_html
+
+
+def test_render_shows_delta_and_regression():
+    before = {"structure_valid": 1.0, "routing_correct": 0.8, "date_sanity": 1.0}
+    after = {"structure_valid": 1.0, "routing_correct": 0.6, "korean_only": 0.9}
+    html = render_comparison_html(before, after, before_name="A", after_name="B")
+    assert "<table" in html and "</html>" not in html  # 조각이 아니라 self-contained 문서
+    assert "routing_correct" in html
+    assert "-0.20" in html          # 0.8 → 0.6 회귀 delta 표기
+    assert "korean_only" in html    # after 에만 있는 평가자도 행에 포함
+    assert "structure_valid" in html
+
+
+def test_render_handles_missing_keys_as_na():
+    html = render_comparison_html({"a": 1.0}, {}, before_name="A", after_name="B")
+    assert "n/a" in html  # after 에 없는 지표는 n/a
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/llm_evaluation/test_compare.py -v`
+Expected: FAIL (ModuleNotFoundError: compare)
+
+- [ ] **Step 3: Write minimal implementation**
+
+`llm_evaluation/langsmith/compare.py`:
+```python
+"""두 LangSmith 실험의 평가자 평균을 뽑아 before/after HTML 비교표를 만든다.
+
+실행:
+  uv run python -m llm_evaluation.langsmith.compare <before_experiment> <after_experiment> -o compare.html
+"""
+from __future__ import annotations
+
+import argparse
+import html as _html
+
+
+def experiment_scores(client, experiment: str) -> dict[str, float]:
+    """실험(=LangSmith project)의 평가자별 평균 점수를 반환."""
+    stats = client.read_project(project_name=experiment).feedback_stats or {}
+    return {key: float(v.get("avg", 0.0)) for key, v in stats.items()}
+
+
+def _fmt(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.2f}"
+
+
+def render_comparison_html(
+    before: dict[str, float],
+    after: dict[str, float],
+    *,
+    before_name: str,
+    after_name: str,
+) -> str:
+    """self-contained HTML 문서(인라인 CSS, 라이트/다크 대응) 반환."""
+    keys = sorted(set(before) | set(after))
+    rows = []
+    for k in keys:
+        b, a = before.get(k), after.get(k)
+        delta = None if (b is None or a is None) else a - b
+        color = ""
+        if delta is not None and delta < 0:
+            color = ' style="color:#d33"'   # 회귀
+        elif delta is not None and delta > 0:
+            color = ' style="color:#2a2"'   # 개선
+        delta_txt = "n/a" if delta is None else f"{delta:+.2f}"
+        rows.append(
+            f"<tr><td>{_html.escape(k)}</td><td>{_fmt(b)}</td>"
+            f"<td>{_fmt(a)}</td><td{color}>{delta_txt}</td></tr>"
+        )
+    body = "\n".join(rows)
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Planner eval: before/after</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
+  table {{ border-collapse: collapse; }}
+  th, td {{ border: 1px solid #8884; padding: .4rem .8rem; text-align: right; }}
+  th:first-child, td:first-child {{ text-align: left; }}
+  @media (prefers-color-scheme: dark) {{ body {{ background:#111; color:#eee; }} }}
+</style></head><body>
+<h1>Planner 평가 비교</h1>
+<p>{_html.escape(before_name)} → {_html.escape(after_name)}</p>
+<table>
+<thead><tr><th>evaluator</th><th>{_html.escape(before_name)}</th>
+<th>{_html.escape(after_name)}</th><th>Δ</th></tr></thead>
+<tbody>
+{body}
+</tbody></table>
+</body></html>"""
+
+
+def main() -> None:
+    from langsmith import Client
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("before")
+    ap.add_argument("after")
+    ap.add_argument("-o", "--out", default="compare.html")
+    args = ap.parse_args()
+
+    client = Client()
+    html_doc = render_comparison_html(
+        experiment_scores(client, args.before),
+        experiment_scores(client, args.after),
+        before_name=args.before,
+        after_name=args.after,
+    )
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(html_doc)
+    print(f"작성: {args.out}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/llm_evaluation/test_compare.py -v`
+Expected: PASS (2 passed)
+
+- [ ] **Step 5: 스모크 (두 실험 필요 — 수동)**
+
+run_eval을 두 번 돌려 실험 두 개(예: `planner-abc123`, `planner-def456`)를 만든 뒤:
+Run: `uv run python -m llm_evaluation.langsmith.compare planner-abc123 planner-def456 -o compare.html`
+Expected: `compare.html` 생성. 브라우저로 열어 평가자별 before→after·delta 확인.
+(실험 이름은 `aevaluate` 출력 또는 LangSmith 프로젝트 목록에서 확인.)
+
+> 이 HTML은 self-contained라 Artifact로 공유 링크 발행도 가능.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add llm_evaluation/langsmith/compare.py tests/llm_evaluation/test_compare.py
+git commit -m "feat: 이전/이후 실험 비교 HTML 리포트"
+```
+
+---
+
 ## Self-Review 결과
 
-- **Spec 커버리지**: Tracing(Task 1) / 휴리스틱·frontend_contract(Task 2) / judge 재사용·꼬리질문(Task 3) / 멀티턴 데이터셋(Task 4) / 라이브 RunPod target·실험(Task 5) — spec의 두 컴포넌트 + 추가 두 관점 모두 태스크 있음.
+- **Spec 커버리지**: Tracing(Task 1) / 휴리스틱·frontend_contract(Task 2) / judge 재사용·꼬리질문(Task 3) / 멀티턴 데이터셋(Task 4) / 라이브 RunPod target·실험(Task 5) / 이전-이후 비교 리포트(Task 6) — spec의 두 컴포넌트 + 추가 세 관점(꼬리질문·프론트 계약·before/after) 모두 태스크 있음.
 - **Placeholder**: 모든 스텝에 실제 코드/명령/기대출력 있음. TBD 없음.
 - **타입 일관성**: 평가자 반환 규약 `{"key","score","comment"}`, target 출력 `{"kind","result"}`, example `inputs/reference_outputs` 규약이 Task 2·3·4·5에서 일치. `judge_sufficiency` 시그니처 = 확정 인터페이스와 일치.
 - **알려진 한계(ceiling)**: `validate_plan`(중간 PlanDay/ParsedGoal 필요)은 최종 결과에 미노출이라 미사용 → judge_sufficiency로 대체. 중간 상태를 노출하면 더 정밀한 plan_coherence로 업그레이드 가능. `feat/planner-all-openai` 머지 시 `@traceable` wrap 불필요(langchain-native 자동 추적).
