@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from agents.todo_creation.planner.allocator import (
     cadence_is_specific,
     expand_routine,
+    parse_daily_time,
     recover_cadence,
 )
 
@@ -15,6 +16,31 @@ def test_recover_cadence_from_message() -> None:
     assert recover_cadence("weekly") is None
     assert recover_cadence("매주") is None
     assert recover_cadence("") is None
+
+
+def test_recover_cadence_weekdays_and_daily() -> None:
+    # 연속 요일 글자(월수금)는 cadence 로 복구
+    assert recover_cadence("월수금 러닝 시작할래") == "월수금"
+    assert recover_cadence("화목 요가") == "화목"
+    # "매일" 은 daily cadence
+    assert recover_cadence("매일 아침 30분 독서") == "매일"
+
+
+def test_recover_cadence_no_false_positive_on_dates() -> None:
+    # 단일 요일 글자(금요일/토요일/일주일)는 날짜라 cadence 로 오탐하지 않는다
+    assert recover_cadence("이번 주 금요일까지") is None
+    assert recover_cadence("토요일에 등산") is None
+    assert recover_cadence("일주일 뒤에") is None
+
+
+def test_parse_daily_time() -> None:
+    assert parse_daily_time("하루 2시간 정도 낼 수 있어") == "하루 2시간"
+    assert parse_daily_time("매일 1시간씩") == "하루 1시간"
+    assert parse_daily_time("하루 30분") == "하루 30분"
+    assert parse_daily_time("하루에 3시간") == "하루 3시간"
+    # 기간 표현 없으면 None
+    assert parse_daily_time("그냥 운동하고 싶어") is None
+    assert parse_daily_time("") is None
 
 
 def test_cadence_is_specific_true_for_count_weekday_daily() -> None:

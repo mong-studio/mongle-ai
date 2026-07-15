@@ -43,21 +43,61 @@ _DAILY_WORDS = ("매일", "날마다", "데일리", "매일매일")
 _FREQ_RE = re.compile(r"(\d+)\s*(?:회|번)")
 
 
-def recover_cadence(text: str) -> str | None:
-    """모델이 빈도를 'weekly' 같은 영어 period 로 뭉개 떨어뜨릴 때 원문에서 복구한다.
+def _weekday_run(text: str) -> str | None:
+    """연속된 요일 글자 런 중 길이>=2인 최장 런을 돌려준다.
 
-    예: "매주 3회 물 마실거야" → "주 3회", "일주일에 2번" → "주 2회".
-    슬롯에 "3회" 가 들어있었는데 모델이 카운트를 잃어버리는 결함의 결정적 안전망.
-    요일("월수금") 추출은 '일주일'·'요일'·'평일' 등이 요일 글자를 품어 오탐이 많으므로
-    숫자 빈도(N회/번)만 신뢰한다 — 못 찾으면 None 으로 follow_up 되묻기에 맡긴다.
+    "월수금"은 잡고, 단일 요일이 다른 글자에 섞인 '금요일'·'일주일'·'토요일'은
+    런 길이 1이라 걸러진다(날짜/기간 표현과의 오탐 방지).
+    """
+    best = ""
+    run = ""
+    for ch in text:
+        if ch in _WEEKDAY_CHARS:
+            run += ch
+        else:
+            if len(run) >= 2 and len(run) > len(best):
+                best = run
+            run = ""
+    if len(run) >= 2 and len(run) > len(best):
+        best = run
+    return best or None
+
+
+def recover_cadence(text: str) -> str | None:
+    """원문에서 cadence 를 결정적으로 복구한다. 못 찾으면 None(→ follow_up 되묻기).
+
+    우선순위: 매일 > 명시 요일(월수금) > 숫자 빈도(주 N회).
+    모델이 빈도를 'weekly' 로 뭉개거나 슬롯에서 누락하는 결함의 안전망.
+    단일 요일 글자('금요일'·'일주일')는 날짜/기간이라 요일 cadence 로 보지 않는다.
     """
     if not text:
         return None
+    if any(word in text for word in _DAILY_WORDS):
+        return "매일"
+    weekdays = _weekday_run(text)
+    if weekdays:
+        return weekdays
     match = _FREQ_RE.search(text)
     if match:
         count = max(1, min(7, int(match.group(1))))
         return f"주 {count}회"
     return None
+
+
+_DAILY_TIME_RE = re.compile(r"(?:하루|매일|날마다)\s*(?:에)?\s*(\d+)\s*(시간|분)")
+
+
+def parse_daily_time(text: str) -> str | None:
+    """'하루/매일 N시간·분' 을 결정적으로 파싱해 '하루 N시간'/'하루 N분' 으로 정규화.
+
+    사용자가 명시한 하루 가용 시간(available_time/daily_hours)을 모델 대신 코드가 뽑는다.
+    """
+    if not text:
+        return None
+    match = _DAILY_TIME_RE.search(text)
+    if not match:
+        return None
+    return f"하루 {match.group(1)}{match.group(2)}"
 
 
 def cadence_is_specific(cadence: str) -> bool:

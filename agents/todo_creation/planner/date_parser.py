@@ -86,7 +86,20 @@ def _parse_relative_day(text: str, *, today: date) -> date | None:
     if match:
         return today + timedelta(days=30 * int(match.group(1)))
 
+    # 상대 월 마감: "이번 달 말/이번 달" → 이달 말일, "다음 달/담달" → 다음달 말일
+    if "이번달말" in text or "이달말" in text:
+        return _end_of_month(today)
+    if "다음달" in text or "담달" in text:
+        return _end_of_month(_end_of_month(today) + timedelta(days=1))
+    if "이번달" in text:
+        return _end_of_month(today)
+
     return None
+
+
+def _end_of_month(value: date) -> date:
+    first_of_next = (value.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return first_of_next - timedelta(days=1)
 
 
 def _parse_weekday(text: str, *, today: date) -> date | None:
