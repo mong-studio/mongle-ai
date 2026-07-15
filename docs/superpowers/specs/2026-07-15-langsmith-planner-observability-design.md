@@ -6,12 +6,19 @@
 
 ## 배경 / 문제
 
-RunPod serverless에 떠 있는 planner(EXAONE base + planner LoRA)가 실제로 잘 도는지
-세 가지를 확인하고 싶다.
+RunPod serverless에 떠 있는 planner(**EXAONE-3.5 base + planner LoRA 어댑터**)의
+출력을 확인하고, **그 결과를 근거로 프롬프트와 그래프 구조를 고쳐 개선하는 것**이
+메인 목적이다. 초기에 언급된 세 가지 확인 항목:
 
 1. 플랜이 구조화되어 잘 출력되는가
 2. LangGraph·LangChain을 모두 써서 최적화되어 있는가
 3. frontend에서 어떤 질문에서든 원하는 답이 정확하게 나오는가
+
+**중요 — 베이스는 EXAONE, Qwen 아님.** 어댑터 클래스 이름 `QwenLLM`/`RunPodQwenLLM`은
+레거시 명칭이고 실제 서빙은 EXAONE-3.5-7.8B에 planner LoRA를 물린 것이다
+(source of truth: `runpod_workers/setup_endpoints.py`, `deploy-workers.yml`;
+`deployment.md`·Dockerfile 주석의 "Qwen"은 stale). 프롬프트도 EXAONE 어댑터 기준으로
+고친다.
 
 현재 상태(코드 확인 결과):
 
@@ -24,8 +31,11 @@ RunPod serverless에 떠 있는 planner(EXAONE base + planner LoRA)가 실제로
 - RunPod LLM 호출은 langchain ChatModel이 아니라 커스텀 `QwenLLM.complete_raw()`.
   → LangGraph 노드는 자동 추적되지만 **LLM 호출은 자동 추적 안 됨**.
 
-즉 실제 과제는 "배포"가 아니라 **관찰(tracing) + 평가(evaluation)** 계층을
-LangSmith로 붙이는 것.
+즉 실제 과제는 "배포"가 아니라 두 단계다:
+- **Phase 1 (수단)**: 관찰(tracing) + 평가(evaluation) 계층을 LangSmith로 붙여
+  약점을 드러낸다.
+- **Phase 2 (목적)**: 드러난 약점을 근거로 `_prompts.py` 프롬프트와 그래프 구조를
+  고치고, before/after 비교로 개선을 확인한다.
 
 ## 목표 / 비목표
 
@@ -33,6 +43,8 @@ LangSmith로 붙이는 것.
 
 - 라이브 planner 실행이 LangSmith 트레이스 트리로 보인다(그래프 노드 + LLM 호출).
 - frontend형 질문 유형별 데이터셋으로 구조 유효성·정확도를 정량 채점한다.
+- **평가를 피드백 루프로 삼아 EXAONE 어댑터 기준 프롬프트·구조를 개선하고,
+  before/after 실험 비교로 각 수정의 효과를 수치로 확인한다.**
 - 키 없으면 no-op — 프로덕션 경로를 절대 깨지 않는다.
 
 비목표
@@ -99,6 +111,50 @@ LangSmith로 붙이는 것.
   → **라이브 RunPod 호출**. 멀티턴 example은 `inputs.turns`를 동일 `thread_id`로
   순차 재생하고 **마지막 턴 결과**를 채점 대상으로 반환. 실험 URL 출력.
   예제별 실패는 해당 run만 fail 기록(전체 실험 안 죽음).
+
+## Component 3 — 프롬프트·구조 개선 루프 (Phase 2, 메인 목적)
+
+Phase 1(Component 1·2)이 붙으면 baseline 평가를 돌려 약점 클러스터를 찾고,
+아래 레버를 고쳐 재평가 → before/after 비교로 개선을 확정한다. **어떤 프롬프트를
+어떻게 고칠지는 baseline 결과에 따라 결정**되므로(데이터 주도) 고정 편집이 아니라
+반복 프로토콜로 규정한다.
+
+**방법론 정박 — 수집한 논문 5편 (`sft_pipeline/docs/idea/sft_citation.md`).**
+현재 트리에서 revert됨(커밋 `2d352e9`에 원본, 복원 여부 별도 결정). 개선 축을
+논문 원칙에 묶어 ad-hoc 편집을 막는다:
+
+| 개선 축 | 관련 평가자 | 정박 논문 · 원칙 |
+| --- | --- | --- |
+| 날짜별 플랜 구조·정합성 | `structure_valid`, `plan_coherence`, `date_sanity` | **LLM-Modulo**(Kambhampati 2024): LLM은 "무엇을+상대배치"만, **절대 날짜 산수는 코드**(`allocator.py`), judge=**hard critic**. 프롬프트에 달력 계산을 넣지 않는다. self-verification 금지 → 검증은 외부(judge/코드). |
+| 꼬리질문 여부(언제 물을까) | `plan_coherence`, `followup_appropriate` | **Clarify When Necessary**(3): 물을지/추측할지/거부할지. **Curiosity by Design**(5): under-specified면 먼저 되묻기. |
+| 꼬리질문 내용(무엇을 물을까) | `followup_appropriate` | **What Prompts Don't Say**(4): 사람은 조건을 안 말한다 → 빠진 **최고가치 슬롯**을 묻게 `FOLLOW_UP_SYSTEM` 튜닝. |
+| hard/soft 분리 검증 | 전체 | **LLM-Modulo 여행계획 사례**(2): hard(마감·중복금지)와 soft(선호)를 분리, backprompt 반복(≤10). 우리 evaluator를 hard/soft로 구분해 해석. |
+
+원칙 위배 금지: 프롬프트로 LLM에게 날짜 산수를 시키는 방향(LLM-Modulo 반대),
+self-critique로 자기교정 유도(논문상 무효) 등은 채택하지 않는다.
+
+프롬프트 레버 (`adapters/todo_creation/_prompts.py`, EXAONE 어댑터 기준):
+
+| 심볼 | 노드 | 개선 축 |
+| --- | --- | --- |
+| `REQUEST_CLASSIFIER_SYSTEM` | classify | 라우팅(일상/시험/event) |
+| `PLANNER_JUDGE_SYSTEM` | judge | 충분성 판정 → 꼬리질문 여부 |
+| `FOLLOW_UP_SYSTEM` | follow_up | 꼬리질문 질 |
+| `PLAN_GENERATOR_SYSTEM` | plan_generator | 날짜별 플랜 구조·정확도 |
+| `PLAN_VALIDATOR_SYSTEM` / `GOAL_TAG_SYSTEM` / `OUT_OF_SCOPE_REPLY_SYSTEM` | 각 노드 | 검증·태깅·범위밖 |
+
+구조 레버: `planner/graph.py`(노드 배선), `planner/nodes/*`,
+`planner/allocator.py`(날짜 분배), `planner/goal_rules.py`(plan_kind별 규칙).
+
+반복 프로토콜(수정 1건당):
+1. baseline 실험에서 낮은 점수 평가자/카테고리 식별(예: `korean_only` 저조,
+   event 라우팅 오류, 성급한 플랜=`plan_coherence` 0).
+2. 원인 가설 → 해당 프롬프트 심볼 또는 구조 파일 1곳만 수정(외과적).
+3. 재평가(run_eval) → `compare.py`로 before→after delta 확인.
+4. 개선이면 커밋(프롬프트 변경 diff + 실험 링크), 회귀면 되돌림.
+
+주의: EXAONE는 guided_json/JSON 모드 거동이 Qwen과 다를 수 있으므로 프롬프트의
+언어 지시(한국어 강제)·JSON 스키마 예시는 EXAONE 출력 실측으로 튜닝한다.
 
 ## 데이터 흐름
 

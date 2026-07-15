@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** RunPod에 떠 있는 planner를 LangSmith로 관찰(트레이싱)하고, frontend형 질문 데이터셋으로 구조·정확도·꼬리질문·멀티턴 흐름을 정량 평가한다.
+**Goal:** LangSmith 관찰·평가를 피드백 루프로 삼아, RunPod에 떠 있는 planner(**EXAONE-3.5 base + planner LoRA**)의 `_prompts.py` 프롬프트와 그래프 구조를 고쳐 출력을 개선한다. Task 1–6은 그 피드백 루프(관찰·평가·before/after 비교)를 구축하고, Task 7이 개선 루프다.
 
-**Architecture:** LangGraph 노드는 env만 켜면 자동 추적된다. RunPod LLM 호출은 커스텀 `QwenLLM.complete_raw()` 경계 하나에 `@traceable`을 붙여 트리에 노출한다. 평가는 `llm_evaluation/langsmith/`에 데이터셋+평가자(휴리스틱 5 + judge 재사용 2)를 두고, 라이브 RunPod를 때리는 target으로 `aevaluate()`를 돌린다.
+**Architecture:** LangGraph 노드는 env만 켜면 자동 추적된다. RunPod LLM 호출은 커스텀 `complete_raw()` 경계 하나에 `@traceable`을 붙여 트리에 노출한다. 평가는 `llm_evaluation/langsmith/`에 데이터셋+평가자(휴리스틱 5 + judge 재사용 2)를 두고, 라이브 RunPod를 때리는 target으로 `aevaluate()`를 돌린다. 개선은 baseline 평가 → 프롬프트/구조 수정 → 재평가 → `compare.py` before/after의 반복.
+
+**베이스 주의:** 서빙은 **EXAONE**(Qwen 아님). 어댑터 클래스 이름 `QwenLLM`/`RunPodQwenLLM`은 레거시 명칭일 뿐 실제 모델은 EXAONE-3.5-7.8B + planner LoRA. 프롬프트는 EXAONE 출력 실측 기준으로 고친다.
 
 **Tech Stack:** Python 3.12, LangGraph, langchain-core, langsmith SDK, Pydantic v2, pytest/anyio.
 
@@ -931,9 +933,76 @@ git commit -m "feat: 이전/이후 실험 비교 HTML 리포트"
 
 ---
 
+## Task 7: 프롬프트·구조 개선 루프 (Phase 2 — 메인 목적, 반복)
+
+**성격:** Task 1–6이 그린이 된 뒤 실행하는 **데이터 주도 반복 프로토콜**. 어떤 프롬프트를
+어떻게 고칠지는 baseline 평가 결과가 정한다 — 그래서 고정 편집이 아니라 루프로 규정한다.
+수정 1건마다 아래 5스텝을 돈다.
+
+**방법론 정박(`sft_pipeline/docs/idea/sft_citation.md`, 논문 5편 — 현재 git `2d352e9`에만):**
+모든 수정은 논문 원칙을 따른다. **LLM-Modulo**: LLM은 "무엇을+상대배치"만, 절대 날짜
+산수는 코드(`allocator.py`), 검증은 외부(judge/코드) — 프롬프트에 달력 계산·self-critique를
+넣지 않는다. **Clarify-When-Necessary / Curiosity-by-Design / What-Prompts-Don't-Say**:
+꼬리질문은 under-specified일 때만, 빠진 최고가치 슬롯을 묻게.
+
+**Files (수정 대상 후보 — 발견에 따라 1곳만 외과적 수정):**
+- 프롬프트: `adapters/todo_creation/_prompts.py`
+  - `REQUEST_CLASSIFIER_SYSTEM`(라우팅) · `PLANNER_JUDGE_SYSTEM`(충분성) ·
+    `FOLLOW_UP_SYSTEM`(꼬리질문) · `PLAN_GENERATOR_SYSTEM`(날짜별 플랜) ·
+    `PLAN_VALIDATOR_SYSTEM` · `GOAL_TAG_SYSTEM` · `OUT_OF_SCOPE_REPLY_SYSTEM`
+- 구조: `agents/todo_creation/planner/graph.py`(배선) · `planner/nodes/*` ·
+  `planner/allocator.py`(날짜 분배) · `planner/goal_rules.py`(plan_kind 규칙)
+
+**Interfaces:** 신규 코드 없음 — Task 5(`run_eval`)·Task 6(`compare`)을 그대로 소비.
+
+- [ ] **Step 1: baseline 실험 확보**
+
+Run: `uv run python -m llm_evaluation.langsmith.run_eval`
+결과 실험 이름을 기록(예: `planner-<baseline>`). LangSmith에서 평가자별 평균을 본다.
+
+- [ ] **Step 2: 최저 점수 클러스터 식별**
+
+LangSmith 실험 뷰에서 점수 낮은 (평가자 × 카테고리) 조합을 고른다. 예시 판정(정박 논문):
+  - `korean_only` 낮음 → 외국어 누출(회귀). 레버: `PLAN_GENERATOR_SYSTEM`/`FOLLOW_UP_SYSTEM` 언어 지시. (LLM-Modulo soft/style critic + 코드 후처리)
+  - event 라우팅 오류(철인삼종이 exam으로) → `REQUEST_CLASSIFIER_SYSTEM` 또는 `goal_rules.normalize_competition_event_goal`. (뉴로-심볼릭 분업 — 규칙은 코드)
+  - `plan_coherence`=0(정보 부족한데 플랜) → `PLANNER_JUDGE_SYSTEM` 충분성 기준. (**LLM-Modulo** hard critic=외부 judge, self-verification 금지)
+  - `followup_appropriate`=0(불필요/엉뚱한 꼬리질문) → `PLANNER_JUDGE_SYSTEM`/`FOLLOW_UP_SYSTEM`. (**Clarify-When-Necessary**·**Curiosity-by-Design**: under-specified일 때만·최고가치 슬롯)
+  - `date_sanity` 낮음 → **프롬프트 아님**. `allocator.py`/코드 매핑 고침(LLM-Modulo: 날짜 산수는 코드 책임).
+
+- [ ] **Step 3: 가설대로 1곳만 수정 (외과적)**
+
+워크드 예시 — `korean_only` 회귀 가정. `_prompts.py`의 `PLAN_GENERATOR_SYSTEM`에
+언어 제약 한 줄을 강화(EXAONE 실측 문구 기준, 실제 문구는 baseline 출력 보고 결정):
+```python
+# adapters/todo_creation/_prompts.py — PLAN_GENERATOR_SYSTEM 내부 규칙 목록에 추가
+# 모든 title·tags 는 한국어만. 한자·가나·키릴 문자를 절대 쓰지 말 것.
+```
+> 실제 수정은 Step 2에서 고른 심볼 1곳에 한정. 두 곳 동시 수정 금지(효과 귀속 불가).
+
+- [ ] **Step 4: 재평가 + before/after 비교**
+
+Run: `uv run python -m llm_evaluation.langsmith.run_eval`
+→ 새 실험 이름 기록(예: `planner-<after>`).
+Run: `uv run python -m llm_evaluation.langsmith.compare planner-<baseline> planner-<after> -o compare.html`
+Expected: `compare.html`에서 고친 평가자의 Δ가 양수(개선). 다른 평가자 회귀 없음 확인.
+
+- [ ] **Step 5: 개선이면 커밋, 회귀면 되돌림**
+
+개선(타깃 Δ>0, 회귀 없음)일 때만:
+```bash
+git add adapters/todo_creation/_prompts.py
+git commit -m "fix(planner): <심볼> <개선 내용> (eval Δ +N, exp planner-<after>)"
+```
+회귀/무변화면 `git checkout -- adapters/todo_creation/_prompts.py`로 되돌리고 Step 2 재선택.
+
+> 각 반복은 프롬프트/구조 diff + 실험 링크를 커밋 메시지에 남겨 근거를 추적한다.
+> 다음 baseline은 방금 커밋한 상태가 된다(누적 개선).
+
+---
+
 ## Self-Review 결과
 
-- **Spec 커버리지**: Tracing(Task 1) / 휴리스틱·frontend_contract(Task 2) / judge 재사용·꼬리질문(Task 3) / 멀티턴 데이터셋(Task 4) / 라이브 RunPod target·실험(Task 5) / 이전-이후 비교 리포트(Task 6) — spec의 두 컴포넌트 + 추가 세 관점(꼬리질문·프론트 계약·before/after) 모두 태스크 있음.
+- **Spec 커버리지**: Tracing(Task 1) / 휴리스틱·frontend_contract(Task 2) / judge 재사용·꼬리질문(Task 3) / 멀티턴 데이터셋(Task 4) / 라이브 RunPod target·실험(Task 5) / 이전-이후 비교 리포트(Task 6) / **프롬프트·구조 개선 루프(Task 7, 메인 목적, 논문 5편 정박)** — spec의 세 컴포넌트 모두 태스크 있음. Phase 1(Task 1–6)=피드백 루프 구축, Phase 2(Task 7)=EXAONE 어댑터 프롬프트/구조 개선.
 - **Placeholder**: 모든 스텝에 실제 코드/명령/기대출력 있음. TBD 없음.
 - **타입 일관성**: 평가자 반환 규약 `{"key","score","comment"}`, target 출력 `{"kind","result"}`, example `inputs/reference_outputs` 규약이 Task 2·3·4·5에서 일치. `judge_sufficiency` 시그니처 = 확정 인터페이스와 일치.
 - **알려진 한계(ceiling)**: `validate_plan`(중간 PlanDay/ParsedGoal 필요)은 최종 결과에 미노출이라 미사용 → judge_sufficiency로 대체. 중간 상태를 노출하면 더 정밀한 plan_coherence로 업그레이드 가능. `feat/planner-all-openai` 머지 시 `@traceable` wrap 불필요(langchain-native 자동 추적).
