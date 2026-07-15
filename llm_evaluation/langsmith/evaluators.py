@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 from datetime import date
@@ -103,9 +104,34 @@ def plan_density(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
     return _r("plan_density", score, f"items={n} horizon={horizon}d expected>={expected}")
 
 
+def plan_split(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    """candidates 가 적절히 나뉘었는가 (plan-coherence Gate 2 구조).
+
+    역할 분리: 오늘 마감→todos, 미래→calendar_events. 제목 중복(같은 항목 중복 배치) 금지.
+    3개 체크의 평균(0~1). non-candidates 는 n/a.
+    """
+    if outputs.get("kind") != "candidates":
+        return _r("plan_split", None, "n/a")
+    today = date.fromisoformat(inputs["today"])
+    res = outputs["result"]
+    todos = res.get("todos", [])
+    events = res.get("calendar_events", [])
+    todos_today = all(date.fromisoformat(t["due_date"]) == today for t in todos)
+    events_future = all(date.fromisoformat(e["due_date"]) > today for e in events)
+    titles = [i.get("title") for i in todos + events]
+    no_dup = len(titles) == len(set(titles))
+    checks = [todos_today, events_future, no_dup]
+    fails = [
+        name
+        for name, ok in zip(("todo!=today", "calendar<=today", "dup_title"), checks)
+        if not ok
+    ]
+    return _r("plan_split", round(sum(checks) / len(checks), 2), ",".join(fails) or "ok")
+
+
 HEURISTIC_EVALUATORS = [
     structure_valid, routing_correct, date_sanity, korean_only, frontend_contract,
-    plan_density,
+    plan_density, plan_split,
 ]
 
 
@@ -149,3 +175,61 @@ def make_judge_evaluators(judge) -> list:
         return _r("followup_needed", int(not sufficient), f"judge_missing={missing}")
 
     return [plan_justified, followup_needed]
+
+
+_PLAN_QUALITY_SYS = (
+    "너는 플랜 품질 평가자다. 사용자 목표와 날짜별 플랜을 보고 아래 3개를 1~5점으로 채점한다.\n"
+    "- m1 분배 합리성: 기계적 균등분할이 아니라 난이도·맥락을 반영했는가\n"
+    "- m3 순서 논리: 선행→후행 의존(기초 학습 후 심화·복습)이 지켜지는가\n"
+    "- m4 완결성: 이 플랜대로 하면 목표가 실제로 달성되는가\n"
+    "JSON 객체 하나만 출력. 스키마: {\"m1\": 1~5, \"m3\": 1~5, \"m4\": 1~5}"
+)
+
+_PLAN_QUALITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "m1": {"type": "integer"},
+        "m3": {"type": "integer"},
+        "m4": {"type": "integer"},
+    },
+    "required": ["m1", "m3", "m4"],
+}
+
+
+def make_plan_quality_evaluator(judge):
+    """candidates 의 의미적 분할 품질(plan-coherence Gate 3)을 LLM 으로 채점.
+
+    judge.complete_raw 에 루브릭+guided_json 으로 m1/m3/m4(1~5)를 받아 평균을 0~1 로 정규화.
+    새 외부 모델 없이 기존 ports LLM 재사용.
+    """
+
+    async def plan_quality(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+        if outputs.get("kind") != "candidates":
+            return _r("plan_quality", None, "n/a")
+        res = outputs["result"]
+        goal = " / ".join(inputs.get("turns") or [])
+        items = res.get("todos", []) + res.get("calendar_events", [])
+        plan_text = "; ".join(f"{i.get('due_date')} {i.get('title')}" for i in items)
+        messages = [
+            {"role": "system", "content": _PLAN_QUALITY_SYS},
+            {
+                "role": "user",
+                "content": f"목표: {goal}\n플랜: {plan_text}\n요약: {res.get('summary_text', '')}",
+            },
+        ]
+        raw = await judge.complete_raw(
+            messages=messages, label="validate_plan", guided_json=_PLAN_QUALITY_SCHEMA
+        )
+        try:
+            parsed = json.loads(raw)
+            scores = [int(parsed[k]) for k in ("m1", "m3", "m4")]
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+            return _r("plan_quality", None, f"parse fail: {str(raw)[:60]}")
+        avg = sum(scores) / len(scores)
+        return _r(
+            "plan_quality",
+            round((avg - 1) / 4, 2),
+            f"m1={scores[0]} m3={scores[1]} m4={scores[2]}",
+        )
+
+    return plan_quality

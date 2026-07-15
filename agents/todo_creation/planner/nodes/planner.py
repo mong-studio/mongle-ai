@@ -19,8 +19,10 @@ from langgraph.types import Command
 from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.allocator import (
     cadence_is_specific,
+    parse_daily_time,
     recover_cadence,
 )
+from agents.todo_creation.planner.date_parser import parse_explicit_deadline
 from agents.todo_creation.planner.goal_rules import (
     build_recovery_goal,
     collect_user_text,
@@ -39,6 +41,41 @@ from agents.todo_creation.planner.goal_rules import (
 from agents.todo_creation.planner.state import PlannerGraphState
 from agents.todo_creation.planner.slot_schemas import missing_required, slot_hints
 from agents.todo_creation.state import ParsedGoal, Turn
+
+# plan_kind 별 빈도 슬롯 이름(추출한 cadence 를 어디에 채울지).
+_FREQ_SLOT = {"routine": "cadence", "vague_goal": "weekly_cadence"}
+
+
+def _fill_deterministic_slots(
+    state: PlannerGraphState, resolved_goal: ParsedGoal
+) -> None:
+    """모델이 놓친 결정적 슬롯(날짜·기간·빈도)을 원문에서 파싱해 채운다(코드값 우선).
+
+    horizon=날짜, cadence/weekly_cadence=빈도, available_time=하루 가용 시간.
+    코드가 파싱하면 그 값으로 세팅(모델값 덮음), 못 하면 모델 slots 유지.
+    """
+    text = collect_user_text(state)
+    plan_kind = str(resolved_goal.get("plan_kind") or "project")
+    slots = dict(resolved_goal.get("slots") or {})
+
+    freq_key = _FREQ_SLOT.get(plan_kind)
+    freq = recover_cadence(text)
+    if freq and freq_key:
+        slots[freq_key] = freq
+
+    today = state.get("today")
+    if today is not None:
+        deadline = parse_explicit_deadline(text, today=today)
+        if deadline is not None:
+            slots["horizon"] = deadline.isoformat()
+
+    if plan_kind == "project":
+        daily = parse_daily_time(text)
+        if daily:
+            slots["available_time"] = daily
+
+    resolved_goal["slots"] = slots
+
 
 async def planner_node(
     state: PlannerGraphState, config: RunnableConfig
@@ -146,19 +183,10 @@ async def planner_node(
         if plan_kind not in ("exam", "event", "routine", "vague_goal", "lifestyle", "project"):
             plan_kind = "project"
         resolved_goal["plan_kind"] = plan_kind
-        # 모델이 "매주 3회" 의 빈도를 "weekly" 로 뭉개 떨어뜨리면 expand_routine 이
-        # 주 1회로 펴버린다. 슬롯이 모호하면 원문에서 cadence 를 결정적으로 복구한다.
-        if plan_kind == "routine":
-            slots = resolved_goal.get("slots") or {}
-            # 멀티턴: follow_up 답변은 history/recent_turns 에만 실리고 state["message"]
-            # 는 첫 턴 그대로다. cadence("주 3회")가 답변에 있을 수 있으므로 현재+이전
-            # user 발화를 합친 텍스트에서 복구한다.
-            user_text = collect_user_text(state)
-            recovered = _recover_explicit_cadence(user_text)
-            if recovered or not cadence_is_specific(str(slots.get("cadence") or "")):
-                recovered = recovered or recover_cadence(user_text)
-                if recovered:
-                    resolved_goal["slots"] = {**slots, "cadence": recovered}
+        # 결정적 슬롯 추출: 모델이 놓친 날짜·기간·빈도를 원문에서 코드가 채운다(코드값 우선).
+        # 멀티턴 답변은 history 에만 실리므로 collect_user_text(현재+이전 user 발화)를 본다.
+        if plan_kind in ("routine", "vague_goal", "lifestyle", "project"):
+            _fill_deterministic_slots(state, resolved_goal)
         if is_revision:
             resolved_goal["revision_request"] = state.get("revision_request")
             resolved_goal["previous_plan"] = state.get("plan") or []

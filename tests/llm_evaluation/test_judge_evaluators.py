@@ -1,5 +1,51 @@
 import pytest
-from llm_evaluation.langsmith.evaluators import make_judge_evaluators
+from llm_evaluation.langsmith.evaluators import (
+    make_judge_evaluators,
+    make_plan_quality_evaluator,
+)
+
+
+class _FakeQualityJudge:
+    def __init__(self, raw):
+        self._raw = raw
+
+    async def complete_raw(self, *, messages, label=None, guided_json=None):
+        return self._raw
+
+
+def _candidates():
+    return {"kind": "candidates", "result": {
+        "kind": "candidates", "todos": [],
+        "calendar_events": [{"due_date": "2026-07-18", "title": "x"}],
+        "summary_text": "s"}}
+
+
+@pytest.mark.asyncio
+async def test_plan_quality_normalizes_scores():
+    ev = make_plan_quality_evaluator(_FakeQualityJudge('{"m1": 5, "m3": 5, "m4": 5}'))
+    r = await ev(_candidates(), {}, {"turns": ["시험 준비"], "today": "2026-07-15"})
+    assert r["score"] == 1.0  # (5-1)/4
+
+
+@pytest.mark.asyncio
+async def test_plan_quality_mid_score():
+    ev = make_plan_quality_evaluator(_FakeQualityJudge('{"m1": 3, "m3": 3, "m4": 3}'))
+    r = await ev(_candidates(), {}, {"turns": ["x"], "today": "2026-07-15"})
+    assert r["score"] == 0.5  # (3-1)/4
+
+
+@pytest.mark.asyncio
+async def test_plan_quality_na_for_non_candidates():
+    ev = make_plan_quality_evaluator(_FakeQualityJudge('{"m1": 5, "m3": 5, "m4": 5}'))
+    r = await ev({"kind": "follow_up", "result": {}}, {}, {"turns": ["x"], "today": "2026-07-15"})
+    assert r["score"] is None
+
+
+@pytest.mark.asyncio
+async def test_plan_quality_parse_fail_returns_none():
+    ev = make_plan_quality_evaluator(_FakeQualityJudge("not json"))
+    r = await ev(_candidates(), {}, {"turns": ["x"], "today": "2026-07-15"})
+    assert r["score"] is None and "parse" in r["comment"]
 
 
 class _FakeJudge:
