@@ -20,7 +20,7 @@
 ## 목표 / 비목표
 
 목표
-- 사용자 텍스트에서 **날짜(horizon/deadline)·기간(available_time)·빈도(cadence)**를 결정적으로 추출해 슬롯을 채운다. 코드값이 authoritative(있으면 우선), 없으면 모델 slots fallback.
+- 사용자 텍스트에서 **날짜(horizon/deadline)·기간(available_time)·빈도(cadence)**를 결정적으로 추출해 슬롯을 채운다. **코드값 우선**(코드가 파싱하면 그 값으로, 못 하면 모델 slots 유지).
 - 흩어진 복구(`recover_cadence`·`merge_deadline`·iter3 cadence 패치)를 이 경로로 통합.
 - **작은 코드** — 신규 모듈/거창한 추상화 없이 기존 파서 재사용 + 정규식 확장 + 배선.
 
@@ -42,11 +42,11 @@
 - date → exam:`exam_date` / event:`event_date` / 그 외:`horizon`
 - freq → routine:`cadence` / event·vague_goal:`weekly_cadence`
 - duration → exam:`daily_hours` / project:`available_time`
-- **authoritative**: 코드 파싱값이 있으면 그 슬롯에 세팅(모델값 덮음), 없으면 모델값 유지.
+- **코드값 우선**: 코드 파싱값이 있으면 그 슬롯에 세팅(모델값 덮음), 없으면 모델값 유지.
 - 기존 iter3 cadence 패치(157–161줄)는 이 로직으로 대체·통합.
 
 ### 3. 경계 / 리스크
-- 파서는 **보수적**(명확한 패턴만 발화) → authoritative 오파싱으로 정상값 clobber 방지.
+- 파서는 **보수적**(명확한 패턴만 발화) → 코드값 우선이라도 오파싱으로 정상값을 덮지 않게 방지.
 - exam/event는 이미 전용 normalize 경로가 있으므로, 매핑은 충돌 없이 보강만.
 
 ## 테스트
