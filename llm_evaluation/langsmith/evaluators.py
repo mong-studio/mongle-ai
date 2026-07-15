@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from datetime import date
 
@@ -81,8 +82,30 @@ def frontend_contract(outputs: dict, reference_outputs: dict, inputs: dict) -> d
     return _r("frontend_contract", 0, f"unknown kind: {kind}")
 
 
+def plan_density(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    """candidates 플랜이 마감까지 기간 대비 충분한 항목 밀도를 가지는가.
+
+    성긴 플랜(빈 날이 많음)을 낮게 채점한다. 대략 3일당 1개를 기준선으로,
+    최소 3개를 기대한다(expected = max(3, ceil(horizon/3))). non-candidates 는 n/a.
+    """
+    if outputs.get("kind") != "candidates":
+        return _r("plan_density", None, "n/a")
+    res = outputs["result"]
+    items = res.get("todos", []) + res.get("calendar_events", [])
+    n = len(items)
+    if n == 0:
+        return _r("plan_density", 0.0, "empty plan")
+    today = date.fromisoformat(inputs["today"])
+    dues = [date.fromisoformat(i["due_date"]) for i in items if i.get("due_date")]
+    horizon = (max(dues) - today).days + 1 if dues else 1
+    expected = max(3, math.ceil(max(horizon, 1) / 3))
+    score = round(min(1.0, n / expected), 2)
+    return _r("plan_density", score, f"items={n} horizon={horizon}d expected>={expected}")
+
+
 HEURISTIC_EVALUATORS = [
     structure_valid, routing_correct, date_sanity, korean_only, frontend_contract,
+    plan_density,
 ]
 
 

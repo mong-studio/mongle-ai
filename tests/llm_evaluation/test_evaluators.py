@@ -1,5 +1,6 @@
 from llm_evaluation.langsmith.evaluators import (
     structure_valid, routing_correct, date_sanity, korean_only, frontend_contract,
+    plan_density,
 )
 
 _TODAY = "2026-07-15"
@@ -55,3 +56,24 @@ def test_frontend_contract_requires_render_fields():
     assert frontend_contract(good, {}, _inputs())["score"] == 1
     bad = {"kind": "candidates", "result": {"kind": "candidates", "thread_id": "t"}}
     assert frontend_contract(bad, {}, _inputs())["score"] == 0
+
+
+def test_plan_density_sparse_scores_low():
+    # 1개 항목, 마감 10일 뒤(horizon 11) → expected=ceil(11/3)=4 → 1/4=0.25
+    out = _plan_out([_todo(due="2026-07-25")])
+    assert plan_density(out, {}, _inputs())["score"] < 1.0
+
+
+def test_plan_density_dense_scores_full():
+    items = [_todo(due=d) for d in
+             ("2026-07-16", "2026-07-18", "2026-07-20", "2026-07-22", "2026-07-25")]
+    assert plan_density(_plan_out(items), {}, _inputs())["score"] == 1.0
+
+
+def test_plan_density_empty_is_zero():
+    assert plan_density(_plan_out([]), {}, _inputs())["score"] == 0.0
+
+
+def test_plan_density_na_for_non_candidates():
+    out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
+    assert plan_density(out, {}, _inputs())["score"] is None
