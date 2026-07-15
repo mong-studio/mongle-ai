@@ -885,3 +885,35 @@ async def test_after_two_followups_keeps_deadline_unknown() -> None:
         "horizon" not in item and "available_time" not in item
         for item in cmd.update["parsed_goal"]["assumptions"]
     )
+
+
+@pytest.mark.asyncio
+async def test_routine_cadence_recovered_from_followup_answer() -> None:
+    """멀티턴: cadence('주 3회')가 follow_up 답변(history)에만 있어도 복구해 plan 으로
+    진행한다. state['message']는 첫 턴 그대로라 예전엔 cadence 를 못 찾아 되물었다."""
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            False,
+            ["cadence"],
+            {
+                "intent": "plan",
+                "plan_kind": "routine",
+                "goal_text": "헬스 루틴",
+                "goal_tag": "헬스",
+                "slots": {"activity": "헬스"},  # cadence 슬롯 없음
+            },
+        )
+    )
+    state = {
+        **_state(),
+        "message": "운동 좀 해야겠어",  # 첫 턴 그대로 (답변은 history 에)
+        "history": [
+            {"role": "user", "content": "운동 좀 해야겠어"},
+            {"role": "assistant", "content": "얼마나 자주 하실 건가요?"},
+            {"role": "user", "content": "3주 동안 주 3회 헬스"},  # cadence 는 답변에
+        ],
+    }
+    cmd = await planner_node(state, _config(llm))
+    # cadence 를 답변에서 복구 → 충분 → follow_up 이 아니라 plan_generator
+    assert cmd.goto == "plan_generator"
