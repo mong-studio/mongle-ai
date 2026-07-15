@@ -10,8 +10,9 @@ import gc
 import json
 import sys
 
+from model_refs import QWEN2_VL
 
-QUEST_MODEL_ID = "Qwen/Qwen2-VL-7B-Instruct"
+QUEST_MODEL_ID = QWEN2_VL.repo_id
 
 QUEST_SYSTEM = """You are a scene prompt writer for Mongle Village, a cozy pastel pixel art world.
 
@@ -44,9 +45,14 @@ def load_quest_model():
     from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditionalGeneration
 
     log(f"Loading quest translation model: {QUEST_MODEL_ID}")
-    processor = AutoProcessor.from_pretrained(QUEST_MODEL_ID, max_pixels=256 * 256)
+    processor = AutoProcessor.from_pretrained(
+        QUEST_MODEL_ID,
+        revision=QWEN2_VL.revision,
+        max_pixels=256 * 256,
+    )
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         QUEST_MODEL_ID,
+        revision=QWEN2_VL.revision,
         torch_dtype=torch.float16,
         quantization_config=BitsAndBytesConfig(load_in_8bit=True),
         device_map="auto",

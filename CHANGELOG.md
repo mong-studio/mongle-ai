@@ -47,6 +47,11 @@
   `docs/superpowers/specs|plans/2026-06-13-generate-out-of-scope*`.
 
 ### Changed
+- **RunPod 워커 CI/Docker 빌드 최적화**: `deploy-workers.yml` 에 변경 경로 감지 job과 concurrency를
+  추가해 `llm`/`image_gen` 중 변경된 워커만 빌드한다. Docker BuildKit pip cache와 HF secret
+  mount를 적용했고, `image_gen` 은 ML 의존성 설치 → SDXL/ControlNet/LCM bake → app 의존성 설치
+  순서로 분리했다. 이미지 워커의 공용 모델 ID/revision은 `model_refs.py`로 통합해 bake와 런타임
+  로더가 같은 revision을 사용한다.
 - **텍스트 전용 캐릭터 이미지를 외형(appearance) 기반 text2img 로 전환**: 사진 없이 생성할 때
   기존엔 고정 회색 원 실루엣을 ControlNet img2img(매번 거의 동일한 blob)로 돌렸는데,
   LLM 이 생성한 `appearance` 묘사를 prompt 로 SDXL text2img(`character_mode.py`, 모델 카드 표준

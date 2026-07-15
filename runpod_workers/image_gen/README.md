@@ -10,7 +10,10 @@ RunPod transport remains in `adapters/character_creation/runpod_image.py`.
 image_gen/
 ├── handler.py              # Serverless entry point and mode router
 ├── Dockerfile
-├── requirements.txt        # Single dependency source for the worker image
+├── requirements-ml.txt     # Heavy ML/runtime dependencies installed before bake
+├── requirements.txt        # Light app/runtime dependencies installed after bake
+├── bake.py                 # Build-time shared model download with 429 backoff
+├── model_refs.py           # Shared model IDs and revisions for bake/runtime
 └── pipelines/
     ├── image_character/    # Photo -> transparent character PNG + appearance
     ├── text_character/     # Persona text -> transparent PNG + appearance
@@ -77,7 +80,7 @@ Feed mode returns:
 MASCOT_LORA_SOURCE=Hadimeeee/mongle-mascot-lora
 CHAR_LORA_SOURCE=Hadimeeee/mongle-character-lora
 LCM_LORA_SOURCE=latent-consistency/lcm-lora-sdxl
-HF_HOME=/runpod-volume/huggingface
+HF_HOME=/app/hf-cache
 ```
 
 If any Hugging Face repos are private, also set:
@@ -85,6 +88,13 @@ If any Hugging Face repos are private, also set:
 ```text
 HF_TOKEN=<token>
 ```
+
+Builds pass `HF_TOKEN` as a BuildKit secret when it exists. The token is used
+only during model bake and is not persisted in the image layers.
+
+Base SDXL, ControlNet Canny, LCM LoRA, Qwen2-VL, and Qwen2.5-VL revisions are
+centralized in `model_refs.py`. Override the `*_REVISION` environment variables
+only when intentionally upgrading a model, and keep bake/runtime values aligned.
 
 ## API Contract
 

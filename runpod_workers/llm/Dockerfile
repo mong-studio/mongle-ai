@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 # HF_HOME 은 네트워크 볼륨 마운트 경로(/runpod-volume)와 겹치면 안 된다.
@@ -24,16 +25,20 @@ WORKDIR /app
 # (베이스 이미지엔 huggingface_hub 가 없으므로 반드시 먼저 설치해야 함)
 # 이렇게 하면 requirements.txt 변경이 이 15GB 다운로드 레이어 캐시를 무효화하지 않아,
 # 의존성만 바뀔 때 재다운로드→HF 429 로 빌드가 깨지던 문제를 막는다.
-RUN pip install --no-cache-dir "huggingface-hub>=0.24"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install "huggingface-hub>=0.24"
 COPY bake.py ./
-RUN python bake.py
+RUN --mount=type=secret,id=HF_TOKEN \
+    export HF_TOKEN="$(cat /run/secrets/HF_TOKEN 2>/dev/null || true)" \
+    && python bake.py
 
 COPY requirements.txt ./
 # vllm 이 끌어오는 torch(cu124) 와 ABI 가 어긋나는, 베이스 이미지 사전설치
 # flashinfer 를 제거한다. 없으면 vllm 은 PyTorch-native 샘플러로 폴백한다.
 # (미제거 시 워커 부팅에서 undefined symbol 로 사망 → completed:0 churn)
-RUN pip install --no-cache-dir -r requirements.txt \
- && pip uninstall -y flashinfer flashinfer-python 2>/dev/null || true
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt \
+    && (pip uninstall -y flashinfer flashinfer-python 2>/dev/null || true)
 
 COPY pipeline.py handler.py ./
 
