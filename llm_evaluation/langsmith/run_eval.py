@@ -26,6 +26,7 @@ from llm_evaluation.langsmith.dataset import ensure_dataset
 from llm_evaluation.langsmith.evaluators import (
     HEURISTIC_EVALUATORS,
     make_judge_evaluators,
+    make_plan_quality_evaluator,
 )
 
 _DATASET = "mongle-planner-eval"
@@ -59,7 +60,11 @@ async def main() -> None:
     client = Client()
     ensure_dataset(client, _DATASET)
     judge = _PORTS.classifier or _PORTS.llm
-    evaluators = [*HEURISTIC_EVALUATORS, *make_judge_evaluators(judge)]
+    evaluators = [
+        *HEURISTIC_EVALUATORS,
+        *make_judge_evaluators(judge),
+        make_plan_quality_evaluator(judge),
+    ]
     results = await aevaluate(
         _target,
         data=_DATASET,
