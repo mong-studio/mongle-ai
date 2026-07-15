@@ -70,6 +70,11 @@ LangSmith로 붙이는 것.
   - example 구조: `inputs` = PlannerInput 필드(`user_id`, `message`, `today`,
     optional `user_profile_memory`), `metadata.category` ∈ {일상, 시험, follow_up,
     out_of_scope}, optional `outputs`(reference).
+  - **멀티턴 example**: `inputs.turns` = 메시지 배열
+    (예: `["시험 준비 도와줘", "다음 주 토요일 정보처리기사"]`). 단일턴은 원소 1개.
+    eval target이 `thread_id`를 공유하며 순차 재생 → "부족 → 꼬리질문 → 답변 →
+    충분 → 구조화 플랜" 전체 흐름을 한 example로 검증. `metadata.expected_final` ∈
+    {follow_up, plan, out_of_scope}로 마지막 턴 기대 결과 표기.
   - **사용자 추가분**: `llm_evaluation/langsmith/datasets/planner_cases.jsonl`에 append.
     `dataset.py`가 이 파일도 읽어 업로드(증분 가능).
 - **`evaluators.py`**
@@ -80,12 +85,20 @@ LangSmith로 붙이는 것.
       (일상→plan_generator, 애매→follow_up, 무관→out_of_scope).
     - `date_sanity` — 마감일이 과거/`today` 이전 아님, +N일 산술 정상.
     - `korean_only` — 필요한 필드에 외국어 누출 없음(회귀 가드).
-  - LLM-as-judge: `plan_coherence` — 리포 `judge_sufficiency`를 LangSmith
-    evaluator로 감싸 의미 정확도 채점. 새 모델 없음.
+    - `frontend_contract` — 최종 PlannerResult가 mongle-web이 렌더에 쓰는 API
+      envelope 필드를 다 담는가(계약 수준). 실제 브라우저 렌더링은 비목표 —
+      필드 충족만 확인. 정확한 필드는 `docs/api/todo-chat-api.md` +
+      `api/todo_creation` 응답 모델에서 핀.
+  - LLM-as-judge(기존 judge 재사용, 새 모델 없음):
+    - `plan_coherence` — 리포 `judge_sufficiency`로 플랜 의미 정확도 채점.
+    - `followup_appropriate` — 정보 부족 시 던진 꼬리질문이 *적절한지*
+      (누락 슬롯을 묻는지, 엉뚱한 질문 아닌지). `routing_correct`가 "follow_up으로
+      갔는가"만 본다면 이건 질문 내용의 질을 본다.
 - **`run_eval.py`** — `evaluate(target, data="mongle-planner-eval",
   evaluators=[...])`. `target`은 `agents.todo_creation.planner.pipeline.run()` 래핑
-  → **라이브 RunPod 호출**. 실험 URL 출력. 예제별 실패는 해당 run만 fail 기록
-  (전체 실험 안 죽음).
+  → **라이브 RunPod 호출**. 멀티턴 example은 `inputs.turns`를 동일 `thread_id`로
+  순차 재생하고 **마지막 턴 결과**를 채점 대상으로 반환. 실험 URL 출력.
+  예제별 실패는 해당 run만 fail 기록(전체 실험 안 죽음).
 
 ## 데이터 흐름
 
