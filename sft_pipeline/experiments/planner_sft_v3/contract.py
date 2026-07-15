@@ -22,6 +22,9 @@ def build_user(parsed_goal: dict[str, Any], today: date) -> str:
 
 def parse_plan_output(text: str) -> dict[str, Any]:
     """모델/teacher 출력 텍스트를 계약 형태로 파싱한다. 실패 시 ValueError."""
+    s_idx, e_idx = text.find("{"), text.rfind("}")
+    if s_idx != -1 and e_idx > s_idx:
+        text = text[s_idx:e_idx + 1]
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:

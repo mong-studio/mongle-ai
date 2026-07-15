@@ -1,0 +1,6 @@
+﻿model_key,task,samples,auto_score,json_parse_success_rate,schema_success_rate,korean_output_rate,length_success_rate,forbidden_count,avg_latency_sec,total_latency_sec,avg_generated_tokens,avg_tokens_per_sec,speed_score,judge_score,final_score,samples_per_min
+kanana,character_message_generation,10,4.156,1.0,1.0,1.0,1.0,0,0.312,3.117,,,5.0,,,192.48
+kanana,feed_post_generation,20,4.738,0.95,0.95,1.0,1.0,0,0.385,7.702,,,5.0,,,155.8
+kanana,planner_chatbot,20,4.24,0.8,0.8,0.7,1.0,0,2.279,45.589,,,5.0,,,26.322
+kanana,quest_generation,20,3.728,0.9,0.9,1.0,0.2,0,0.284,5.673,,,5.0,,,211.539
+kanana,todo_decomposition,20,4.947,1.0,1.0,1.0,1.0,0,0.584,11.676,,,5.0,,,102.773

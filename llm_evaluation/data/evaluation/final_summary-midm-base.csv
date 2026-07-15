@@ -1,0 +1,6 @@
+﻿model_key,task,samples,auto_score,json_parse_success_rate,schema_success_rate,korean_output_rate,length_success_rate,forbidden_count,avg_latency_sec,total_latency_sec,avg_generated_tokens,avg_tokens_per_sec,speed_score,judge_score,final_score,samples_per_min
+midm-base,character_message_generation,10,4.29,1.0,1.0,1.0,1.0,0,0.591,5.913,,,5.0,,,101.466
+midm-base,feed_post_generation,20,4.748,1.0,1.0,1.0,1.0,0,0.692,13.845,,,5.0,,,86.671
+midm-base,planner_chatbot,20,4.2,1.0,1.0,1.0,1.0,0,2.784,55.685,,,4.99,,,21.55
+midm-base,quest_generation,20,4.058,0.95,0.95,1.0,0.0,0,0.755,15.099,,,5.0,,,79.477
+midm-base,todo_decomposition,20,4.9,1.0,1.0,1.0,1.0,0,0.898,17.951,,,5.0,,,66.849
