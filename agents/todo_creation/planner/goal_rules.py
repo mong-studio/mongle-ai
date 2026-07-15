@@ -30,27 +30,6 @@ SUPPORTED_EXAM_DOMAINS = (
     ),
 )
 _EXAM_PART_TERMS = ("필기", "실기")
-_BACKGROUND_TERMS = ("전공자", "비전공자", "컴공", "전공", "비전공")
-_CURRENT_LEVEL_TERMS = (
-    "처음",
-    "시작",
-    "아직",
-    "개념",
-    "기출",
-    "모의고사",
-    "1회독",
-    "2회독",
-    "3회독",
-    "회독",
-    "완료",
-    "끝냈",
-    "봤",
-    "풀었",
-    "공부했",
-    "공부 안",
-    "SQL",
-)
-_DAILY_HOURS_TERMS = ("하루", "매일", "시간", "분", "평일", "주말")
 _COMPETITION_EVENT_TERMS = (
     "철인삼종",
     "철인 삼종",
@@ -219,12 +198,6 @@ def required_supported_exam_missing(
         filled.add("exam_part")
     if _has_explicit_deadline(text, state=state):
         filled.add("exam_date")
-    if any(term in compact_text for term in _DAILY_HOURS_TERMS):
-        filled.add("daily_hours")
-    if any(_compact(term) in compact_text for term in _CURRENT_LEVEL_TERMS):
-        filled.add("current_level")
-    if any(_compact(term) in compact_text for term in _BACKGROUND_TERMS):
-        filled.add("background")
 
     return missing_required("exam", filled)
 
