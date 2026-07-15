@@ -102,8 +102,8 @@ RunPod serverless에 떠 있는 planner(**EXAONE-3.5 base + planner LoRA 어댑�
       필드 충족만 확인. 정확한 필드는 `docs/api/todo-chat-api.md` +
       `api/todo_creation` 응답 모델에서 핀.
   - LLM-as-judge(기존 judge 재사용, 새 모델 없음):
-    - `plan_coherence` — 리포 `judge_sufficiency`로 플랜 의미 정확도 채점.
-    - `followup_appropriate` — 정보 부족 시 던진 꼬리질문이 *적절한지*
+    - `plan_justified` — 리포 `judge_sufficiency`로 플랜 의미 정확도 채점.
+    - `followup_needed` — 정보 부족 시 던진 꼬리질문이 *적절한지*
       (누락 슬롯을 묻는지, 엉뚱한 질문 아닌지). `routing_correct`가 "follow_up으로
       갔는가"만 본다면 이건 질문 내용의 질을 본다.
 - **`run_eval.py`** — `evaluate(target, data="mongle-planner-eval",
@@ -125,9 +125,9 @@ Phase 1(Component 1·2)이 붙으면 baseline 평가를 돌려 약점 클러스�
 
 | 개선 축 | 관련 평가자 | 정박 논문 · 원칙 |
 | --- | --- | --- |
-| 날짜별 플랜 구조·정합성 | `structure_valid`, `plan_coherence`, `date_sanity` | **LLM-Modulo**(Kambhampati 2024): LLM은 "무엇을+상대배치"만, **절대 날짜 산수는 코드**(`allocator.py`), judge=**hard critic**. 프롬프트에 달력 계산을 넣지 않는다. self-verification 금지 → 검증은 외부(judge/코드). |
-| 꼬리질문 여부(언제 물을까) | `plan_coherence`, `followup_appropriate` | **Clarify When Necessary**(3): 물을지/추측할지/거부할지. **Curiosity by Design**(5): under-specified면 먼저 되묻기. |
-| 꼬리질문 내용(무엇을 물을까) | `followup_appropriate` | **What Prompts Don't Say**(4): 사람은 조건을 안 말한다 → 빠진 **최고가치 슬롯**을 묻게 `FOLLOW_UP_SYSTEM` 튜닝. |
+| 날짜별 플랜 구조·정합성 | `structure_valid`, `plan_justified`, `date_sanity` | **LLM-Modulo**(Kambhampati 2024): LLM은 "무엇을+상대배치"만, **절대 날짜 산수는 코드**(`allocator.py`), judge=**hard critic**. 프롬프트에 달력 계산을 넣지 않는다. self-verification 금지 → 검증은 외부(judge/코드). |
+| 꼬리질문 여부(언제 물을까) | `plan_justified`, `followup_needed` | **Clarify When Necessary**(3): 물을지/추측할지/거부할지. **Curiosity by Design**(5): under-specified면 먼저 되묻기. |
+| 꼬리질문 내용(무엇을 물을까) | `followup_needed` | **What Prompts Don't Say**(4): 사람은 조건을 안 말한다 → 빠진 **최고가치 슬롯**을 묻게 `FOLLOW_UP_SYSTEM` 튜닝. |
 | hard/soft 분리 검증 | 전체 | **LLM-Modulo 여행계획 사례**(2): hard(마감·중복금지)와 soft(선호)를 분리, backprompt 반복(≤10). 우리 evaluator를 hard/soft로 구분해 해석. |
 
 원칙 위배 금지: 프롬프트로 LLM에게 날짜 산수를 시키는 방향(LLM-Modulo 반대),
@@ -148,7 +148,7 @@ self-critique로 자기교정 유도(논문상 무효) 등은 채택하지 않�
 
 반복 프로토콜(수정 1건당):
 1. baseline 실험에서 낮은 점수 평가자/카테고리 식별(예: `korean_only` 저조,
-   event 라우팅 오류, 성급한 플랜=`plan_coherence` 0).
+   event 라우팅 오류, 성급한 플랜=`plan_justified` 0).
 2. 원인 가설 → 해당 프롬프트 심볼 또는 구조 파일 1곳만 수정(외과적).
 3. 재평가(run_eval) → `compare.py`로 before→after delta 확인.
 4. 개선이면 커밋(프롬프트 변경 diff + 실험 링크), 회귀면 되돌림.

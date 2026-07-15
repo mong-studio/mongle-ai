@@ -408,7 +408,7 @@ git commit -m "feat: 휴리스틱 planner 평가자 5종"
 
 **Interfaces:**
 - Consumes: `judge.judge_sufficiency(*, history, message, today, user_profile_memory) -> tuple[bool, list[str], dict]`.
-- Produces: `make_judge_evaluators(judge) -> list` — 비동기 평가자 `plan_coherence`, `followup_appropriate`. 각 `async (outputs, reference_outputs, inputs) -> dict`.
+- Produces: `make_judge_evaluators(judge) -> list` — 비동기 평가자 `plan_justified`, `followup_needed`. 각 `async (outputs, reference_outputs, inputs) -> dict`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -437,31 +437,31 @@ def _by_key(evals, key):
 
 
 @pytest.mark.anyio
-async def test_plan_coherence_scores_sufficient():
+async def test_plan_justified_scores_sufficient():
     judge = _FakeJudge(sufficient=True, missing=[])
     evals = make_judge_evaluators(judge)
     out = {"kind": "candidates", "result": {"kind": "candidates"}}
-    res = await _by_key(evals, "plan_coherence")(out, {}, _inputs(["A", "B"]))
+    res = await _by_key(evals, "plan_justified")(out, {}, _inputs(["A", "B"]))
     assert res["score"] == 1
     # 마지막 턴이 message, 앞 턴이 history
     assert judge.calls[-1]["message"] == "B"
 
 
 @pytest.mark.anyio
-async def test_plan_coherence_na_for_followup():
+async def test_plan_justified_na_for_followup():
     judge = _FakeJudge(sufficient=True, missing=[])
     evals = make_judge_evaluators(judge)
     out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
-    res = await _by_key(evals, "plan_coherence")(out, {}, _inputs(["A"]))
+    res = await _by_key(evals, "plan_justified")(out, {}, _inputs(["A"]))
     assert res["score"] is None
 
 
 @pytest.mark.anyio
-async def test_followup_appropriate_when_judge_agrees_insufficient():
+async def test_followup_needed_when_judge_agrees_insufficient():
     judge = _FakeJudge(sufficient=False, missing=["deadline"])
     evals = make_judge_evaluators(judge)
     out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
-    res = await _by_key(evals, "followup_appropriate")(out, {}, _inputs(["시험 공부"]))
+    res = await _by_key(evals, "followup_needed")(out, {}, _inputs(["시험 공부"]))
     assert res["score"] == 1
 
 
@@ -470,7 +470,7 @@ async def test_followup_inappropriate_when_judge_says_sufficient():
     judge = _FakeJudge(sufficient=True, missing=[])
     evals = make_judge_evaluators(judge)
     out = {"kind": "follow_up", "result": {"kind": "follow_up"}}
-    res = await _by_key(evals, "followup_appropriate")(out, {}, _inputs(["11월 3일 정보처리기사"]))
+    res = await _by_key(evals, "followup_needed")(out, {}, _inputs(["11월 3일 정보처리기사"]))
     assert res["score"] == 0
 ```
 
@@ -497,15 +497,15 @@ def _history_from_turns(prev_turns: list[str]) -> list[dict]:
 def make_judge_evaluators(judge) -> list:
     """기존 judge_sufficiency 를 재사용하는 LLM 평가자 2종을 만든다.
 
-    plan_coherence: 플랜을 낸 example에서 judge가 '정보 충분'이라고 보면 1
+    plan_justified: 플랜을 낸 example에서 judge가 '정보 충분'이라고 보면 1
                     (충분치 않은데 플랜을 냈으면 0 — 성급한 플랜).
-    followup_appropriate: 꼬리질문을 던진 example에서 judge도 '정보 부족'이라 보면 1
+    followup_needed: 꼬리질문을 던진 example에서 judge도 '정보 부족'이라 보면 1
                     (충분한데 되물었으면 0 — 불필요한 꼬리질문).
     """
 
-    async def plan_coherence(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    async def plan_justified(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
         if outputs.get("kind") != "candidates":
-            return _r("plan_coherence", None, "n/a (non-plan)")
+            return _r("plan_justified", None, "n/a (non-plan)")
         turns = inputs["turns"]
         sufficient, missing, _goal = await judge.judge_sufficiency(
             history=_history_from_turns(turns[:-1]),
@@ -513,11 +513,11 @@ def make_judge_evaluators(judge) -> list:
             today=_date.fromisoformat(inputs["today"]),
             user_profile_memory=inputs.get("user_profile_memory"),
         )
-        return _r("plan_coherence", int(sufficient), f"judge_missing={missing}")
+        return _r("plan_justified", int(sufficient), f"judge_missing={missing}")
 
-    async def followup_appropriate(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    async def followup_needed(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
         if outputs.get("kind") != "follow_up":
-            return _r("followup_appropriate", None, "n/a (non-followup)")
+            return _r("followup_needed", None, "n/a (non-followup)")
         turns = inputs["turns"]
         sufficient, missing, _goal = await judge.judge_sufficiency(
             history=_history_from_turns(turns[:-1]),
@@ -525,9 +525,9 @@ def make_judge_evaluators(judge) -> list:
             today=_date.fromisoformat(inputs["today"]),
             user_profile_memory=inputs.get("user_profile_memory"),
         )
-        return _r("followup_appropriate", int(not sufficient), f"judge_missing={missing}")
+        return _r("followup_needed", int(not sufficient), f"judge_missing={missing}")
 
-    return [plan_coherence, followup_appropriate]
+    return [plan_justified, followup_needed]
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -539,7 +539,7 @@ Expected: PASS (4 passed)
 
 ```bash
 git add llm_evaluation/langsmith/evaluators.py tests/llm_evaluation/test_judge_evaluators.py
-git commit -m "feat: judge_sufficiency 재사용 평가자 (plan_coherence, followup_appropriate)"
+git commit -m "feat: judge_sufficiency 재사용 평가자 (plan_justified, followup_needed)"
 ```
 
 ---
@@ -757,7 +757,7 @@ if __name__ == "__main__":
 Run: `uv run python -m llm_evaluation.langsmith.run_eval`
 Expected: 콘솔에 실험 URL/요약 출력. https://smith.langchain.com 에서
 - 트레이스 트리(`validate→planner→plan_generator/follow_up/out_of_scope` + `runpod_llm` LLM 스팬) 확인 (목표 1·2)
-- 각 example의 평가자 점수(structure_valid/routing_correct/date_sanity/korean_only/frontend_contract/plan_coherence/followup_appropriate) 확인 (목표 1·3 + 꼬리질문·멀티턴)
+- 각 example의 평가자 점수(structure_valid/routing_correct/date_sanity/korean_only/frontend_contract/plan_justified/followup_needed) 확인 (목표 1·3 + 꼬리질문·멀티턴)
 
 > RunPod 키 만료 이력 있음 — 401/타임아웃이면 키부터 갱신. LangSmith만 검증하려면
 > `_PORTS`를 로컬/모의 LLM으로 바꿔 스모크 가능(선택).
@@ -965,8 +965,8 @@ Run: `uv run python -m llm_evaluation.langsmith.run_eval`
 LangSmith 실험 뷰에서 점수 낮은 (평가자 × 카테고리) 조합을 고른다. 예시 판정(정박 논문):
   - `korean_only` 낮음 → 외국어 누출(회귀). 레버: `PLAN_GENERATOR_SYSTEM`/`FOLLOW_UP_SYSTEM` 언어 지시. (LLM-Modulo soft/style critic + 코드 후처리)
   - event 라우팅 오류(철인삼종이 exam으로) → `REQUEST_CLASSIFIER_SYSTEM` 또는 `goal_rules.normalize_competition_event_goal`. (뉴로-심볼릭 분업 — 규칙은 코드)
-  - `plan_coherence`=0(정보 부족한데 플랜) → `PLANNER_JUDGE_SYSTEM` 충분성 기준. (**LLM-Modulo** hard critic=외부 judge, self-verification 금지)
-  - `followup_appropriate`=0(불필요/엉뚱한 꼬리질문) → `PLANNER_JUDGE_SYSTEM`/`FOLLOW_UP_SYSTEM`. (**Clarify-When-Necessary**·**Curiosity-by-Design**: under-specified일 때만·최고가치 슬롯)
+  - `plan_justified`=0(정보 부족한데 플랜) → `PLANNER_JUDGE_SYSTEM` 충분성 기준. (**LLM-Modulo** hard critic=외부 judge, self-verification 금지)
+  - `followup_needed`=0(불필요/엉뚱한 꼬리질문) → `PLANNER_JUDGE_SYSTEM`/`FOLLOW_UP_SYSTEM`. (**Clarify-When-Necessary**·**Curiosity-by-Design**: under-specified일 때만·최고가치 슬롯)
   - `date_sanity` 낮음 → **프롬프트 아님**. `allocator.py`/코드 매핑 고침(LLM-Modulo: 날짜 산수는 코드 책임).
 
 - [ ] **Step 3: 가설대로 1곳만 수정 (외과적)**
@@ -1005,4 +1005,4 @@ git commit -m "fix(planner): <심볼> <개선 내용> (eval Δ +N, exp planner-<
 - **Spec 커버리지**: Tracing(Task 1) / 휴리스틱·frontend_contract(Task 2) / judge 재사용·꼬리질문(Task 3) / 멀티턴 데이터셋(Task 4) / 라이브 RunPod target·실험(Task 5) / 이전-이후 비교 리포트(Task 6) / **프롬프트·구조 개선 루프(Task 7, 메인 목적, 논문 5편 정박)** — spec의 세 컴포넌트 모두 태스크 있음. Phase 1(Task 1–6)=피드백 루프 구축, Phase 2(Task 7)=EXAONE 어댑터 프롬프트/구조 개선.
 - **Placeholder**: 모든 스텝에 실제 코드/명령/기대출력 있음. TBD 없음.
 - **타입 일관성**: 평가자 반환 규약 `{"key","score","comment"}`, target 출력 `{"kind","result"}`, example `inputs/reference_outputs` 규약이 Task 2·3·4·5에서 일치. `judge_sufficiency` 시그니처 = 확정 인터페이스와 일치.
-- **알려진 한계(ceiling)**: `validate_plan`(중간 PlanDay/ParsedGoal 필요)은 최종 결과에 미노출이라 미사용 → judge_sufficiency로 대체. 중간 상태를 노출하면 더 정밀한 plan_coherence로 업그레이드 가능. `feat/planner-all-openai` 머지 시 `@traceable` wrap 불필요(langchain-native 자동 추적).
+- **알려진 한계(ceiling)**: `validate_plan`(중간 PlanDay/ParsedGoal 필요)은 최종 결과에 미노출이라 미사용 → judge_sufficiency로 대체. 중간 상태를 노출하면 더 정밀한 plan_justified로 업그레이드 가능. `feat/planner-all-openai` 머지 시 `@traceable` wrap 불필요(langchain-native 자동 추적).

@@ -95,15 +95,15 @@ def _history_from_turns(prev_turns: list[str]) -> list[dict]:
 def make_judge_evaluators(judge) -> list:
     """기존 judge_sufficiency 를 재사용하는 LLM 평가자 2종을 만든다.
 
-    plan_coherence: 플랜을 낸 example에서 judge가 '정보 충분'이라고 보면 1
+    plan_justified: 플랜을 낸 example에서 judge가 '정보 충분'이라고 보면 1
                     (충분치 않은데 플랜을 냈으면 0 — 성급한 플랜).
-    followup_appropriate: 꼬리질문을 던진 example에서 judge도 '정보 부족'이라 보면 1
+    followup_needed: 꼬리질문을 던진 example에서 judge도 '정보 부족'이라 보면 1
                     (충분한데 되물었으면 0 — 불필요한 꼬리질문).
     """
 
-    async def plan_coherence(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    async def plan_justified(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
         if outputs.get("kind") != "candidates":
-            return _r("plan_coherence", None, "n/a (non-plan)")
+            return _r("plan_justified", None, "n/a (non-plan)")
         turns = inputs["turns"]
         sufficient, missing, _goal = await judge.judge_sufficiency(
             history=_history_from_turns(turns[:-1]),
@@ -111,11 +111,11 @@ def make_judge_evaluators(judge) -> list:
             today=date.fromisoformat(inputs["today"]),
             user_profile_memory=inputs.get("user_profile_memory"),
         )
-        return _r("plan_coherence", int(sufficient), f"judge_missing={missing}")
+        return _r("plan_justified", int(sufficient), f"judge_missing={missing}")
 
-    async def followup_appropriate(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
+    async def followup_needed(outputs: dict, reference_outputs: dict, inputs: dict) -> dict:
         if outputs.get("kind") != "follow_up":
-            return _r("followup_appropriate", None, "n/a (non-followup)")
+            return _r("followup_needed", None, "n/a (non-followup)")
         turns = inputs["turns"]
         sufficient, missing, _goal = await judge.judge_sufficiency(
             history=_history_from_turns(turns[:-1]),
@@ -123,6 +123,6 @@ def make_judge_evaluators(judge) -> list:
             today=date.fromisoformat(inputs["today"]),
             user_profile_memory=inputs.get("user_profile_memory"),
         )
-        return _r("followup_appropriate", int(not sufficient), f"judge_missing={missing}")
+        return _r("followup_needed", int(not sufficient), f"judge_missing={missing}")
 
-    return [plan_coherence, followup_appropriate]
+    return [plan_justified, followup_needed]
