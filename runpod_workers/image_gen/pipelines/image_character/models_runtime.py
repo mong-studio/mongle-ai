@@ -5,10 +5,11 @@ from __future__ import annotations
 import gc
 import os
 
+from model_refs import LCM_LORA, SDXL_BASE
 
 CHAR_LORA_SOURCE = os.environ.get("CHAR_LORA_SOURCE", "Hadimeeee/mongle-character-lora")
-LCM_LORA_SOURCE = os.environ.get("LCM_LORA_SOURCE", "latent-consistency/lcm-lora-sdxl")
-BASE_MODEL = os.environ.get("SDXL_BASE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
+LCM_LORA_SOURCE = LCM_LORA.repo_id
+BASE_MODEL = SDXL_BASE.repo_id
 
 
 def load_text2img_pipeline(lora_scale: float = 0.75):
@@ -20,10 +21,11 @@ def load_text2img_pipeline(lora_scale: float = 0.75):
 
     pipe = StableDiffusionXLPipeline.from_pretrained(
         BASE_MODEL,
+        revision=SDXL_BASE.revision,
         torch_dtype=torch.float16,
         use_safetensors=True,
     )
-    pipe.load_lora_weights(LCM_LORA_SOURCE, adapter_name="lcm")
+    pipe.load_lora_weights(LCM_LORA_SOURCE, adapter_name="lcm", revision=LCM_LORA.revision)
     pipe.load_lora_weights(CHAR_LORA_SOURCE, adapter_name="pixel_art")
     pipe.set_adapters(["lcm", "pixel_art"], adapter_weights=[1.0, lora_scale])
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)

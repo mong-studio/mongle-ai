@@ -23,12 +23,13 @@ from pathlib import Path
 
 from pipelines.shared.background import remove_solid_background
 from pipelines.shared.character_profile import from_text_appearance
+from model_refs import LCM_LORA, QWEN2_VL, SDXL_BASE
 
 CHAR_LORA_HF = "Hadimeeee/mongle-character-lora"
-LCM_LORA_HF  = "latent-consistency/lcm-lora-sdxl"
+LCM_LORA_HF  = LCM_LORA.repo_id
 # 서브프로세스 워커를 `-m pipelines.text_character...` 로 띄울 때의 작업 디렉터리.
 APP_ROOT = Path(__file__).resolve().parents[2]  # runpod_workers/image_gen
-QWEN2VL_ID   = "Qwen/Qwen2-VL-7B-Instruct"
+QWEN2VL_ID   = QWEN2_VL.repo_id
 
 STYLE_SUFFIX = (
     "monglestyle, 32-bit pixel art sprite, "
@@ -93,10 +94,16 @@ def load_qwen(allow_cpu_offload: bool = False):
         print("  Qwen2-VL 로드 중 (8bit)...")
         bnb = BitsAndBytesConfig(load_in_8bit=True)
     model = Qwen2VLForConditionalGeneration.from_pretrained(
-        QWEN2VL_ID, quantization_config=bnb, device_map="auto"
+        QWEN2VL_ID,
+        revision=QWEN2_VL.revision,
+        quantization_config=bnb,
+        device_map="auto",
     ).eval()
     proc  = AutoProcessor.from_pretrained(
-        QWEN2VL_ID, min_pixels=256 * 28 * 28, max_pixels=512 * 28 * 28
+        QWEN2VL_ID,
+        revision=QWEN2_VL.revision,
+        min_pixels=256 * 28 * 28,
+        max_pixels=512 * 28 * 28,
     )
     print("  Qwen2-VL 로드 완료")
     return model, proc
@@ -166,7 +173,7 @@ def translate_persona(persona_ko: str, model, proc) -> str:
 def extract_appearance(image, model, proc) -> dict:
     """생성된 픽셀아트 이미지 → 외형 JSON"""
     import torch
-    from qwen_vl_utils import process_vision_info
+    from qwen_vl_utils import process_vision_info  # type: ignore[import-not-found]
     messages = [{"role": "user", "content": [
         {"type": "image", "image": image},
         {"type": "text",  "text": VLM_APPEARANCE_PROMPT},
@@ -240,14 +247,15 @@ def load_sdxl_pipeline(lora_scale: float = 0.9, lcm: bool = True):
     from diffusers import StableDiffusionXLPipeline
     print("  SDXL 로드 중...")
     pipe = StableDiffusionXLPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0",
+        SDXL_BASE.repo_id,
+        revision=SDXL_BASE.revision,
         torch_dtype=torch.float16,
         use_safetensors=True,
     )
     if lcm:
         from diffusers import LCMScheduler
         print("  LCM-LoRA + 픽셀아트 LoRA 로드 중...")
-        pipe.load_lora_weights(LCM_LORA_HF,  adapter_name="lcm")
+        pipe.load_lora_weights(LCM_LORA_HF,  adapter_name="lcm", revision=LCM_LORA.revision)
         pipe.load_lora_weights(CHAR_LORA_HF, adapter_name="pixel_art")
         pipe.set_adapters(["lcm", "pixel_art"], adapter_weights=[1.0, lora_scale])
         pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
@@ -304,7 +312,7 @@ def run_pipeline(
     lora_scale: float = 0.9,
     steps: int = 8,
     seed: int = 42,
-    out_dir: str = None,
+    out_dir: str | None = None,
 ) -> dict:
     """
     한글 캐릭터 설명 → 픽셀아트 캐릭터 스프라이트 생성

@@ -30,7 +30,7 @@ dependencies = [
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-extraPaths = ["."]
+extraPaths = [".", "runpod_workers/image_gen"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

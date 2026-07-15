@@ -18,6 +18,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from model_refs import CONTROLNET_CANNY, SDXL_BASE
+
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # 마스코트 LoRA 가중치 파일은 복제하지 않고 mascot_pixel_deploy/models를 그대로 가리킴
@@ -27,8 +29,8 @@ MASCOT_LORA = os.environ.get(
     os.path.join(REPO_ROOT, "models", "mascot_lora"),
 )
 
-BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
-CONTROLNET_MODEL_ID = "diffusers/controlnet-canny-sdxl-1.0"
+BASE_MODEL = SDXL_BASE.repo_id
+CONTROLNET_MODEL_ID = CONTROLNET_CANNY.repo_id
 MASCOT_CONTROLNET_SCALE = 0.7
 MASCOT_DENOISE_STRENGTH = 0.4
 MASCOT_LORA_SCALE = 1.0
@@ -97,10 +99,15 @@ def load_mascot_pipeline(lora_scale: float = MASCOT_LORA_SCALE):
     dtype = torch.float16 if device == "cuda" else torch.float32
 
     print(f"  ControlNet 로드 중... ({CONTROLNET_MODEL_ID})")
-    controlnet = ControlNetModel.from_pretrained(CONTROLNET_MODEL_ID, torch_dtype=dtype)
+    controlnet = ControlNetModel.from_pretrained(
+        CONTROLNET_MODEL_ID,
+        revision=CONTROLNET_CANNY.revision,
+        torch_dtype=dtype,
+    )
     print(f"  SDXL + ControlNet + mascot LoRA 로드 중... ({MASCOT_LORA})")
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
         BASE_MODEL,
+        revision=SDXL_BASE.revision,
         controlnet=controlnet,
         torch_dtype=dtype,
         use_safetensors=True,

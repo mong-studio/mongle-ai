@@ -6,6 +6,7 @@ import gc
 import os
 
 from pipelines.shared.character_profile import normalize_profile
+from model_refs import SDXL_BASE
 
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -53,7 +54,8 @@ def load_pipeline():
     from diffusers import DPMSolverMultistepScheduler, StableDiffusionXLPipeline
 
     pipe = StableDiffusionXLPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0",
+        SDXL_BASE.repo_id,
+        revision=SDXL_BASE.revision,
         torch_dtype=torch.float16,
         use_safetensors=True,
     ).to("cuda")
