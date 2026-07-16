@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import date, timedelta
@@ -198,6 +199,29 @@ async def _generate_plan_with_base_fallback(
         return summary, plan, True
 
 
+def _coerce_activity(value: object) -> str:
+    """activity 를 정상 스칼라(≤20자)로 정제한다.
+
+    모델이 revision 등에서 activity 를 리스트나 '["a","b"]' stringified-list 로 오염시켜
+    title 이 무너지는 것을 코드가 방어한다(첫 항목만 취함). 리스트가 아니면 그대로.
+    """
+    if isinstance(value, list):
+        items = [str(v).strip() for v in value if str(v).strip()]
+        return items[0][:20] if items else ""
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                parsed = json.loads(text)
+            except (json.JSONDecodeError, ValueError):
+                parsed = None
+            if isinstance(parsed, list):
+                items = [str(v).strip() for v in parsed if str(v).strip()]
+                return items[0][:20] if items else ""
+        return text[:20]
+    return ""
+
+
 def _routine_plan(parsed_goal: ParsedGoal, *, today: date) -> dict[str, Any]:
     """routine plan_kind 을 코드로 전개한다 — cadence 를 horizon 내 날짜로 펼침.
 
@@ -205,7 +229,9 @@ def _routine_plan(parsed_goal: ParsedGoal, *, today: date) -> dict[str, Any]:
     goal_tag 로 일괄 태깅하고, 마감일 이후는 expand_routine 이 clamp 한다.
     """
     slots = parsed_goal.get("slots") or {}
-    activity = str(slots.get("activity") or parsed_goal.get("goal_text") or "루틴")
+    activity = _coerce_activity(slots.get("activity")) or str(
+        parsed_goal.get("goal_text") or "루틴"
+    )
     cadence = str(slots.get("cadence") or "")
     raw_routine_items = slots.get("routine_items")
     routine_items = (
