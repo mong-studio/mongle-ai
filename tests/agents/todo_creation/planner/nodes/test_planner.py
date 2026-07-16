@@ -973,3 +973,31 @@ async def test_routine_weekday_cadence_filled_from_text() -> None:
     }
     cmd = await planner_node(state, _config(llm))
     assert cmd.goto == "plan_generator"
+
+
+@pytest.mark.asyncio
+async def test_routine_revision_horizon_and_tag_from_text() -> None:
+    """'두 달짜리로'→horizon 60일, '태그를 운동으로'→goal_tag='운동' 을 코드가 반영."""
+    llm = AsyncMock()
+    llm.judge_sufficiency = AsyncMock(
+        return_value=(
+            False, [],
+            {
+                "intent": "plan", "plan_kind": "routine",
+                "goal_text": "월수금 헬스", "goal_tag": "월수금헬스",
+                "slots": {"activity": "헬스", "cadence": "월수금"},
+            },
+        )
+    )
+    msg = "이걸 두 달짜리로 늘리고, 태그를 운동으로 바꿔줘"
+    state = {
+        **_state(), "today": date(2026, 7, 15), "message": msg,
+        "history": [
+            {"role": "user", "content": "월수금 헬스 하고싶어"},
+            {"role": "user", "content": msg},
+        ],
+    }
+    cmd = await planner_node(state, _config(llm))
+    pg = cmd.update["parsed_goal"]
+    assert pg["slots"]["horizon"] == 60
+    assert pg["goal_tag"] == "운동"

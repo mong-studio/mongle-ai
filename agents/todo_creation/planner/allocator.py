@@ -100,6 +100,35 @@ def parse_daily_time(text: str) -> str | None:
     return f"하루 {match.group(1)}{match.group(2)}"
 
 
+_HANGUL_MONTHS = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6}
+_HORIZON_RE = re.compile(r"(\d+)\s*(개월|달|주)")
+
+
+def parse_horizon_days(text: str) -> int | None:
+    """'두 달'·'8주'·'3개월' 같은 기간을 일수로 파싱한다(routine horizon). 없으면 None."""
+    if not text:
+        return None
+    for word, months in _HANGUL_MONTHS.items():
+        if f"{word} 달" in text or f"{word}달" in text:
+            return min(months * 30, 366)
+    match = _HORIZON_RE.search(text)
+    if not match:
+        return None
+    days = int(match.group(1)) * (7 if match.group(2) == "주" else 30)
+    return min(max(1, days), 366)
+
+
+_TAG_RE = re.compile(r"태그[를은는]?\s*['\"]?([가-힣A-Za-z0-9]{1,12}?)['\"]?\s*으?로")
+
+
+def parse_tag_override(text: str) -> str | None:
+    """'태그를 운동으로' 같은 태그 변경 요청에서 태그값을 파싱한다. 없으면 None."""
+    if not text:
+        return None
+    match = _TAG_RE.search(text)
+    return match.group(1) if match else None
+
+
 def cadence_is_specific(cadence: str) -> bool:
     """cadence 에 빈도(주 N회)·명시 요일·'매일' 이 있으면 구체적이다.
 
