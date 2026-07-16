@@ -106,3 +106,23 @@ async def test_routine_uses_structured_items_without_domain_specific_code() -> N
         "롱런",
         "이지런",
     ]
+
+
+async def test_routine_activity_corrupted_stringified_list_is_coerced() -> None:
+    """모델이 activity 를 '["a","a"]' stringified-list 로 오염시켜도 title 이 깨지지 않는다.
+
+    (revision 턴에서 관측된 회귀: title 이 리스트 repr 로 박혀 일정이 무너짐)
+    """
+    goal: ParsedGoal = {
+        "plan_kind": "routine",
+        "goal_text": "월수금 헬스 진행하기",
+        "goal_tag": "헬스루틴",
+        "slots": {"activity": '["월수금 헬스", "월수금 헬스"]', "cadence": "월수금"},
+    }
+    result = await plan_generator_node(_state(goal), _config())
+    events = (result["calendar_events"] or []) + (result["todos"] or [])
+    titles = [e.title for e in events]
+    assert titles, "일정이 있어야 함"
+    assert all(not t.startswith("[") for t in titles), f"오염된 title: {titles}"
+    # 정제되어 첫 항목만 남는다
+    assert all(t == "월수금 헬스" for t in titles), titles

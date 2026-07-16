@@ -111,3 +111,21 @@ def test_blank_activity_falls_back_to_default_title() -> None:
     out = expand_routine("   ", "주1", today=date(2026, 6, 1), horizon_days=7)
     assert out
     assert all(c.title == "루틴" for c in out)
+
+
+def test_parse_horizon_days():
+    from agents.todo_creation.planner.allocator import parse_horizon_days
+    assert parse_horizon_days("이걸 두 달짜리로 늘려줘") == 60
+    assert parse_horizon_days("8주간 진행") == 56
+    assert parse_horizon_days("한 달 동안") == 30
+    assert parse_horizon_days("3개월 계획") == 90
+    assert parse_horizon_days("그냥 헬스하고싶어") is None
+    assert parse_horizon_days("") is None
+
+
+def test_parse_tag_override():
+    from agents.todo_creation.planner.allocator import parse_tag_override
+    assert parse_tag_override("태그를 운동으로 바꿔줘") == "운동"
+    assert parse_tag_override("태그 공부로 변경해줘") == "공부"
+    assert parse_tag_override("월수금 헬스 하고싶어") is None
+    assert parse_tag_override("") is None

@@ -20,6 +20,8 @@ from agents.todo_creation.config_utils import get_ports
 from agents.todo_creation.planner.allocator import (
     cadence_is_specific,
     parse_daily_time,
+    parse_horizon_days,
+    parse_tag_override,
     recover_cadence,
 )
 from agents.todo_creation.planner.date_parser import parse_explicit_deadline
@@ -63,11 +65,17 @@ def _fill_deterministic_slots(
     if freq and freq_key:
         slots[freq_key] = freq
 
-    today = state.get("today")
-    if today is not None:
-        deadline = parse_explicit_deadline(text, today=today)
-        if deadline is not None:
-            slots["horizon"] = deadline.isoformat()
+    # horizon: routine 은 일수(int, expand_routine 용), 그 외는 마감 날짜(ISO)
+    if plan_kind == "routine":
+        days = parse_horizon_days(text)
+        if days:
+            slots["horizon"] = days
+    else:
+        today = state.get("today")
+        if today is not None:
+            deadline = parse_explicit_deadline(text, today=today)
+            if deadline is not None:
+                slots["horizon"] = deadline.isoformat()
 
     if plan_kind == "project":
         daily = parse_daily_time(text)
@@ -75,6 +83,11 @@ def _fill_deterministic_slots(
             slots["available_time"] = daily
 
     resolved_goal["slots"] = slots
+
+    # 태그 변경 요청("태그를 운동으로")은 모델이 놓쳐도 코드가 goal_tag 로 반영
+    tag = parse_tag_override(text)
+    if tag:
+        resolved_goal["goal_tag"] = tag
 
 
 async def planner_node(
